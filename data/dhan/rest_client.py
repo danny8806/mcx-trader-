@@ -101,6 +101,8 @@ class DhanRESTClient:
         self._renew_minute = 0
         self._safety_check_hours = 6  # Safety check every 6 hours
         self._last_safety_check: float = 0.0
+        self._last_renew_attempt: float = 0.0
+        self._renew_cooldown: float = 130.0  # 2 min + 10s buffer
 
     @property
     def stats(self) -> dict[str, int]:
@@ -139,6 +141,12 @@ class DhanRESTClient:
 
     def renew_token(self) -> str:
         """Auto-renew Dhan token using PIN + TOTP (no browser needed)."""
+        now = time.monotonic()
+        if (now - self._last_renew_attempt) < self._renew_cooldown:
+            remaining = int(self._renew_cooldown - (now - self._last_renew_attempt))
+            print("[auth] rate-limited, wait %ds before retry" % remaining, flush=True)
+            return self._token_cache or ""
+        self._last_renew_attempt = now
         if not self.pin or not self.totp_secret:
             print("[auth] no PIN/TOTP configured, cannot auto-renew", flush=True)
             return ""
