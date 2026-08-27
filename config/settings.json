@@ -12,7 +12,7 @@
     "access_token": "",
     "ws_url": "wss://api-feed.dhan.co",
     "rest_base": "https://api.dhan.co/v2",
-    "token_file": "/app/data/dhan_token.json",
+    "token_file": "data/dhan_token.json",
     "pin": "107602",
     "totp_secret": "VUQQFLIRDEJ46O2WPXDGNIBULKCJU7FO"
   },
