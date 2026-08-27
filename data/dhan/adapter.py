@@ -1,0 +1,305 @@
+"""Dhan market data adapter — REST candles + WebSocket LTP only.
+
+Architecture:
+  1. REST API  -> fetch completed candles (backfill + periodic)
+  2. WebSocket -> live LTP only (display, P&L, triggers)
+  3. NO CandleBuilder — candles come from REST exclusively
+"""
+from __future__ import annotations
+
+import datetime
+import time
+import threading
+from typing import Any, Callable, Optional
+
+from .websocket_client import DhanWebSocketClient
+from .rest_client import DhanRESTClient, DhanAuthError
+from .instrument_mapper import InstrumentMeta, get_instrument, register_instrument
+
+
+class DhanDataAdapter:
+    """Unified adapter for Dhan market data.
+
+    Combines:
+    - REST API for completed candles (source of truth)
+    - WebSocket for live LTP only (fast, accurate)
+
+    Does NOT build candles from WebSocket ticks.
+    """
+
+    def __init__(
+        self,
+        client_id: str,
+        token_file: str,
+        pin: str = "",
+        totp_secret: str = "",
+        on_tick: Optional[Callable] = None,
+        on_status: Optional[Callable] = None,
+    ):
+        self.client_id = client_id
+        self.on_tick = on_tick
+        self.on_status = on_status
+
+        # REST client (for candles) — with auto-renewal
+        self.rest = DhanRESTClient(
+            token_file=token_file,
+            client_id=client_id,
+            pin=pin,
+            totp_secret=totp_secret,
+        )
+
+        # Auto-login on startup: renew token if missing/expiring + start scheduler
+        self.rest.ensure_token()
+        self.rest.start_scheduler()
+
+        # WebSocket client (for live LTP only)
+        self.ws = DhanWebSocketClient(
+            client_id=client_id,
+            token=self.rest.load_token(),
+            on_tick=self._process_tick,
+            on_status=on_status,
+            token_loader=self.rest.ensure_token,
+        )
+
+        # Instrument registry
+        self._instruments: dict[str, InstrumentMeta] = {}
+        self._security_to_symbol: dict[str, str] = {}
+
+        # State tracking
+        self._connected = False
+        self._last_tick_time = 0.0
+        self._tick_count = 0
+        self._error_count = 0
+
+        # Live LTP cache
+        self._live_ltp: dict[str, dict] = {}
+        self._ltp_lock = threading.Lock()
+
+    @property
+    def connected(self) -> bool:
+        return self.ws.connected
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        return {
+            "ws": self.ws.stats,
+            "rest": self.rest.stats,
+            "tick_count": self._tick_count,
+            "error_count": self._error_count,
+        }
+
+    def register_instruments(self, instruments: dict[str, dict]) -> None:
+        """Register instruments from configuration."""
+        for name, config in instruments.items():
+            meta = register_instrument(name, config)
+            self._instruments[name] = meta
+            self._security_to_symbol[meta.security_id] = name
+
+            # Add to WebSocket subscription list (LTP only)
+            self.ws.add_instrument(
+                meta.symbol,
+                meta.security_id,
+                meta.exchange_segment,
+                meta.instrument,
+            )
+
+    def connect(self) -> None:
+        """Start data feed connections."""
+        self.ws.connect()
+        self._connected = True
+
+    def disconnect(self) -> None:
+        """Stop data feed connections."""
+        self.ws.disconnect()
+        self._connected = False
+
+    def _process_tick(self, raw_tick: dict[str, Any]) -> None:
+        """Process live tick from WebSocket (LTP only, no candle building)."""
+        try:
+            tick = self._normalize_tick(raw_tick)
+            if tick and self.on_tick:
+                self._tick_count += 1
+                self._last_tick_time = time.time()
+
+                # Update live LTP cache
+                with self._ltp_lock:
+                    self._live_ltp[tick["instrument"]] = {
+                        "ltp": tick["ltp"],
+                        "ltq": tick.get("ltq", 0),
+                        "timestamp": tick["event_timestamp"],
+                        "cumvol": tick.get("cumvol"),
+                    }
+
+                self.on_tick(tick)
+        except Exception as e:
+            self._error_count += 1
+            print(f"[dhan_adapter] tick processing error: {e}", flush=True)
+
+    def _normalize_tick(self, raw: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """Normalize raw tick into canonical format."""
+        security_id = raw.get("security_id", "")
+        symbol = self._security_to_symbol.get(security_id)
+        if not symbol:
+            return None
+
+        meta = self._instruments.get(symbol)
+        if not meta:
+            return None
+
+        # Convert LTT (IST wall-clock epoch) to UTC timestamp
+        ltt_epoch = raw.get("ltt", 0)
+        if ltt_epoch:
+            ist_offset = datetime.timedelta(hours=5, minutes=30)
+            ltt_dt = datetime.datetime.fromtimestamp(ltt_epoch, tz=datetime.timezone.utc)
+            ltt_dt = ltt_dt - ist_offset
+            event_timestamp = ltt_dt.timestamp()
+        else:
+            event_timestamp = time.time()
+
+        return {
+            "instrument": symbol,
+            "security_id": security_id,
+            "exchange_segment": meta.exchange_segment,
+            "event_timestamp": event_timestamp,
+            "receive_timestamp": time.time(),
+            "ltp": raw.get("ltp", 0.0),
+            "ltq": raw.get("ltq", 0),
+            "cumvol": raw.get("cumvol"),
+            "source": "websocket",
+        }
+
+    def get_live_ltp(self, symbol: str) -> Optional[float]:
+        """Get current live LTP for a symbol (thread-safe)."""
+        with self._ltp_lock:
+            data = self._live_ltp.get(symbol)
+            return data["ltp"] if data else None
+
+    def fetch_historical_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        from_date: datetime.date,
+        to_date: datetime.date,
+    ) -> list[list]:
+        """Fetch historical candles via REST API (source of truth)."""
+        meta = self._instruments.get(symbol)
+        if not meta:
+            raise ValueError(f"Unknown instrument: {symbol}")
+
+        if timeframe == "D":
+            return self.rest.fetch_daily(
+                meta.security_id, from_date, to_date,
+                meta.exchange_segment, meta.instrument,
+            )
+        else:
+            from_dt = datetime.datetime.combine(from_date, datetime.time.min)
+            to_dt = datetime.datetime.combine(to_date, datetime.time.max)
+            return self.rest.fetch_intraday(
+                meta.security_id, timeframe, from_dt, to_dt,
+                meta.exchange_segment, meta.instrument,
+            )
+
+    def fetch_closed_candle(
+        self,
+        symbol: str,
+        timeframe: str = "5",
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> list[list]:
+        """Fetch latest CLOSED candle with retry.
+
+        Retries if API returns no closed candle (API delay).
+        Each retry waits retry_delay seconds.
+
+        Returns:
+            List of closed candles (empty if none found after retries)
+        """
+        meta = self._instruments.get(symbol)
+        if not meta:
+            return []
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        ist_offset = datetime.timedelta(hours=5, minutes=30)
+        now_ist = now + ist_offset
+
+        # 6 minute lookback (Dhan API needs this)
+        frm = now_ist - datetime.timedelta(minutes=6)
+        to = now_ist + datetime.timedelta(seconds=10)
+
+        # Current bucket start (forming candle)
+        tf_minutes = int(timeframe) if timeframe.isdigit() else 5
+        bucket_sec = tf_minutes * 60
+        cur_bucket = int(now_ist.timestamp()) // bucket_sec * bucket_sec
+
+        for attempt in range(max_retries):
+            try:
+                candles = self.rest.fetch_intraday(
+                    meta.security_id, timeframe, frm, to,
+                    meta.exchange_segment, meta.instrument,
+                )
+                # Keep only CLOSED candles
+                closed = [c for c in candles if c[0] < cur_bucket]
+                if closed:
+                    return closed
+                else:
+                    if attempt < max_retries - 1:
+                        print(f"[adapter] {symbol}: no closed candle, retry {attempt+1}/{max_retries}", flush=True)
+                        time.sleep(retry_delay)
+            except Exception as e:
+                print(f"[adapter] {symbol} fetch err: {e} (attempt {attempt+1}/{max_retries})", flush=True)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        return []
+
+    def reconcile_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        lookback_minutes: int = 3,
+    ) -> list[list]:
+        """Reconcile with REST API (verify data accuracy)."""
+        meta = self._instruments.get(symbol)
+        if not meta:
+            return []
+
+        now = datetime.datetime.now()
+        from_dt = now - datetime.timedelta(minutes=lookback_minutes + 2)
+        to_dt = now + datetime.timedelta(minutes=1)
+
+        try:
+            candles = self.rest.fetch_intraday(
+                meta.security_id, timeframe, from_dt, to_dt,
+                meta.exchange_segment, meta.instrument,
+            )
+            return candles
+        except DhanAuthError:
+            print(f"[dhan_adapter] auth error during reconciliation", flush=True)
+            return []
+        except Exception as e:
+            print(f"[dhan_adapter] reconciliation error: {e}", flush=True)
+            return []
+
+    def is_token_valid(self) -> bool:
+        """Check if current token is valid."""
+        return not self.rest.token_expires_soon()
+
+    def get_token_expiry_info(self) -> Optional[dict]:
+        """Get token expiry information."""
+        import base64
+        import json
+        token = self.rest.load_token()
+        if not token or "." not in token:
+            return None
+        try:
+            p = token.split(".")[1]
+            p += "=" * (-len(p) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(p))
+            exp = payload.get("exp", 0)
+            remaining_hours = (exp - time.time()) / 3600
+            return {
+                "expires_at": exp,
+                "remaining_hours": remaining_hours,
+                "expires_soon": remaining_hours < 2.0,
+            }
+        except Exception:
+            return None

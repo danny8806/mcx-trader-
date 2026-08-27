@@ -1,0 +1,143 @@
+{
+  "system": {
+    "name": "GoldSilverLiveTrader",
+    "version": "1.0.0",
+    "environment": "paper",
+    "log_level": "INFO",
+    "db_path": "trading.db",
+    "state_path": "system_state.json"
+  },
+  "dhan": {
+    "client_id": "1102461741",
+    "access_token": "",
+    "ws_url": "wss://api-feed.dhan.co",
+    "rest_base": "https://api.dhan.co/v2",
+    "token_file": "C:/Users/pc/Desktop/FYERS APIS/dhan_token.json",
+    "pin": "107602",
+    "totp_secret": "VUQQFLIRDEJ46O2WPXDGNIBULKCJU7FO"
+  },
+  "instruments": {
+    "GOLDM": {
+      "symbol": "MCX:GOLDM202609",
+      "security_id": "563946",
+      "exchange_segment": "MCX_COMM",
+      "instrument": "FUTCOM",
+      "multiplier": 10.0,
+      "tick_size": 1.0,
+      "lot_size": 1,
+      "session_open": "09:00",
+      "session_close": "23:30",
+      "session_minutes": 870,
+      "margin_model": {
+        "slope": 0.125,
+        "intercept": 126930.0,
+        "source": "Dhan API /margincalculator (Apr 2026)"
+      }
+    },
+    "SILVERM": {
+      "symbol": "MCX:SILVERM202611",
+      "security_id": "483080",
+      "exchange_segment": "MCX_COMM",
+      "instrument": "FUTCOM",
+      "multiplier": 5.0,
+      "tick_size": 1.0,
+      "lot_size": 1,
+      "session_open": "09:00",
+      "session_close": "23:30",
+      "session_minutes": 870,
+      "margin_model": {
+        "slope": 1.7295,
+        "intercept": 138155.0,
+        "source": "Dhan API /margincalculator (Apr 2026)"
+      }
+    }
+  },
+  "indicators": {
+    "dema_period": 3,
+    "atr_period": 6,
+    "atr_factor": 1.0
+  },
+  "strategies": {
+    "gold_01": {
+      "instrument": "GOLDM",
+      "fast_timeframe": "5m",
+      "mid_timeframe": "15m",
+      "htf_timeframe": "1h",
+      "quantity": 1,
+      "capital": 300000,
+      "enabled": true
+    },
+    "gold_02": {
+      "instrument": "GOLDM",
+      "fast_timeframe": "15m",
+      "mid_timeframe": "15m",
+      "htf_timeframe": "1h",
+      "quantity": 1,
+      "capital": 300000,
+      "enabled": true
+    },
+    "silver_01": {
+      "instrument": "SILVERM",
+      "fast_timeframe": "15m",
+      "mid_timeframe": "15m",
+      "htf_timeframe": "1h",
+      "quantity": 1,
+      "capital": 300000,
+      "enabled": true
+    },
+    "silver_02": {
+      "instrument": "SILVERM",
+      "fast_timeframe": "5m",
+      "mid_timeframe": "15m",
+      "htf_timeframe": "1h",
+      "quantity": 1,
+      "capital": 300000,
+      "enabled": true
+    }
+  },
+  "paper_execution": {
+    "slippage_ticks": 1,
+    "latency_ms": 100,
+    "partial_fill_probability": 0.1,
+    "fill_on_trigger": true
+  },
+  "charges": {
+    "GOLDM": {
+      "brokerage_per_side": 20.0,
+      "stt_sell_pct": 0.01,
+      "exchange_pct": 0.0026,
+      "sebi_pct": 0.0001,
+      "gst_pct": 18.0,
+      "stamp_duty_pct": 0.0
+    },
+    "SILVERM": {
+      "brokerage_per_side": 20.0,
+      "stt_sell_pct": 0.01,
+      "exchange_pct": 0.0026,
+      "sebi_pct": 0.0001,
+      "gst_pct": 18.0,
+      "stamp_duty_pct": 0.0
+    }
+  },
+  "risk": {
+    "max_open_positions_per_strategy": 1,
+    "max_open_positions_total": 8,
+    "max_daily_loss": 999999999.0,
+    "max_drawdown_pct": 100.0,
+    "margin_per_trade_pct": 6.5,
+    "kill_switch_enabled": false
+  },
+  "account": {
+    "starting_capital": 1200000.0,
+    "starting_capital_per_strategy": 300000.0,
+    "currency": "INR"
+  },
+  "telegram": {
+    "bot_token": "8985546227:AAHzsPZ8kJ-kAqk2rncpw8KGmJAz5DreeTQ",
+    "chat_id": "2015223705,1228310685",
+    "enabled": true
+  },
+  "dashboard": {
+    "api_key": null
+  }
+}

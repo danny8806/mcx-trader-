@@ -1,0 +1,120 @@
+import { useEffect, useState } from "react";
+import { useData } from "../../store/DataProvider";
+
+function isMarketOpen(now: Date): boolean {
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const day = ist.getDay();
+  if (day === 0 || day === 6) return false;
+  const t = ist.getHours() * 60 + ist.getMinutes();
+  return t >= 540 && t <= 1350;
+}
+
+function StatusPill({ label, status, color }: { label: string; status: string; color: "green" | "red" | "amber" }) {
+  const colors = {
+    green: { bg: "var(--green-muted)", text: "var(--green)", dot: "var(--green)" },
+    red: { bg: "var(--red-muted)", text: "var(--red)", dot: "var(--red)" },
+    amber: { bg: "var(--amber-muted)", text: "var(--amber)", dot: "var(--amber)" },
+  };
+  const c = colors[color];
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: "6px",
+      padding: "3px 8px", borderRadius: "4px",
+      background: c.bg, fontSize: "10px", fontWeight: 500,
+    }}>
+      <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: c.dot }} />
+      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{label}</span>
+      <span style={{ color: c.text }}>{status}</span>
+    </div>
+  );
+}
+
+export default function TopBar() {
+  const { connected, goldOverview, silverOverview, overallHealth } = useData();
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const ist = time.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+  const marketOpen = isMarketOpen(time);
+
+  const goldLtp = goldOverview?.ltp ?? 0;
+  const silverLtp = silverOverview?.ltp ?? 0;
+
+  const headerStyle: React.CSSProperties = {
+    height: "var(--topbar-height)",
+    background: "var(--bg-topbar)",
+    borderBottom: "1px solid var(--border)",
+    display: "flex",
+    alignItems: "center",
+    padding: "0 16px",
+    gap: "8px",
+    fontSize: "11px",
+    flexShrink: 0,
+  };
+
+  const divider = <div style={{ width: "1px", height: "20px", background: "var(--border-subtle)" }} />;
+
+  return (
+    <header style={headerStyle}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "4px" }}>
+        <div style={{
+          width: "22px", height: "22px", borderRadius: "4px",
+          background: "rgba(242,184,75,0.12)", display: "flex",
+          alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{ color: "var(--amber)", fontWeight: 700, fontSize: "10px" }}>M</span>
+        </div>
+        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "11px", letterSpacing: "0.3px" }}>
+          MCX TRADER
+        </span>
+      </div>
+
+      {divider}
+
+      <StatusPill label="MARKET" status={marketOpen ? "OPEN" : "CLOSED"} color={marketOpen ? "green" : "amber"} />
+      <StatusPill label="WS" status={connected ? "LIVE" : "DOWN"} color={connected ? "green" : "red"} />
+      <StatusPill label="ENGINE" status={overallHealth === "healthy" ? "RUNNING" : overallHealth.toUpperCase()} color={overallHealth === "healthy" ? "green" : "amber"} />
+
+      <div style={{
+        display: "flex", alignItems: "center", gap: "4px",
+        padding: "3px 8px", borderRadius: "4px",
+        background: "var(--blue-muted)", fontSize: "10px", fontWeight: 600,
+      }}>
+        <span style={{ color: "var(--amber)" }}>⚠</span>
+        <span style={{ color: "var(--blue)" }}>PAPER</span>
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {goldLtp > 0 && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>GOLD</span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>
+            ₹{goldLtp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
+
+      {goldLtp > 0 && silverLtp > 0 && <div style={{ width: "1px", height: "14px", background: "var(--border)" }} />}
+
+      {silverLtp > 0 && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>SILVERM</span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>
+            ₹{silverLtp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
+
+      {divider}
+
+      <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums", fontWeight: 500, fontSize: "11px" }}>
+        {ist}
+      </span>
+    </header>
+  );
+}

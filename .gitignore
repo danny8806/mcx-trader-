@@ -1,0 +1,36 @@
+# Runtime files
+*.db
+*.db-shm
+*.db-wal
+system_state.json
+dhan_token.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Pytest cache
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Logs
+*.log
+
+# Temp
+*.tmp
+*.bak

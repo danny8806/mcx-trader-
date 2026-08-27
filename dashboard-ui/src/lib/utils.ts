@@ -1,0 +1,61 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function formatINR(val: number, showSign = true): string {
+  const sign = val > 0 ? "+" : val < 0 ? "-" : "";
+  const abs = Math.abs(val);
+  return `${showSign ? sign : ""}₹${abs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatINRShort(val: number): string {
+  const sign = val >= 0 ? "+" : "";
+  return `${sign}₹${Math.abs(val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatPct(val: number): string {
+  return `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
+}
+
+export function formatTimestamp(ts: number): string {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleTimeString("en-IN", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+  });
+}
+
+export function timeAgo(ts: number): string {
+  if (!ts) return "—";
+  const diff = (Date.now() / 1000) - ts;
+  if (diff < 1) return "now";
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
+
+export function pnlColor(val: number): string {
+  if (val > 0) return "var(--green)";
+  if (val < 0) return "var(--red)";
+  return "var(--text-muted)";
+}
+
+export function statusDot(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "running" || s === "healthy" || s === "connected" || s === "live") return "var(--green)";
+  if (s === "flat" || s === "idle") return "var(--text-muted)";
+  if (s === "paused" || s === "warning" || s === "degraded") return "var(--amber)";
+  if (s === "error" || s === "offline" || s === "disconnected") return "var(--red)";
+  return "var(--text-muted)";
+}
+
+export function statusLabel(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "running" || s === "healthy" || s === "connected" || s === "live") return "LIVE";
+  if (s === "flat" || s === "idle") return "FLAT";
+  if (s === "paused" || s === "warning" || s === "degraded") return "WARN";
+  if (s === "error" || s === "offline" || s === "disconnected") return "DOWN";
+  return status.toUpperCase();
+}
