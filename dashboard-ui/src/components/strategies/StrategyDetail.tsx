@@ -216,18 +216,24 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
 
   const fetchData = useCallback(async () => {
     try {
-      const j = async (url: string) => {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+      const safeFetch = async (url: string) => {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) return null;
+          const data = await r.json();
+          if (data?.error) return null;
+          return data;
+        } catch {
+          return null;
+        }
       };
       const [d, a, t, eq, dd, ev] = await Promise.all([
         api.strategy(strategyId),
-        j(`/api/analytics/strategies/${strategyId}`),
-        j(`/api/analytics/strategies/${strategyId}/trades?limit=5`),
-        j(`/api/analytics/strategies/${strategyId}/equity`),
-        j(`/api/analytics/strategies/${strategyId}/drawdown`),
-        j(`/api/analytics/events?strategy_id=${strategyId}&limit=20`),
+        safeFetch(`/api/analytics/strategies/${strategyId}`),
+        safeFetch(`/api/analytics/strategies/${strategyId}/trades?limit=5`),
+        safeFetch(`/api/analytics/strategies/${strategyId}/equity`),
+        safeFetch(`/api/analytics/strategies/${strategyId}/drawdown`),
+        safeFetch(`/api/analytics/events?strategy_id=${strategyId}&limit=20`),
       ]);
       setDetail(d);
       setAnalytics(a);
