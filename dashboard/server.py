@@ -37,7 +37,9 @@ try:
     _analytics_db = str(Path(__file__).resolve().parent.parent / "analytics.db")
     init_analytics_db(_analytics_db)
     analytics_routes.init(_analytics_db)
-except Exception:
+    print(f"[Analytics] Initialized with db: {_analytics_db}", file=sys.stderr, flush=True)
+except Exception as e:
+    print(f"[Analytics] Init failed: {e}", file=sys.stderr, flush=True)
     analytics_routes = None
 
 logger = logging.getLogger(__name__)
