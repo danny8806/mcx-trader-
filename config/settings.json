@@ -46,9 +46,9 @@
       "session_close": "23:30",
       "session_minutes": 870,
       "margin_model": {
-        "slope": 1.7295,
-        "intercept": 138155.0,
-        "source": "Dhan API /margincalculator (Apr 2026)"
+        "slope": 0.0625,
+        "intercept": 142900.0,
+        "source": "Dhan API /margincalculator (INTRADAY, qty=1, SLIVERM, retrieved 2026-08-27)"
       }
     }
   },
