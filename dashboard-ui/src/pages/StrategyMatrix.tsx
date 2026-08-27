@@ -7,7 +7,7 @@ import StrategyCompare from "../components/strategies/StrategyCompare";
 type SortKey = "net_pnl" | "win_rate" | "profit_factor" | "max_drawdown" | "trade_count" | null;
 type SortDir = "asc" | "desc";
 type InstrumentFilter = "ALL" | "GOLDM" | "SILVERM";
-type StatusFilter = "ALL" | "RUNNING" | "WAITING" | "STOPPED" | "ERROR";
+type StatusFilter = "ALL" | "FLAT" | "IN_POSITION" | "PENDING" | "EXITING";
 type SignalFilter = "ALL" | "LONG" | "SHORT" | "FLAT";
 type PerfFilter = "ALL" | "PROFITABLE" | "LOSING";
 
@@ -235,9 +235,14 @@ export default function StrategyMatrix() {
       list = list.filter((s: any) => s.instrument === instrumentFilter);
     }
     if (statusFilter !== "ALL") {
-      list = list.filter(
-        (s: any) => (s.state || "flat").toUpperCase() === statusFilter
-      );
+      list = list.filter((s: any) => {
+        const st = (s.state || "flat").toLowerCase();
+        if (statusFilter === "FLAT") return st === "flat";
+        if (statusFilter === "IN_POSITION") return st === "long_position" || st === "short_position";
+        if (statusFilter === "PENDING") return st.startsWith("pending_") || st === "signal_long" || st === "signal_short" || st === "entry_triggered";
+        if (statusFilter === "EXITING") return st === "exit_pending" || st === "exit_order_submitted" || st === "stop_active";
+        return true;
+      });
     }
     if (signalFilter !== "ALL") {
       if (signalFilter === "FLAT") {
@@ -291,8 +296,8 @@ export default function StrategyMatrix() {
       total: strategies.length,
       running: strategies.filter(
         (s: any) =>
-          (s.state || "").toLowerCase() === "running" ||
-          (s.state || "").toLowerCase() === "flat"
+          (s.state || "").toLowerCase() !== "stopped" &&
+          (s.state || "").toLowerCase() !== "error"
       ).length,
       long: strategies.filter((s: any) => s.position_side === "LONG").length,
       short: strategies.filter((s: any) => s.position_side === "SHORT").length,
@@ -432,7 +437,7 @@ export default function StrategyMatrix() {
         />
 
         <div style={{ display: "flex", gap: 3, marginLeft: 4 }}>
-          {(["ALL", "RUNNING", "STOPPED", "ERROR"] as StatusFilter[]).map((f) => (
+          {(["ALL", "FLAT", "IN_POSITION", "PENDING", "EXITING"] as StatusFilter[]).map((f) => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}

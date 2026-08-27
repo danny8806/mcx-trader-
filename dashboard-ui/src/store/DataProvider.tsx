@@ -284,7 +284,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 fast_timeframe: snap.fast_timeframe ?? "",
                 htf_timeframe: snap.htf_timeframe ?? "",
                 quantity: snap.quantity ?? 1,
-                enabled: true,
+                enabled: snap.enabled ?? true,
                 state: snap.state ?? "unknown",
                 position_side: snap.position_side,
                 stop_price: snap.stop_price,
@@ -295,6 +295,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 losses: snap.losses ?? 0,
                 win_rate: snap.win_rate ?? 0,
                 realized_net: snap.realized_net ?? 0,
+                realized_gross: snap.realized_gross ?? 0,
               }));
               safe(setStrategies)(list);
             }

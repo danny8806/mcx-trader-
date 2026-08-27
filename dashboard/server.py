@@ -140,6 +140,7 @@ def _enrich_strategies(snap):
             **strat_snap,
             "enabled": cfg.get("enabled", True),
             "realized_net": pnl_snap.get("realized_net", {}).get("value", 0) if isinstance(pnl_snap.get("realized_net"), dict) else pnl_snap.get("realized_net", 0),
+            "realized_gross": pnl_snap.get("realized_gross", {}).get("value", 0) if isinstance(pnl_snap.get("realized_gross"), dict) else pnl_snap.get("realized_gross", 0),
             "trade_count": pnl_snap.get("trade_count", 0),
             "wins": pnl_snap.get("wins", 0),
             "losses": pnl_snap.get("losses", 0),
