@@ -291,28 +291,11 @@ app.add_middleware(
 )
 
 # Serve frontend static files (Docker build)
-import os
 from starlette.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
 _frontend_dist = Path(__file__).resolve().parent.parent / "dashboard-ui" / "dist"
-if _frontend_dist.exists():
-    # Serve assets (JS, CSS) with cache headers
-    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="static-assets")
-    
-    # Catch-all: serve index.html for SPA routes
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        # If it's an API or WS route, skip
-        if full_path.startswith("api/") or full_path.startswith("ws"):
-            return None
-        # Try to serve the file directly
-        file_path = _frontend_dist / full_path
-        if file_path.is_file():
-            return FileResponse(str(file_path))
-        # Default: serve index.html (SPA routing)
-        return FileResponse(str(_frontend_dist / "index.html"))
-
+_frontend_available = _frontend_dist.exists()
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Middleware to verify API key on all HTTP requests."""
@@ -420,3 +403,16 @@ async def api_health():
         "event_bus": event_bus.get_stats(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+# Frontend catch-all AFTER all API routes
+if _frontend_available:
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path.startswith("ws"):
+            raise HTTPException(status_code=404)
+        file_path = _frontend_dist / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(_frontend_dist / "index.html"))
