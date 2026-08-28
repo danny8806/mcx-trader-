@@ -180,16 +180,16 @@ class BaseDEMAStrategy:
     ) -> bool:
         """Check for short crossover signal.
 
-        Sell = close crosses BELOW 1H line AND 15m line is not strongly below 1H line.
-        Tolerance: 15m can be up to 1.5% below 1H (accounts for DEMA drift between TFs
-        caused by different data ranges in live vs backtest).
+        Sell = close crosses BELOW 1H line AND 15m line is above 1H line.
+        Strict filter: 15m MUST be above 1H for SHORT confirmation.
+        (15m below 1H = bullish trend, contradicting a SHORT signal)
         """
         cross = close < htf_val and prev_close >= prev_htf_val
         if not cross:
             return False
-        # Confirmation: 15m line must not be strongly below 1H line
+        # Confirmation: 15m line must be above 1H line for bearish confirmation
         if mid_val is not None and htf_val is not None:
-            if mid_val < htf_val * 0.985:
+            if mid_val <= htf_val:
                 return False
         return True
 

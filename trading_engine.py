@@ -1121,8 +1121,10 @@ class TradingEngine:
         print("[Engine] Starting backfill from REST API...", flush=True)
 
         now = _dt.datetime.now()
-        # Always fetch at least previous session + today for warmup
-        from_date = (now - _dt.timedelta(days=3)).date()
+        # Fetch 7 days back to match backtest data range.
+        # DEMA-ATR needs 6+ bars to initialize; 3 days was insufficient,
+        # causing live 15m DEMA-ATR to drift above 1H DEMA-ATR and block signals.
+        from_date = (now - _dt.timedelta(days=7)).date()
         to_date = now.date()
 
         instruments = self.config.get("instruments", {})
