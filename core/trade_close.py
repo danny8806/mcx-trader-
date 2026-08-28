@@ -79,6 +79,7 @@ class TradeCloseManager:
                 exit_fill=fill,
                 multiplier=multiplier,
             )
+            pnl_engine.record_trade(gross_pnl, charges, net_pnl)
         else:
             gross_pnl, charges, net_pnl = 0.0, 0.0, 0.0
 

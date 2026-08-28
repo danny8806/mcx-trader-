@@ -72,6 +72,9 @@ class OrderManager:
                             if self.on_fill:
                                 self.on_fill(fill)
                             break
+            elif order.state == OrderState.REJECTED:
+                # Order rejected (e.g., no market data) — signal caller to reset strategy
+                return None
 
             return order
 

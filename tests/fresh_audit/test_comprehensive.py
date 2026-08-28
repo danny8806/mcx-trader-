@@ -1251,7 +1251,8 @@ class TestAdditionalCoverage:
         engine = PNLEngine(fee_model=MCXFeeModel())
         entry = Fill("f1", "o1", "GOLDM", "BUY", 1, 100.0, time.time(), "gold_01", 10.0)
         exit_ = Fill("f2", "o1", "GOLDM", "SELL", 1, 110.0, time.time(), "gold_01", 10.0)
-        engine.calculate_realized_pnl(entry, exit_, multiplier=10.0)
+        gross, charges, net = engine.calculate_realized_pnl(entry, exit_, multiplier=10.0)
+        engine.record_trade(gross, charges, net)
         snap = engine.snapshot()
         assert snap["trade_count"] == 1
         assert snap["wins"] == 1

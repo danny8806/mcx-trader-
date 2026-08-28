@@ -613,10 +613,10 @@ class TradingEngine:
             for pos in open_positions:
                 if pos.is_open:
                     pos.update_mark(ltp)
-            # Update per-strategy accounts
+            # Update per-strategy accounts — sum ALL open positions (not just current instrument)
             for strat_id in self.account_engines:
                 strat_positions = self.position_manager.get_positions_by_strategy(strat_id)
-                strat_unrealized = sum(p.unrealized_pnl for p in strat_positions if p.is_open and p.instrument == instrument)
+                strat_unrealized = sum(p.unrealized_pnl for p in strat_positions if p.is_open)
                 self.account_engines[strat_id].update_unrealized_pnl(strat_unrealized)
             # Update global account
             all_unrealized = sum(p.unrealized_pnl for p in self.position_manager.open_positions)
@@ -953,7 +953,17 @@ class TradingEngine:
                 fill.instrument, fill.price, fill.quantity, side=fill_side,
             )
             if strat_account and strat_account.block_margin(margin):
-                self.account_engine.block_margin(margin)
+                if not self.account_engine.block_margin(margin):
+                    # Global account margin failed — rollback per-strategy
+                    strat_account.release_margin(margin)
+                    print(f"[Fill] GLOBAL MARGIN BLOCKED: {fill.strategy_id} - rolling back", flush=True)
+                    strat = self.strategies.get(fill.strategy_id)
+                    if strat:
+                        strat.state = StrategyState.FLAT
+                        strat.position_side = None
+                        strat.stop_price = None
+                        strat.pending_entry = None
+                    return
                 try:
                     position = self.position_manager.open_position(
                         fill=fill, multiplier=multiplier, margin=margin,
@@ -1089,6 +1099,7 @@ class TradingEngine:
                     gross_pnl, charges, net_pnl = pnl_engine.calculate_realized_pnl(
                         entry_fill=entry_fill, exit_fill=fill, multiplier=multiplier,
                     )
+                    pnl_engine.record_trade(gross_pnl, charges, net_pnl)
                 else:
                     gross_pnl, charges, net_pnl = 0.0, 0.0, 0.0
                 self.position_manager.close_position(

@@ -314,10 +314,12 @@ class TestPnLIndependent:
         eng = self._make_pnl()
         e1 = _make_fill("BUY", 52000.0, qty=1, multiplier=10.0)
         x1 = _make_fill("SELL", 53000.0, qty=1, multiplier=10.0)
-        eng.calculate_realized_pnl(e1, x1, multiplier=10.0)
+        g1, c1, n1 = eng.calculate_realized_pnl(e1, x1, multiplier=10.0)
+        eng.record_trade(g1, c1, n1)
         e2 = _make_fill("BUY", 54000.0, qty=1, multiplier=10.0, fill_id="f3")
         x2 = _make_fill("SELL", 53500.0, qty=1, multiplier=10.0, fill_id="f4")
-        eng.calculate_realized_pnl(e2, x2, multiplier=10.0)
+        g2, c2, n2 = eng.calculate_realized_pnl(e2, x2, multiplier=10.0)
+        eng.record_trade(g2, c2, n2)
         assert eng.trade_count == 2
         assert eng.realized_gross != 0.0
 

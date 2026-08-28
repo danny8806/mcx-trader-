@@ -52,7 +52,7 @@ class PNLEngine:
         exit_fill: Fill,
         multiplier: float = 1.0,
     ) -> tuple[float, float, float]:
-        """Calculate realized P&L for a completed trade.
+        """Calculate realized P&L for a completed trade (PURE — no side effects).
         
         Returns:
             (gross_pnl, charges, net_pnl)
@@ -70,18 +70,18 @@ class PNLEngine:
         )
 
         net = gross - fees.total
+        return gross, fees.total, net
 
-        # Update running totals
+    def record_trade(self, gross: float, charges: float, net: float) -> None:
+        """Record a completed trade in running totals. Call AFTER calculate_realized_pnl."""
         self._realized_gross += gross
-        self._realized_charges += fees.total
+        self._realized_charges += charges
         self._realized_net += net
         self._trade_count += 1
         if net >= 0:
             self._wins += 1
         else:
             self._losses += 1
-
-        return gross, fees.total, net
 
     def calculate_unrealized_pnl(
         self,
