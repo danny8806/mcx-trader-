@@ -185,27 +185,31 @@ class PositionManager:
 
     def get_positions_by_strategy(self, strategy_id: str) -> list[Position]:
         """Get all positions for a strategy."""
-        return [
-            p for p in self._positions.values()
-            if p.strategy_id == strategy_id
-        ]
+        with self._lock:
+            return [
+                p for p in self._positions.values()
+                if p.strategy_id == strategy_id
+            ]
 
     def get_positions_by_instrument(self, instrument: str) -> list[Position]:
         """Get all positions for an instrument."""
-        return [
-            p for p in self._positions.values()
-            if p.instrument == instrument
-        ]
+        with self._lock:
+            return [
+                p for p in self._positions.values()
+                if p.instrument == instrument
+            ]
 
     @property
     def open_positions(self) -> list[Position]:
         """All open positions."""
-        return list(self._positions.values())
+        with self._lock:
+            return list(self._positions.values())
 
     @property
     def closed_positions(self) -> list[Position]:
         """All closed positions."""
-        return list(self._closed_positions)
+        with self._lock:
+            return list(self._closed_positions)
 
     def snapshot(self) -> dict:
         """Get position manager state for persistence."""

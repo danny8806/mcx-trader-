@@ -127,11 +127,12 @@ class RiskEngine:
 
     def snapshot(self) -> dict:
         """Get risk engine state."""
-        return {
-            "kill_switch_active": self._kill_switch_active,
-            "daily_pnl": self._daily_pnl,
-            "peak_equity": self._peak_equity,
-        }
+        with self._lock:
+            return {
+                "kill_switch_active": self._kill_switch_active,
+                "daily_pnl": self._daily_pnl,
+                "peak_equity": self._peak_equity,
+            }
 
     def restore(self, data: dict) -> None:
         """Restore risk engine state."""

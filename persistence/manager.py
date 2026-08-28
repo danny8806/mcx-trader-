@@ -36,8 +36,12 @@ class PersistenceManager:
         self._conn: Optional[sqlite3.Connection] = None
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get or create persistent SQLite connection."""
-        if self._conn is None:
+        """Get or create persistent SQLite connection (thread-safe)."""
+        if self._conn is not None:
+            return self._conn
+        with self._lock:
+            if self._conn is not None:
+                return self._conn
             self._conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
@@ -46,7 +50,7 @@ class PersistenceManager:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.execute("PRAGMA busy_timeout=30000")
-        return self._conn
+            return self._conn
 
     def _init_db(self) -> None:
         """Initialize SQLite database schema."""

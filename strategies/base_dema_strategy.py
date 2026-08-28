@@ -444,9 +444,12 @@ class BaseDEMAStrategy:
             "pending_entry": {
                 "side": self.pending_entry.side,
                 "trigger_price": self.pending_entry.trigger_price,
+                "stop_price": self.pending_entry.signal.stop_price if self.pending_entry.signal else 0,
                 "bars_pending": self.pending_entry.bars_pending,
             } if self.pending_entry else None,
             "prev_fast_close": self._prev_fast_close,
+            "prev_fast_high": self._prev_fast_high,
+            "prev_fast_low": self._prev_fast_low,
             "prev_htf_value": self._prev_htf_value,
             "prev_mid_value": self._prev_mid_value,
         }
@@ -458,6 +461,8 @@ class BaseDEMAStrategy:
         self.stop_price = data.get("stop_price")
         self._bars_processed = data.get("bars_processed", 0)
         self._prev_fast_close = data.get("prev_fast_close")
+        self._prev_fast_high = data.get("prev_fast_high")
+        self._prev_fast_low = data.get("prev_fast_low")
         self._prev_htf_value = data.get("prev_htf_value")
         self._prev_mid_value = data.get("prev_mid_value")
         if data.get("pending_entry"):
@@ -469,7 +474,7 @@ class BaseDEMAStrategy:
                     strategy_id=self.strategy_id,
                     timestamp=0,
                     trigger_price=pe["trigger_price"],
-                    stop_price=0,
+                    stop_price=pe.get("stop_price", 0),
                     quantity=self.quantity,
                 ),
                 trigger_price=pe["trigger_price"],

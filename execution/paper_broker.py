@@ -213,8 +213,12 @@ class PaperExecutionEngine:
                     "order_type": o.order_type,
                     "multiplier": o.multiplier,
                     "state": o.state.value,
+                    "filled_quantity": o.filled_quantity,
+                    "average_fill_price": o.average_fill_price,
+                    "fill_ids": list(o.fill_ids),
                     "created_at": o.created_at,
                     "updated_at": o.updated_at,
+                    "reason": o.reason,
                 }
                 for o in self._orders.values()
             ],
@@ -265,6 +269,10 @@ class PaperExecutionEngine:
                 quantity=o_data["quantity"],
                 order_type=o_data.get("order_type", "MARKET"),
                 multiplier=o_data.get("multiplier", 1),
+                filled_quantity=o_data.get("filled_quantity", 0),
+                average_fill_price=o_data.get("average_fill_price", 0.0),
+                fill_ids=list(o_data.get("fill_ids", [])),
+                reason=o_data.get("reason"),
             )
             order.state = OrderState(o_data["state"])
             order.created_at = o_data.get("created_at", 0)

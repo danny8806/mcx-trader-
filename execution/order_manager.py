@@ -73,7 +73,9 @@ class OrderManager:
                                 self.on_fill(fill)
                             break
             elif order.state == OrderState.REJECTED:
-                # Order rejected (e.g., no market data) — signal caller to reset strategy
+                # Order rejected — clean up memory
+                self._pending_signals.pop(key, None)
+                self._active_orders.pop(order.order_id, None)
                 return None
 
             return order

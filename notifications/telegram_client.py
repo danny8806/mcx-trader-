@@ -63,8 +63,10 @@ class TelegramClient:
         while self._running:
             try:
                 text, parse_mode, silent = self._queue.get(timeout=1.0)
-                self._send_message(text, parse_mode, silent)
-                self._queue.task_done()
+                try:
+                    self._send_message(text, parse_mode, silent)
+                finally:
+                    self._queue.task_done()
             except queue.Empty:
                 continue
             except Exception as e:

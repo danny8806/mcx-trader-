@@ -587,7 +587,7 @@ class TradingEngine:
         )
 
         # Stale connection check
-        if self.data_adapter.ws.is_stale():
+        if self.data_adapter.ws and self.data_adapter.ws.is_stale():
             print("[Engine] WARNING: WebSocket stale - no ticks received recently", flush=True)
             if self.market_status.is_trading_allowed:
                 self.safe_mode.enter_safe_mode("market_data_uncertain", "WebSocket stale during trading hours")
@@ -1145,7 +1145,13 @@ class TradingEngine:
                 entry_price = strat.pending_entry.signal.trigger_price
                 margin = self._calculate_margin(fill.instrument, entry_price, fill.quantity, side=fill_side)
                 if strat_account and strat_account.block_margin(margin):
-                    self.account_engine.block_margin(margin)
+                    if not self.account_engine.block_margin(margin):
+                        strat_account.release_margin(margin)
+                        print(f"[Position] REVERSAL FAILED: global margin blocked for {fill.instrument} (strategy={strategy_id})", flush=True)
+                        strat.pending_entry = None
+                        strat.state = StrategyState.FLAT
+                        strat.position_side = None
+                        return
                     # Create a new entry fill with correct side (not reuse exit fill)
                     entry_fill = Fill(
                         fill_id=str(__import__("uuid").uuid4()),
@@ -1332,32 +1338,33 @@ class TradingEngine:
         Restore order: market status → strategies → positions → accounts → PnL → risk → execution → indicators → HTF
         NOTE: starting_capital is NOT restored from saved state - it always comes from config.
         """
-        self.market_status.restore(state.get("market_status", {}))
-        for name, strat_state in state.get("strategies", {}).items():
-            if name in self.strategies:
-                self.strategies[name].restore(strat_state)
-        self.position_manager.restore(state.get("positions", {}))
-        # Restore global account (P&L, charges, etc.) but NOT starting_capital
-        acct_state = state.get("account", {})
-        self.account_engine.realized_pnl = acct_state.get("realized_pnl", 0.0)
-        self.account_engine.unrealized_pnl = acct_state.get("unrealized_pnl", 0.0)
-        self.account_engine.charges = acct_state.get("charges", 0.0)
-        self.account_engine.used_margin = acct_state.get("used_margin", 0.0)
-        for name, acct_state in state.get("accounts_by_strategy", {}).items():
-            if name in self.account_engines:
-                self.account_engines[name].restore(acct_state)
-        for name, pnl_state in state.get("pnl", {}).items():
-            if name in self.pnl_engines:
-                self.pnl_engines[name].restore(pnl_state)
-        self.risk_engine.restore(state.get("risk", {}))
-        self.execution_engine.restore(state.get("execution", {}))
-        # Restore indicator state (DEMA-ATR values)
-        for key, ind_state in state.get("indicators", {}).items():
-            if key in self.indicators:
-                self.indicators[key].restore(ind_state)
-        # Restore HTF engine state
-        if "htf" in state:
-            self.htf_engine.restore(state["htf"])
-        # Recalculate global account starting_capital from per-strategy accounts
-        total = sum(a.starting_capital for a in self.account_engines.values())
-        self.account_engine.starting_capital = total
+        with self._lock:
+            self.market_status.restore(state.get("market_status", {}))
+            for name, strat_state in state.get("strategies", {}).items():
+                if name in self.strategies:
+                    self.strategies[name].restore(strat_state)
+            self.position_manager.restore(state.get("positions", {}))
+            # Restore global account (P&L, charges, etc.) but NOT starting_capital
+            acct_state = state.get("account", {})
+            self.account_engine.realized_pnl = acct_state.get("realized_pnl", 0.0)
+            self.account_engine.unrealized_pnl = acct_state.get("unrealized_pnl", 0.0)
+            self.account_engine.charges = acct_state.get("charges", 0.0)
+            self.account_engine.used_margin = acct_state.get("used_margin", 0.0)
+            for name, acct_state in state.get("accounts_by_strategy", {}).items():
+                if name in self.account_engines:
+                    self.account_engines[name].restore(acct_state)
+            for name, pnl_state in state.get("pnl", {}).items():
+                if name in self.pnl_engines:
+                    self.pnl_engines[name].restore(pnl_state)
+            self.risk_engine.restore(state.get("risk", {}))
+            self.execution_engine.restore(state.get("execution", {}))
+            # Restore indicator state (DEMA-ATR values)
+            for key, ind_state in state.get("indicators", {}).items():
+                if key in self.indicators:
+                    self.indicators[key].restore(ind_state)
+            # Restore HTF engine state
+            if "htf" in state:
+                self.htf_engine.restore(state["htf"])
+            # Recalculate global account starting_capital from per-strategy accounts
+            total = sum(a.starting_capital for a in self.account_engines.values())
+            self.account_engine.starting_capital = total
