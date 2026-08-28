@@ -1015,6 +1015,17 @@ class TradingEngine:
                         pass
             else:
                 print(f"[Fill] MARGIN BLOCKED: {fill.strategy_id} - no margin for {fill.instrument}", flush=True)
+                # CRITICAL: Reset strategy state — _check_pending_entry already set
+                # LONG_POSITION/SHORT_POSITION, but position was never opened.
+                # Without this reset the strategy is stuck in a ghost position forever.
+                strat = self.strategies.get(fill.strategy_id)
+                if strat:
+                    print(f"  Strategy state was: {strat.state}  position_side={strat.position_side}", flush=True)
+                    strat.state = StrategyState.FLAT
+                    strat.position_side = None
+                    strat.stop_price = None
+                    strat.pending_entry = None
+                    print(f"  Strategy state RESET to FLAT (margin blocked)", flush=True)
                 try:
                     self.telegram.on_risk_alert({
                         "type": "margin_blocked",
