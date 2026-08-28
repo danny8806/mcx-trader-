@@ -53,6 +53,7 @@ class Signal:
     trigger_price: float
     stop_price: float
     quantity: int
+    side: Optional[str] = None  # "LONG" or "SHORT" — used for REVERSAL to determine order direction
     metadata: Optional[dict] = None
 
 

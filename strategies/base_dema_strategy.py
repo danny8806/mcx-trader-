@@ -276,6 +276,7 @@ class BaseDEMAStrategy:
             trigger_price=trigger,
             stop_price=stop,
             quantity=self.quantity,
+            side=side,
             metadata={"exit_reason": f"{side.lower()}_reversal"},
         )
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 
@@ -36,6 +37,7 @@ class RiskEngine:
         self._kill_switch_active = False
         self._daily_pnl: float = 0.0
         self._peak_equity: float = 0.0
+        self._last_reset_date: str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     def check_order(
         self,
@@ -83,8 +85,14 @@ class RiskEngine:
             return True, None
 
     def update_daily_pnl(self, pnl: float) -> None:
-        """Update running daily P&L."""
+        """Update running daily P&L. Auto-resets at start of new trading day."""
         with self._lock:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if today != self._last_reset_date:
+                self._daily_pnl = 0.0
+                self._peak_equity = 0.0
+                self._last_reset_date = today
+                print(f"[Risk] Daily reset for {today}", flush=True)
             self._daily_pnl += pnl
 
     def update_peak_equity(self, equity: float) -> None:

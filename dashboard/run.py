@@ -18,8 +18,16 @@ from dashboard.routes import pnl, market_data, risk, health, replay
 from dashboard.routes import reconciliation, alerts, settings, audit_log, indicators
 
 
-def _start_engine_background(engine):
+def _start_engine_background(engine, persistence=None):
     try:
+        # Restore state from last session
+        if persistence:
+            saved = persistence.load_state()
+            if saved:
+                engine.restore(saved)
+                print("[Dashboard] State restored from last session")
+            else:
+                print("[Dashboard] No saved state - fresh start")
         engine.start()
         print("[Dashboard] TradingEngine started with Dhan live feed")
     except Exception as e:
@@ -70,7 +78,7 @@ def main():
 
     if engine:
         import threading
-        t = threading.Thread(target=_start_engine_background, args=(engine,), daemon=True)
+        t = threading.Thread(target=_start_engine_background, args=(engine, persistence), daemon=True)
         t.start()
 
     print("=" * 60)

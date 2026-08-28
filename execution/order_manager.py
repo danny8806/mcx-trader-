@@ -48,6 +48,14 @@ class OrderManager:
                 return None
             self._pending_signals[key] = signal
 
+            # Cleanup old pending signals (> 1 hour old) to prevent memory leak
+            import time
+            now = time.time()
+            stale_keys = [k for k, v in self._pending_signals.items()
+                          if hasattr(v, 'timestamp') and now - v.timestamp > 3600]
+            for k in stale_keys:
+                del self._pending_signals[k]
+
             # Create order
             order = self.execution_engine.create_order(signal, multiplier=multiplier)
             self._active_orders[order.order_id] = order

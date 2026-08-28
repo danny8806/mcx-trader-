@@ -901,7 +901,7 @@ class TradingEngine:
                         "price": signal.trigger_price,
                         "state": str(order.state),
                         "filled_quantity": order.quantity,
-                        "average_fill_price": order.fill_price,
+                        "average_fill_price": order.average_fill_price,
                         "created_at": datetime.now(timezone.utc).isoformat(),
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     })
@@ -954,9 +954,22 @@ class TradingEngine:
             )
             if strat_account and strat_account.block_margin(margin):
                 self.account_engine.block_margin(margin)
-                position = self.position_manager.open_position(
-                    fill=fill, multiplier=multiplier, margin=margin,
-                )
+                try:
+                    position = self.position_manager.open_position(
+                        fill=fill, multiplier=multiplier, margin=margin,
+                    )
+                except Exception as e:
+                    # Rollback margin on position open failure
+                    print(f"[Fill] CRITICAL: Position open failed, rolling back margin: {e}", flush=True)
+                    strat_account.release_margin(margin)
+                    self.account_engine.release_margin(margin)
+                    strat = self.strategies.get(fill.strategy_id)
+                    if strat:
+                        strat.state = StrategyState.FLAT
+                        strat.position_side = None
+                        strat.stop_price = None
+                        strat.pending_entry = None
+                    return
                 print(f"[Position] Opened: {position.side.value} {fill.instrument} @ {fill.price} (strategy={fill.strategy_id})", flush=True)
                 if self.event_store:
                     try:
@@ -1109,18 +1122,57 @@ class TradingEngine:
                     pass
 
             # If this was a reversal (old position closed, new pending entry exists),
-            # now open the new position from the same fill
+            # now open the new position with a fresh fill at current market price
             strat = self.strategies.get(strategy_id)
             if strat and strat.pending_entry is not None and strat.state in (StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
                 new_side = strat.pending_entry.side
                 fill_side = "BUY" if new_side == "LONG" else "SELL"
-                margin = self._calculate_margin(fill.instrument, fill.price, fill.quantity, side=fill_side)
+                entry_price = fill.price  # use current market price from the exit fill
+                margin = self._calculate_margin(fill.instrument, entry_price, fill.quantity, side=fill_side)
                 if strat_account and strat_account.block_margin(margin):
                     self.account_engine.block_margin(margin)
-                    new_position = self.position_manager.open_position(
-                        fill=fill, multiplier=multiplier, margin=margin,
+                    # Create a new entry fill with correct side (not reuse exit fill)
+                    entry_fill = Fill(
+                        fill_id=str(__import__("uuid").uuid4()),
+                        order_id="",
+                        instrument=fill.instrument,
+                        side=fill_side,
+                        quantity=fill.quantity,
+                        price=entry_price,
+                        timestamp=fill.timestamp,
+                        strategy_id=strategy_id,
+                        multiplier=multiplier,
                     )
-                    print(f"[Position] REVERSAL opened: {new_side} {fill.instrument} @ {fill.price} (strategy={strategy_id})", flush=True)
+                    new_position = self.position_manager.open_position(
+                        fill=entry_fill, multiplier=multiplier, margin=margin,
+                    )
+                    # Update strategy state to reflect open position
+                    strat.state = StrategyState.LONG_POSITION if new_side == "LONG" else StrategyState.SHORT_POSITION
+                    strat.position_side = new_side
+                    strat.stop_price = strat.pending_entry.signal.stop_price
+                    strat.pending_entry = None
+                    strat.just_entered = True
+                    # Persist the entry fill
+                    if self._persistence:
+                        try:
+                            self._persistence.save_fill({
+                                "fill_id": entry_fill.fill_id,
+                                "order_id": entry_fill.order_id,
+                                "strategy_id": strategy_id,
+                                "instrument": entry_fill.instrument,
+                                "side": entry_fill.side,
+                                "quantity": entry_fill.quantity,
+                                "price": entry_fill.price,
+                                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                            })
+                        except Exception:
+                            pass
+                    print(f"[Position] REVERSAL opened: {new_side} {fill.instrument} @ {entry_price} (strategy={strategy_id})", flush=True)
+                else:
+                    print(f"[Position] REVERSAL FAILED: insufficient margin for {new_side} {fill.instrument} (strategy={strategy_id})", flush=True)
+                    strat.pending_entry = None
+                    strat.state = StrategyState.FLAT
+                    strat.position_side = None
 
     def _on_status(self, status: str) -> None:
         """Handle data adapter status change."""

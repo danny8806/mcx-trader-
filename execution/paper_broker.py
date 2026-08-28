@@ -98,11 +98,18 @@ class PaperExecutionEngine:
         multiplier: float = 1.0,
     ) -> Order:
         """Create a new order from a signal."""
+        # Determine order side: REVERSAL signals carry explicit side ("LONG"/"SHORT")
+        if signal.signal_type == SignalType.REVERSAL and signal.side:
+            order_side = "BUY" if signal.side == "LONG" else "SELL"
+        elif signal.signal_type in (SignalType.LONG, SignalType.REVERSAL):
+            order_side = "BUY"
+        else:
+            order_side = "SELL"
         order = Order(
             order_id=str(uuid.uuid4()),
             strategy_id=signal.strategy_id,
             instrument=signal.instrument,
-            side="BUY" if signal.signal_type in (SignalType.LONG, SignalType.REVERSAL) else "SELL",
+            side=order_side,
             quantity=signal.quantity,
             state=OrderState.CREATED,
             multiplier=multiplier,
