@@ -89,13 +89,12 @@ class BacktestStyleHTFEngine:
         """Map any HTF DEMA-ATR to a fast bar using searchsorted.
 
         EXACT backtest logic (dema_mtf.py:94-98):
-            base_min = int(round(pos.min()))   # = 1 for MCX 5m data
-            target_close = base_dt + base_min  # bar_start + 1min
+            base_min = int(round(pos.min()))   # = 5 for MCX 5m data
+            target_close = bar_start + base_min  # bar_start + 5min
             idx = searchsorted(src_avail, target_close, "right") - 1
 
-        Here we reproduce that: compute target_close as bar_start + 1 minute
-        instead of bar_end (which would be base_min=5). The 1-minute offset
-        matches the backtest's pos.min() = 1.
+        Here we reproduce that: compute target_close as bar_start + base_min
+        where base_min matches the fast bar spacing (5 minutes for 5m MCX data).
         """
         import bisect
 
@@ -109,7 +108,7 @@ class BacktestStyleHTFEngine:
         # Derive base minutes from fast bar timeframe (e.g., "5m"->5, "15m"->15)
         tf_str = fast_bar.timeframe.replace("m", "").replace("M", "")
         BASE_MINUTES = int(tf_str) if tf_str.isdigit() else 5
-        BACKTEST_BASE_MIN = 1  # pos.min() from CSV data
+        BACKTEST_BASE_MIN = 5  # pos.min() from 5m MCX data (bar spacing = 5 minutes)
         fast_bar_start = fast_bar.end_ts - (BASE_MINUTES * 60)
         target_close = fast_bar_start + (BACKTEST_BASE_MIN * 60)
 
