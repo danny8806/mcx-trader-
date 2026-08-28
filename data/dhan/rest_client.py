@@ -94,6 +94,11 @@ class DhanRESTClient:
         self._stats = {"ok": 0, "empty": 0, "retry": 0}
         self._stats_lock = threading.Lock()
 
+        # Token renewal — single lock prevents concurrent renewals
+        self._renew_lock = threading.Lock()
+        self._last_renew_attempt: float = 0.0
+        self._renew_cooldown: float = 130.0  # Dhan rate limit: 2 min
+
         # Proactive token renewal scheduler
         self._scheduler_thread: Optional[threading.Thread] = None
         self._scheduler_stop = threading.Event()
@@ -101,8 +106,6 @@ class DhanRESTClient:
         self._renew_minute = 0
         self._safety_check_hours = 6  # Safety check every 6 hours
         self._last_safety_check: float = 0.0
-        self._last_renew_attempt: float = 0.0
-        self._renew_cooldown: float = 130.0  # 2 min + 10s buffer
 
     @property
     def stats(self) -> dict[str, int]:
@@ -126,7 +129,12 @@ class DhanRESTClient:
         return ""
 
     def token_expires_soon(self, grace_hours: float = 2.0) -> bool:
-        """Check if token expires within grace period."""
+        """Check if token expires within grace period.
+        
+        Returns True only if JWT exp is provably within grace_hours.
+        On any decode error, returns False (assume valid) to avoid
+        unnecessary renewal storms.
+        """
         import base64
         t = self.load_token()
         if not t or "." not in t:
@@ -134,72 +142,79 @@ class DhanRESTClient:
         try:
             p = t.split(".")[1]
             p += "=" * (-len(p) % 4)
-            exp = json.loads(base64.urlsafe_b64decode(p)).get("exp", 0)
+            payload = json.loads(base64.urlsafe_b64decode(p))
+            exp = payload.get("exp", 0)
+            if exp == 0:
+                return False  # no exp claim — assume valid
             return (exp - time.time()) <= grace_hours * 3600
         except Exception:
-            return True
+            return False  # decode error — assume valid, don't trigger renewal
 
     def renew_token(self) -> str:
-        """Auto-renew Dhan token using PIN + TOTP (no browser needed)."""
+        """Auto-renew Dhan token using PIN + TOTP (no browser needed).
+        
+        Thread-safe: only one renewal can happen at a time.
+        Respects Dhan's 2-minute rate limit.
+        """
+        # Quick check without lock — avoids contention for common case
         now = time.monotonic()
         if (now - self._last_renew_attempt) < self._renew_cooldown:
             remaining = int(self._renew_cooldown - (now - self._last_renew_attempt))
             print("[auth] rate-limited, wait %ds before retry" % remaining, flush=True)
             return self._token_cache or ""
-        self._last_renew_attempt = now
-        if not self.pin or not self.totp_secret:
-            print("[auth] no PIN/TOTP configured, cannot auto-renew", flush=True)
-            return ""
-        try:
-            import pyotp
-            from dhanhq import DhanLogin
-            remaining = 30 - (int(time.time()) % 30)
-            if remaining < 7:
-                time.sleep(remaining + 1)
-            totp = pyotp.TOTP(self.totp_secret).now()
-            dhan_login = DhanLogin(self.client_id)
-            result = dhan_login.generate_token(self.pin, totp)
-            new_tok = result.get("accessToken", "")
-            if new_tok:
-                if self.token_file:
-                    with open(self.token_file, "w") as f:
-                        json.dump({"access_token": new_tok}, f, indent=2)
-                self._token_cache = new_tok
-                self._token_ts = time.monotonic()
-                self._headers_cache = None
-                print("[auth] token renewed via TOTP, expires %s" % result.get("expiryTime", "?"), flush=True)
-                return new_tok
-            print("[auth] renew failed: %s" % result, flush=True)
-        except Exception as e:
-            print("[auth] renew error: %s" % e, flush=True)
+
+        with self._renew_lock:
+            # Double-check after acquiring lock
+            now = time.monotonic()
+            if (now - self._last_renew_attempt) < self._renew_cooldown:
+                remaining = int(self._renew_cooldown - (now - self._last_renew_attempt))
+                print("[auth] rate-limited (lock), wait %ds" % remaining, flush=True)
+                return self._token_cache or ""
+            self._last_renew_attempt = now
+
+            if not self.pin or not self.totp_secret:
+                print("[auth] no PIN/TOTP configured, cannot auto-renew", flush=True)
+                return ""
+            try:
+                import pyotp
+                from dhanhq import DhanLogin
+                remaining = 30 - (int(time.time()) % 30)
+                if remaining < 7:
+                    print("[auth] waiting %ds for fresh TOTP window..." % (remaining + 1), flush=True)
+                    time.sleep(remaining + 1)
+                totp = pyotp.TOTP(self.totp_secret).now()
+                dhan_login = DhanLogin(self.client_id)
+                result = dhan_login.generate_token(self.pin, totp)
+                new_tok = result.get("accessToken", "")
+                if new_tok:
+                    if self.token_file:
+                        with open(self.token_file, "w") as f:
+                            json.dump({"access_token": new_tok}, f, indent=2)
+                    self._token_cache = new_tok
+                    self._token_ts = time.monotonic()
+                    self._headers_cache = None
+                    print("[auth] token renewed via TOTP, expires %s" % result.get("expiryTime", "?"), flush=True)
+                    return new_tok
+                print("[auth] renew failed: %s" % result, flush=True)
+            except Exception as e:
+                print("[auth] renew error: %s" % e, flush=True)
         return ""
 
     def ensure_token(self) -> str:
-        """Get valid token, auto-renew if missing/expiring. Validates with API call."""
+        """Get valid token, auto-renew only if missing or JWT expiring.
+        
+        Does NOT validate with an API call — that wastes a request and
+        can cause unnecessary renewals on transient network errors.
+        JWT expiry is the source of truth.
+        """
         t = self.load_token()
         if not t:
             print("[auth] no token found, auto-renewing...", flush=True)
             return self.renew_token()
         if self.token_expires_soon(grace_hours=1.0):
-            print("[auth] token expiring soon, auto-renewing...", flush=True)
+            print("[auth] token expiring within 1h, auto-renewing...", flush=True)
             return self.renew_token()
-        # Validate existing token with a lightweight API call
-        try:
-            self._post("/charts/intraday", {
-                "securityId": "563946",
-                "exchangeSegment": "MCX_COMM",
-                "instrument": "FUTCOM",
-                "interval": "60",
-                "oi": False,
-                "fromDate": "2026-08-26 09:00:00",
-                "toDate": "2026-08-27 18:00:00",
-            })
-            print("[auth] token validated OK", flush=True)
-        except DhanAuthError:
-            print("[auth] token validation failed, renewing...", flush=True)
-            return self.renew_token()
-        except Exception:
-            pass
+        # Token exists and JWT says it's valid — trust it
         return t
 
     # ── Proactive Token Renewal Scheduler ──────────────────────────────────
@@ -229,10 +244,11 @@ class DhanRESTClient:
         print("[auth] token scheduler stopped", flush=True)
 
     def _scheduler_loop(self) -> None:
-        """Background loop: renew at 7 AM daily + safety check every 6 hours."""
-        # Immediate renewal on startup
-        print("[auth] scheduler: startup renewal...", flush=True)
-        self.ensure_token()
+        """Background loop: renew at 7 AM daily + safety check every 6 hours.
+        
+        Does NOT call ensure_token() on startup — the caller (adapter/engine)
+        already does that. This avoids double-renewal.
+        """
         self._last_safety_check = time.monotonic()
 
         while not self._scheduler_stop.is_set():
@@ -279,13 +295,19 @@ class DhanRESTClient:
     # ── End Scheduler ──────────────────────────────────────────────────────
 
     def _headers(self) -> dict[str, str]:
-        """Get request headers with cached token. Auto-renews on expiry."""
+        """Get request headers with cached token.
+        
+        Trust the cached token for the full 30s window.
+        Only renew on actual auth failure in _post(), not proactively here.
+        This avoids overlapping with the scheduler's renewal.
+        """
         now = time.monotonic()
         if self._headers_cache is not None and (now - self._headers_ts) < 30:
             return self._headers_cache
         
         t = self.load_token()
-        if not t or self.token_expires_soon(grace_hours=1.0):
+        if not t:
+            # No cached token and none on disk — try to get one
             t = self.renew_token()
         if not t:
             raise DhanAuthError("no access token (auto-renew failed)")
