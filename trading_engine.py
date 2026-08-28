@@ -689,6 +689,7 @@ class TradingEngine:
             self.market_status.mark_eod_close_done()
             return
         print(f"[Engine] EOD CLOSE: {len(open_positions)} open positions", flush=True)
+        failed_count = 0
         for pos in open_positions:
             try:
                 ltp = self.execution_engine._current_prices.get(pos.instrument, pos.average_entry)
@@ -704,10 +705,15 @@ class TradingEngine:
                     multiplier=pos.multiplier if hasattr(pos, 'multiplier') else 10.0,
                 )
                 if self._trade_close_manager:
-                    self._trade_close_manager.close_position(
+                    closed = self._trade_close_manager.close_position(
                         fill=exit_fill, position=pos,
                         strategy_id=pos.strategy_id, multiplier=exit_fill.multiplier,
+                        exit_reason="eod_close",
                     )
+                    if not closed:
+                        failed_count += 1
+                        print(f"[Engine] EOD close FAILED (persistence) for {pos.position_id}", flush=True)
+                        continue
                 # Reset strategy state
                 strat = self.strategies.get(pos.strategy_id)
                 if strat:
@@ -717,8 +723,12 @@ class TradingEngine:
                     strat.pending_entry = None
                 print(f"[Engine] EOD closed: {pos.instrument} {pos.side.value} @ {ltp}", flush=True)
             except Exception as e:
+                failed_count += 1
                 print(f"[Engine] EOD close failed for {pos.position_id}: {e}", flush=True)
-        self.market_status.mark_eod_close_done()
+        if failed_count > 0:
+            print(f"[Engine] EOD: {failed_count}/{len(open_positions)} positions failed to close — will retry next tick", flush=True)
+        else:
+            self.market_status.mark_eod_close_done()
         try:
             acct_snap = self.account_engine.snapshot()
             risk_snap = self.risk_engine.snapshot()
@@ -752,12 +762,15 @@ class TradingEngine:
 
     def _process_signal(self, signal: Signal) -> None:
         """Process a trading signal."""
-        # Safe mode check — block new trades if unsafe
-        if self.safe_mode.is_active:
+        metadata = signal.metadata or {}
+        is_exit = bool(metadata.get("exit"))
+
+        # An exit reduces exposure.  It must remain executable during safe mode,
+        # stale data, risk-limit trips, and the market-close window.
+        if not is_exit and self.safe_mode.is_active:
             print(f"[Signal] BLOCKED by safe mode: {signal.strategy_id} {signal.signal_type}", flush=True)
             return
-        # Market state check — block new trades when market is closed
-        if not self.market_status.is_trading_allowed:
+        if not is_exit and not self.market_status.is_trading_allowed:
             print(f"[Signal] BLOCKED by market state ({self.market_status.state.value}): {signal.strategy_id} {signal.signal_type}", flush=True)
             return
         self.health.record_signal()
@@ -768,104 +781,42 @@ class TradingEngine:
         if strat_account is None:
             print(f"[Risk] No account engine for strategy {signal.strategy_id}", flush=True)
             return
-        margin_required = self._calculate_margin(
-            signal.instrument, signal.trigger_price, signal.quantity,
-            side="BUY" if signal.signal_type in (SignalType.LONG, SignalType.REVERSAL) else "SELL",
-        )
-
-        allowed, reason = self.risk_engine.check_order(
-            signal=signal,
-            current_positions=len(self.position_manager.open_positions),
-            strategy_positions=len(self.position_manager.get_positions_by_strategy(signal.strategy_id)),
-            available_margin=strat_account.available_margin,
-            margin_required=margin_required,
-            current_equity=strat_account.equity,
-        )
+        if is_exit:
+            allowed, reason = True, None
+        else:
+            margin_required = self._calculate_margin(
+                signal.instrument, signal.trigger_price, signal.quantity,
+                side="BUY" if signal.signal_type in (SignalType.LONG, SignalType.REVERSAL) else "SELL",
+            )
+            allowed, reason = self.risk_engine.check_order(
+                signal=signal,
+                current_positions=len(self.position_manager.open_positions),
+                strategy_positions=len(self.position_manager.get_positions_by_strategy(signal.strategy_id)),
+                available_margin=strat_account.available_margin,
+                margin_required=margin_required,
+                current_equity=strat_account.equity,
+            )
 
         if not allowed:
-            # If this is an EXIT signal, allow it regardless of position limits
-            is_exit = signal.metadata.get("exit", False) if hasattr(signal, 'metadata') and signal.metadata else False
-            if is_exit:
-                print(f"[Risk] Exit signal allowed despite: {reason} (strategy={signal.strategy_id})", flush=True)
-                allowed = True
-                reason = None
-            else:
-                print(f"[Risk] Order rejected: {reason}", flush=True)
-                print(f"  Strategy: {signal.strategy_id}  Instrument: {signal.instrument}  Side: {signal.signal_type}  Price: {signal.trigger_price}", flush=True)
-                print(f"  Positions for strategy: {len(self.position_manager.get_positions_by_strategy(signal.strategy_id))}  Total open: {len(self.position_manager.open_positions)}", flush=True)
-
-                # Reset strategy state so it doesn't get stuck
-                strat = self.strategies.get(signal.strategy_id)
-                if strat:
-                    print(f"  Strategy state was: {strat.state}  position_side={strat.position_side}", flush=True)
-                    strat.state = StrategyState.FLAT
-                    strat.position_side = None
-                    strat.stop_price = None
-                    strat.pending_entry = None
-                    print(f"  Strategy state RESET to FLAT", flush=True)
-
-                # Record to analytics EventStore
-                if self.event_store:
-                    try:
-                        self.event_store.record(
-                            trade_id="", strategy_id=signal.strategy_id,
-                            instrument=signal.instrument, event_type="ORDER_REJECTED",
-                            payload={
-                                "reason": reason, "rejected": True,
-                                "side": str(signal.signal_type), "trigger_price": signal.trigger_price,
-                                "stop_price": signal.stop_price, "quantity": signal.quantity,
-                                "strategy_id": signal.strategy_id, "instrument": signal.instrument,
-                                "strategy_positions": len(self.position_manager.get_positions_by_strategy(signal.strategy_id)),
-                                "total_positions": len(self.position_manager.open_positions),
-                            },
-                        )
-                    except Exception:
-                        pass
-
-                # Publish to dashboard EventBus
-                self.publish_event("order_rejected", {
-                    "strategy_id": signal.strategy_id,
-                    "instrument": signal.instrument,
-                    "side": str(signal.signal_type),
-                    "trigger_price": signal.trigger_price,
-                    "stop_price": signal.stop_price,
-                    "quantity": signal.quantity,
-                    "reason": reason,
-                    "strategy_positions": len(self.position_manager.get_positions_by_strategy(signal.strategy_id)),
-                    "total_positions": len(self.position_manager.open_positions),
-                    "available_margin": strat_account.available_margin,
-                    "equity": strat_account.equity,
-                })
-
-                # Telegram alert with full details
-                try:
-                    self.telegram.on_risk_alert({
-                        "type": "order_rejected",
-                        "severity": "WARNING",
-                        "message": (
-                            f"Order REJECTED: {reason}\n"
-                            f"Strategy: {signal.strategy_id}\n"
-                            f"Instrument: {signal.instrument}\n"
-                            f"Side: {signal.signal_type}\n"
-                            f"Price: {signal.trigger_price}\n"
-                            f"Stop: {signal.stop_price}\n"
-                            f"Qty: {signal.quantity}\n"
-                            f"Strategy positions: {len(self.position_manager.get_positions_by_strategy(signal.strategy_id))}\n"
-                            f"Total open: {len(self.position_manager.open_positions)}\n"
-                            f"Margin available: {strat_account.available_margin:,.0f}\n"
-                            f"Equity: {strat_account.equity:,.0f}"
-                        ),
-                        "strategy_id": signal.strategy_id,
-                        "instrument": signal.instrument,
-                        "side": str(signal.signal_type),
-                        "trigger_price": signal.trigger_price,
-                        "stop_price": signal.stop_price,
-                        "quantity": signal.quantity,
-                        "value": str(len(self.position_manager.get_positions_by_strategy(signal.strategy_id))),
-                        "limit": str(self.risk_engine.max_positions_per_strategy),
-                    })
-                except Exception:
-                    pass
+            print(f"[Risk] Order rejected: {reason}", flush=True)
+            print(f"  Strategy: {signal.strategy_id}  Instrument: {signal.instrument}  Side: {signal.signal_type}  Price: {signal.trigger_price}", flush=True)
+            strat = self.strategies.get(signal.strategy_id)
+            if strat:
+                # This path is only for new entries.  It is safe to cancel their
+                # pending state; exit signals bypass risk checks above.
+                strat.state = StrategyState.FLAT
+                strat.position_side = None
+                strat.stop_price = None
+                strat.pending_entry = None
+            self.publish_event("order_rejected", {
+                "strategy_id": signal.strategy_id,
+                "instrument": signal.instrument,
+                "side": str(signal.signal_type),
+                "trigger_price": signal.trigger_price,
+                "stop_price": signal.stop_price,
+                "quantity": signal.quantity,
+                "reason": reason,
+            })
             return
 
         # Submit order
@@ -938,7 +889,9 @@ class TradingEngine:
         if self.fill_dedup.is_duplicate(fill.fill_id):
             print(f"[Fill] DUPLICATE ignored: {fill.fill_id}", flush=True)
             return
-        self.fill_dedup.mark_processed(fill.fill_id)
+        if not self.fill_dedup.mark_processed(fill.fill_id):
+            print(f"[Fill] DUPLICATE ignored during atomic mark: {fill.fill_id}", flush=True)
+            return
 
         self.health.record_fill()
         instrument_config = self.config.instrument(fill.instrument)
@@ -970,6 +923,8 @@ class TradingEngine:
                 try:
                     position = self.position_manager.open_position(
                         fill=fill, multiplier=multiplier, margin=margin,
+                        stop_price=(self.strategies.get(fill.strategy_id).stop_price
+                                    if fill.strategy_id in self.strategies else None),
                     )
                 except Exception as e:
                     # Rollback margin on position open failure
@@ -1085,6 +1040,21 @@ class TradingEngine:
                         })
                     except Exception:
                         pass
+                else:
+                    # Stops and strategy state are cleared only after the exit
+                    # is durably recorded and the in-memory position is closed.
+                    strat = self.strategies.get(strategy_id)
+                    if strat:
+                        if strat.pending_entry is not None:
+                            strat.state = (StrategyState.PENDING_LONG
+                                           if strat.pending_entry.side == "LONG"
+                                           else StrategyState.PENDING_SHORT)
+                            strat.position_side = None
+                            strat.stop_price = None
+                        else:
+                            strat.state = StrategyState.FLAT
+                            strat.position_side = None
+                            strat.stop_price = None
             else:
                 # Fallback: legacy non-atomic close (should not happen)
                 print(f"[TradeClose] WARNING: TradeCloseManager not wired, using legacy close", flush=True)
@@ -1135,65 +1105,9 @@ class TradingEngine:
                 except Exception:
                     pass
 
-            # If this was a reversal (old position closed, new pending entry exists),
-            # now open the new position with a fresh fill at the signal trigger price
-            strat = self.strategies.get(strategy_id)
-            if strat and strat.pending_entry is not None and strat.state in (StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
-                new_side = strat.pending_entry.side
-                fill_side = "BUY" if new_side == "LONG" else "SELL"
-                # Use the signal's trigger price (bar high/low) for the new entry, not exit fill price
-                entry_price = strat.pending_entry.signal.trigger_price
-                margin = self._calculate_margin(fill.instrument, entry_price, fill.quantity, side=fill_side)
-                if strat_account and strat_account.block_margin(margin):
-                    if not self.account_engine.block_margin(margin):
-                        strat_account.release_margin(margin)
-                        print(f"[Position] REVERSAL FAILED: global margin blocked for {fill.instrument} (strategy={strategy_id})", flush=True)
-                        strat.pending_entry = None
-                        strat.state = StrategyState.FLAT
-                        strat.position_side = None
-                        return
-                    # Create a new entry fill with correct side (not reuse exit fill)
-                    entry_fill = Fill(
-                        fill_id=str(__import__("uuid").uuid4()),
-                        order_id="",
-                        instrument=fill.instrument,
-                        side=fill_side,
-                        quantity=fill.quantity,
-                        price=entry_price,
-                        timestamp=fill.timestamp,
-                        strategy_id=strategy_id,
-                        multiplier=multiplier,
-                    )
-                    new_position = self.position_manager.open_position(
-                        fill=entry_fill, multiplier=multiplier, margin=margin,
-                    )
-                    # Update strategy state to reflect open position
-                    strat.state = StrategyState.LONG_POSITION if new_side == "LONG" else StrategyState.SHORT_POSITION
-                    strat.position_side = new_side
-                    strat.stop_price = strat.pending_entry.signal.stop_price
-                    strat.pending_entry = None
-                    strat.just_entered = True
-                    # Persist the entry fill
-                    if self._persistence:
-                        try:
-                            self._persistence.save_fill({
-                                "fill_id": entry_fill.fill_id,
-                                "order_id": entry_fill.order_id,
-                                "strategy_id": strategy_id,
-                                "instrument": entry_fill.instrument,
-                                "side": entry_fill.side,
-                                "quantity": entry_fill.quantity,
-                                "price": entry_fill.price,
-                                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-                            })
-                        except Exception:
-                            pass
-                    print(f"[Position] REVERSAL opened: {new_side} {fill.instrument} @ {entry_price} (strategy={strategy_id})", flush=True)
-                else:
-                    print(f"[Position] REVERSAL FAILED: insufficient margin for {new_side} {fill.instrument} (strategy={strategy_id})", flush=True)
-                    strat.pending_entry = None
-                    strat.state = StrategyState.FLAT
-                    strat.position_side = None
+            # Reversal entries remain pending after the exit.  They will go
+            # through the ordinary signal/order/fill path only when their
+            # breakout trigger is reached, preserving a complete audit trail.
 
     def _on_status(self, status: str) -> None:
         """Handle data adapter status change."""

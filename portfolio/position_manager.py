@@ -168,6 +168,8 @@ class PositionManager:
                 )
 
             self._closed_positions.append(position)
+            if len(self._closed_positions) > 500:
+                self._closed_positions = self._closed_positions[-250:]
             del self._positions[position_id]
             return position
 
@@ -181,7 +183,8 @@ class PositionManager:
 
     def get_position(self, position_id: str) -> Optional[Position]:
         """Get position by ID."""
-        return self._positions.get(position_id)
+        with self._lock:
+            return self._positions.get(position_id)
 
     def get_positions_by_strategy(self, strategy_id: str) -> list[Position]:
         """Get all positions for a strategy."""

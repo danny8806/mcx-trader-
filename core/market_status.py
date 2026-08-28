@@ -211,7 +211,7 @@ class MarketStatus:
     def snapshot(self) -> dict:
         with self._lock:
             return {
-                "market_state": self.state.value,
+                "market_state": self._market_state.value,
                 "engine_status": self._engine_status.value,
                 "data_status": self._data_status.value,
                 "last_transition": self._last_transition.isoformat() if self._last_transition else None,
@@ -234,6 +234,16 @@ class MarketStatus:
                 self._warmup_done_today = data.get("warmup_done_today", False)
                 self._reconcile_done_today = data.get("reconcile_done_today", False)
                 self._eod_close_done_today = data.get("eod_close_done_today", False)
+                # Restore state from same session
+                ms = data.get("market_state")
+                if ms:
+                    self._market_state = MarketState(ms)
+                es = data.get("engine_status")
+                if es:
+                    self._engine_status = EngineStatus(es)
+                ds = data.get("data_status")
+                if ds:
+                    self._data_status = DataStatus(ds)
             self._session_date = data.get("session_date")
 
     def force_state(self, state: MarketState) -> None:

@@ -58,6 +58,11 @@ Edit `config/settings.json`:
 | `TOTP_SECRET` | TOTP secret for auto-login |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `TELEGRAM_CHAT_ID` | Chat IDs (comma-separated) |
+| `DASHBOARD_API_KEY` | Required key for dashboard HTTP/WebSocket access |
+| `DASHBOARD_HOST` | Bind address; defaults to `127.0.0.1` locally (`0.0.0.0` in Docker) |
+
+Set these values through the environment or a deployment secret store. Do not
+place tokens, PINs, TOTP seeds, or dashboard keys in `config/settings.json`.
 
 ## Architecture
 

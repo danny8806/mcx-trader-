@@ -52,6 +52,7 @@ class MCXFeeModel:
         exit_price: float,
         quantity: int,
         multiplier: float = 1.0,
+        side: str = "LONG",
     ) -> FeeBreakdown:
         """Calculate round-trip fees.
         
@@ -60,12 +61,15 @@ class MCXFeeModel:
             exit_price: Average exit price
             quantity: Number of contracts
             multiplier: Contract multiplier
+            side: Position side ("LONG" or "SHORT")
             
         Returns:
             FeeBreakdown with itemized charges
         """
         buy_turnover = entry_price * quantity * multiplier
         sell_turnover = exit_price * quantity * multiplier
+        if side == "SHORT":
+            buy_turnover, sell_turnover = sell_turnover, buy_turnover
 
         brokerage = self.brokerage_per_side * 2
         stt = sell_turnover * self.stt_sell_pct

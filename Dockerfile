@@ -60,12 +60,10 @@ COPY --from=frontend-build /app/frontend/dist ./dashboard-ui/dist
 # Create data directory
 RUN mkdir -p /app/data/db
 
-# Environment variables (override via docker run -e)
-ENV DHAN_CLIENT_ID=1102461741
-ENV TRADING_PIN=107602
-ENV TOTP_SECRET=VUQQFLIRDEJ46O2WPXDGNIBULKCJU7FO
-ENV TELEGRAM_BOT_TOKEN=8985546227:AAHzsPZ8kJ-kAqk2rncpw8KGmJAz5DreeTQ
-ENV TELEGRAM_CHAT_ID=2015223705,1228310685
+# Credentials and dashboard access must be supplied at deployment time.
+# Binding to all container interfaces is necessary for Docker port publishing;
+# dashboard authentication remains mandatory in the application.
+ENV DASHBOARD_HOST=0.0.0.0
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

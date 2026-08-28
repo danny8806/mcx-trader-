@@ -44,6 +44,7 @@ class BaseDEMAStrategy:
         self.long_compare = long_compare
         self.short_compare = short_compare
         self.pending_timeout_bars = pending_timeout_bars
+        self.enabled = True
 
         # State machine
         self.state = StrategyState.FLAT
@@ -82,6 +83,8 @@ class BaseDEMAStrategy:
         Returns:
             Signal if trade decision made, None otherwise
         """
+        if not self.enabled:
+            return None
         self._bars_processed += 1
 
         # Clear just_entered flag from previous tick-triggered entry
@@ -269,7 +272,10 @@ class BaseDEMAStrategy:
             stop = max(high, sl_high)
 
         signal = Signal(
-            signal_type=SignalType.REVERSAL,
+            # A reversal is first an exit of the currently-held position.  The
+            # desired new side stays in metadata/pending_entry and is submitted
+            # only after its own breakout trigger fires.
+            signal_type=SignalType.LONG if self.position_side == "SHORT" else SignalType.SHORT,
             instrument=self.instrument,
             strategy_id=self.strategy_id,
             timestamp=timestamp,
@@ -277,7 +283,11 @@ class BaseDEMAStrategy:
             stop_price=stop,
             quantity=self.quantity,
             side=side,
-            metadata={"exit_reason": f"{side.lower()}_reversal"},
+            metadata={
+                "exit": True,
+                "exit_reason": f"{side.lower()}_reversal",
+                "reversal_side": side,
+            },
         )
 
         # Close old position before creating pending entry
@@ -357,12 +367,13 @@ class BaseDEMAStrategy:
         )
 
     def _close_position(self, reason: str, exit_price: float, timestamp: float) -> None:
-        """Close current position."""
+        """Mark an exit as pending; the engine clears state after its fill.
+
+        Clearing state here used to orphan a live position whenever execution
+        was rejected or market-data/safe-mode gating blocked the exit.
+        """
         self._emit("POSITION_CLOSED", reason=reason, exit_price=exit_price)
-        self.position_side = None
-        self.stop_price = None
-        self.pending_entry = None
-        self.state = StrategyState.FLAT
+        self.state = StrategyState.EXIT_ORDER_SUBMITTED
 
     def on_tick(self, ltp: float, timestamp: float) -> Optional[Signal]:
         """Process real-time tick for pending trigger check and stop loss monitoring.
@@ -370,7 +381,7 @@ class BaseDEMAStrategy:
         Used for live pending trigger monitoring instead of waiting
         for next bar close. Also checks stop loss on every tick.
         """
-        if self.just_entered:
+        if not self.enabled or self.just_entered:
             return None
 
         if self.position_side is not None and self.stop_price is not None:
@@ -423,6 +434,8 @@ class BaseDEMAStrategy:
             "strategy_id": self.strategy_id,
             **kwargs,
         })
+        if len(self._events) > 1000:
+            self._events = self._events[-500:]
 
     @property
     def is_flat(self) -> bool:
@@ -441,6 +454,7 @@ class BaseDEMAStrategy:
             "position_side": self.position_side,
             "stop_price": self.stop_price,
             "bars_processed": self._bars_processed,
+            "enabled": self.enabled,
             "pending_entry": {
                 "side": self.pending_entry.side,
                 "trigger_price": self.pending_entry.trigger_price,
@@ -460,6 +474,7 @@ class BaseDEMAStrategy:
         self.position_side = data.get("position_side")
         self.stop_price = data.get("stop_price")
         self._bars_processed = data.get("bars_processed", 0)
+        self.enabled = data.get("enabled", True)
         self._prev_fast_close = data.get("prev_fast_close")
         self._prev_fast_high = data.get("prev_fast_high")
         self._prev_fast_low = data.get("prev_fast_low")

@@ -64,8 +64,9 @@ def _get_api_key() -> Optional[str]:
             if key:
                 _api_key = key
                 return _api_key
-            # null or missing = no auth required
-            _api_key = ""  # sentinel: checked, no key configured
+            # Missing credentials must never turn a network control plane into
+            # an unauthenticated service.
+            _api_key = ""  # sentinel: checked, authentication unavailable
             return None
     except Exception:
         pass
@@ -81,7 +82,7 @@ async def verify_api_key(request: Request):
         return  # WS has its own auth flow
     key = _get_api_key()
     if not key:
-        return  # No key configured = open (fallback)
+        raise HTTPException(status_code=503, detail="Dashboard API key is not configured")
     # Check header: X-API-Key
     provided = request.headers.get("X-API-Key")
     if not provided:
@@ -167,16 +168,22 @@ async def _periodic_save_state():
             print(f"[SaveState] Periodic save failed: {e}", file=sys.stderr, flush=True)
 
 
+_push_executor: concurrent.futures.ThreadPoolExecutor | None = None
+_events_executor: concurrent.futures.ThreadPoolExecutor | None = None
+
+
 async def _push_updates():
     """Background task: periodically push engine state via WebSocket."""
-    import concurrent.futures
-    _executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="push")
+    global _push_executor
+    if _push_executor is None:
+        import concurrent.futures
+        _push_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="push")
     while True:
         try:
             loop = asyncio.get_running_loop()
-            snap = await loop.run_in_executor(_executor, _snapshot_sync)
+            snap = await loop.run_in_executor(_push_executor, _snapshot_sync)
             if snap:
-                snap = await loop.run_in_executor(_executor, _enrich_strategies, snap)
+                snap = await loop.run_in_executor(_push_executor, _enrich_strategies, snap)
                 await ws_manager.broadcast("engine_state", snap)
             await asyncio.sleep(1.0)
         except Exception as e:
@@ -186,13 +193,15 @@ async def _push_updates():
 
 async def _push_events():
     """Background task: push recent events via WebSocket."""
-    import concurrent.futures
-    _exec = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="events")
+    global _events_executor
+    if _events_executor is None:
+        import concurrent.futures
+        _events_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="events")
     last_id = 0
     while True:
         try:
             loop = asyncio.get_running_loop()
-            events = await loop.run_in_executor(_exec, event_bus.get_recent, 50)
+            events = await loop.run_in_executor(_events_executor, event_bus.get_recent, 50)
             new_events = [e for e in events if e["id"] > last_id]
             if new_events:
                 await ws_manager.broadcast("events", new_events)
@@ -279,6 +288,13 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(push_task, events_task, return_exceptions=True)
     except Exception:
         pass
+    # Shutdown thread pool executors
+    global _push_executor, _events_executor
+    for exc in (_push_executor, _events_executor):
+        if exc:
+            exc.shutdown(wait=False)
+    _push_executor = None
+    _events_executor = None
     if _engine:
         try:
             state = _engine.snapshot()
@@ -289,6 +305,8 @@ async def lifespan(app: FastAPI):
             if hasattr(_engine, 'data_adapter') and hasattr(_engine.data_adapter, 'rest'):
                 _engine.data_adapter.rest.stop_scheduler()
             _engine.stop()
+            if _persistence:
+                _persistence.close()
         except Exception as e:
             print(f"[Lifespan] Shutdown error: {e}", file=sys.stderr, flush=True)
 
@@ -326,10 +344,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if request.url.path in _ws_paths or request.url.path.startswith("/api/health"):
             return await call_next(request)
         key = _get_api_key()
-        if key:
-            provided = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-            if not provided or not secrets.compare_digest(provided, key):
-                return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+        if not key:
+            return JSONResponse(status_code=503, content={"detail": "Dashboard API key is not configured"})
+        provided = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+        if not provided or not secrets.compare_digest(provided, key):
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
         return await call_next(request)
 
 app.add_middleware(APIKeyMiddleware)
@@ -348,10 +367,12 @@ if analytics_routes:
 async def websocket_endpoint(websocket: WebSocket, client_id: Optional[str] = None, api_key: Optional[str] = None):
     # Verify WebSocket API key (from query param)
     key = _get_api_key()
-    if key:
-        if not api_key or not secrets.compare_digest(api_key, key):
-            await websocket.close(code=4001, reason="Invalid API key")
-            return
+    if not key:
+        await websocket.close(code=1013, reason="Dashboard API key is not configured")
+        return
+    if not api_key or not secrets.compare_digest(api_key, key):
+        await websocket.close(code=4001, reason="Invalid API key")
+        return
     await websocket.accept()
     cid = client_id or f"client_{uuid.uuid4().hex[:8]}"
     ws_manager.connect(cid, websocket, ["all"])
@@ -387,16 +408,19 @@ async def _handle_command(msg: dict, websocket: WebSocket):
         if cmd == "pause_strategy":
             sid = params.get("strategy_id")
             if sid and sid in _engine.strategies:
-                from strategies.base_dema_strategy import StrategyState
-                _engine.strategies[sid].state = StrategyState.FLAT
-                _engine.strategies[sid].position_side = None
-                _engine.strategies[sid].stop_price = None
-                _engine.strategies[sid].pending_entry = None
-                result["success"] = True
-                event_bus.publish("strategy_control", {"action": "pause", "strategy_id": sid})
+                open_positions = _engine.position_manager.get_positions_by_strategy(sid)
+                if any(pos.is_open for pos in open_positions):
+                    result["data"] = "Cannot pause a strategy with an open position; close it first."
+                else:
+                    strat = _engine.strategies[sid]
+                    strat.pending_entry = None
+                    strat.enabled = False
+                    result["success"] = True
+                    event_bus.publish("strategy_control", {"action": "pause", "strategy_id": sid})
         elif cmd == "resume_strategy":
             sid = params.get("strategy_id")
             if sid and sid in _engine.strategies:
+                _engine.strategies[sid].enabled = True
                 result["success"] = True
                 event_bus.publish("strategy_control", {"action": "resume", "strategy_id": sid})
         elif cmd == "emergency_stop":

@@ -21,7 +21,6 @@ class DEMA:
         self.period = period
         self._ema1: Optional[float] = None
         self._ema2: Optional[float] = None
-        self._initialized = False
         self._count = 0
 
     def reset(self) -> None:
@@ -117,7 +116,6 @@ class DEMA:
             "ema1": self._ema1,
             "ema2": self._ema2,
             "count": self._count,
-            "initialized": self._initialized,
         }
 
     def restore(self, data: dict) -> None:
@@ -125,4 +123,3 @@ class DEMA:
         self._ema1 = data.get("ema1")
         self._ema2 = data.get("ema2")
         self._count = data.get("count", 0)
-        self._initialized = data.get("initialized", False)

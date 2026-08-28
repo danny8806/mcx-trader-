@@ -27,7 +27,9 @@ class PersistenceManager:
     ):
         self.state_path = Path(state_path)
         self.db_path = Path(db_path)
-        self._lock = threading.Lock()
+        # Public write methods call _get_conn while holding this lock.  It must
+        # therefore be re-entrant; a plain Lock deadlocks on the first write.
+        self._lock = threading.RLock()
 
         # Initialize database schema
         self._init_db()
@@ -226,6 +228,40 @@ class PersistenceManager:
                 fill.get("timestamp"),
             ))
             conn.commit()
+
+    def save_trade_and_fill(self, trade: dict, fill: dict) -> None:
+        """Persist a closed trade and its exit fill in one transaction."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("""
+                    INSERT OR REPLACE INTO trades (
+                        trade_id, strategy_id, instrument, side,
+                        entry_timestamp, entry_price, exit_timestamp, exit_price,
+                        quantity, multiplier, gross_pnl, charges, net_pnl,
+                        exit_reason, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    trade.get("trade_id"), trade.get("strategy_id"), trade.get("instrument"),
+                    trade.get("side"), trade.get("entry_timestamp"), trade.get("entry_price"),
+                    trade.get("exit_timestamp"), trade.get("exit_price"), trade.get("quantity"),
+                    trade.get("multiplier"), trade.get("gross_pnl"), trade.get("charges"),
+                    trade.get("net_pnl"), trade.get("exit_reason"), trade.get("status", "closed"),
+                ))
+                conn.execute("""
+                    INSERT OR REPLACE INTO fills (
+                        fill_id, order_id, strategy_id, instrument,
+                        side, quantity, price, timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
+                    fill.get("instrument"), fill.get("side"), fill.get("quantity"),
+                    fill.get("price"), fill.get("timestamp"),
+                ))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def save_event(self, event: dict) -> None:
         """Save event to audit log."""

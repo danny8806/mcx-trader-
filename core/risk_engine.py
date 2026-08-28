@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 
@@ -37,7 +37,17 @@ class RiskEngine:
         self._kill_switch_active = False
         self._daily_pnl: float = 0.0
         self._peak_equity: float = 0.0
-        self._last_reset_date: str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        self._ist = timezone(timedelta(hours=5, minutes=30))
+        self._last_reset_date: str = datetime.now(self._ist).strftime("%Y-%m-%d")
+
+    def _reset_if_new_day_locked(self) -> None:
+        """Reset session-risk counters using the exchange's IST trading date."""
+        today = datetime.now(self._ist).strftime("%Y-%m-%d")
+        if today != self._last_reset_date:
+            self._daily_pnl = 0.0
+            self._peak_equity = 0.0
+            self._last_reset_date = today
+            print(f"[Risk] Daily reset for {today}", flush=True)
 
     def check_order(
         self,
@@ -54,6 +64,7 @@ class RiskEngine:
             (allowed, reason) - reason is None if allowed
         """
         with self._lock:
+            self._reset_if_new_day_locked()
             # Kill switch check
             if self._kill_switch_active:
                 return False, "kill_switch_active"
@@ -87,12 +98,7 @@ class RiskEngine:
     def update_daily_pnl(self, pnl: float) -> None:
         """Update running daily P&L. Auto-resets at start of new trading day."""
         with self._lock:
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            if today != self._last_reset_date:
-                self._daily_pnl = 0.0
-                self._peak_equity = 0.0
-                self._last_reset_date = today
-                print(f"[Risk] Daily reset for {today}", flush=True)
+            self._reset_if_new_day_locked()
             self._daily_pnl += pnl
 
     def update_peak_equity(self, equity: float) -> None:
@@ -132,6 +138,7 @@ class RiskEngine:
                 "kill_switch_active": self._kill_switch_active,
                 "daily_pnl": self._daily_pnl,
                 "peak_equity": self._peak_equity,
+                "last_reset_date": self._last_reset_date,
             }
 
     def restore(self, data: dict) -> None:
@@ -140,3 +147,4 @@ class RiskEngine:
             self._kill_switch_active = data.get("kill_switch_active", False)
             self._daily_pnl = data.get("daily_pnl", 0.0)
             self._peak_equity = data.get("peak_equity", 0.0)
+            self._last_reset_date = data.get("last_reset_date", self._last_reset_date)

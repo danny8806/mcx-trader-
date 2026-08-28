@@ -105,12 +105,10 @@ class BacktestStyleHTFEngine:
         if not state.end_times:
             return HTFMappedValue(None, None, False, None)
 
-        # Derive base minutes from fast bar timeframe (e.g., "5m"->5, "15m"->15)
-        tf_str = fast_bar.timeframe.replace("m", "").replace("M", "")
-        BASE_MINUTES = int(tf_str) if tf_str.isdigit() else 5
-        BACKTEST_BASE_MIN = 5  # pos.min() from 5m MCX data (bar spacing = 5 minutes)
-        fast_bar_start = fast_bar.end_ts - (BASE_MINUTES * 60)
-        target_close = fast_bar_start + (BACKTEST_BASE_MIN * 60)
+        # A higher-timeframe value is usable only after the fast bar itself has
+        # closed.  The previous implementation hard-coded a 5-minute offset,
+        # causing every configured 15m strategy to map stale HTF values.
+        target_close = fast_bar.end_ts
 
         # EXACT backtest logic: searchsorted(src_avail, target_close, side="right") - 1
         idx = bisect.bisect_right(state.end_times, target_close) - 1

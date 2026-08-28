@@ -65,7 +65,7 @@ class DhanRESTClient:
         self,
         base_url: str = "https://api.dhan.co/v2",
         token_file: Optional[str] = None,
-        client_id: str = "1102461741",
+        client_id: str = "",
         pin: str = "",
         totp_secret: str = "",
         rate_per_sec: float = 3.5,

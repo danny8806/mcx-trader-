@@ -80,6 +80,11 @@ class PaperExecutionEngine:
     ):
         self.slippage_ticks = slippage_ticks
         self.latency_ms = latency_ms
+        if partial_fill_probability != 0:
+            raise ValueError(
+                "Partial fills are not supported by the position ledger; "
+                "set partial_fill_probability to 0 until partial-close accounting exists."
+            )
         self.partial_fill_probability = partial_fill_probability
 
         self._orders: dict[str, Order] = {}
@@ -141,6 +146,8 @@ class PaperExecutionEngine:
 
     def _execute_order(self, order: Order) -> Optional[Fill]:
         """Execute order with slippage and latency simulation."""
+        if self.latency_ms > 0:
+            time.sleep(self.latency_ms / 1000.0)
         with self._price_lock:
             current_price = self._current_prices.get(order.instrument)
         if current_price is None:
@@ -169,6 +176,12 @@ class PaperExecutionEngine:
         # Prune old fills to prevent unbounded growth
         if len(self._fills) > self._max_fills:
             self._fills = self._fills[-self._max_fills:]
+        # Prune old completed orders
+        if len(self._orders) > self._max_fills:
+            stale_ids = [oid for oid, o in self._orders.items()
+                         if o.state in (OrderState.FILLED, OrderState.REJECTED, OrderState.CANCELED)]
+            for oid in stale_ids[:len(stale_ids)//2]:
+                del self._orders[oid]
         return fill
 
     def get_order(self, order_id: str) -> Optional[Order]:
@@ -245,6 +258,9 @@ class PaperExecutionEngine:
             return
         # Restore current prices
         self._current_prices = data.get("current_prices", {})
+        # Clear before restoring to avoid duplicates
+        self._fills.clear()
+        self._orders.clear()
         # Restore fills
         for f_data in data.get("fills", []):
             fill = Fill(

@@ -92,6 +92,9 @@ class CandleFetcher:
     def _check_and_fetch(self):
         """Check if any candle should have closed and fetch it."""
         now = datetime.now(IST)
+        # Prune old entries (>24h) to prevent unbounded growth
+        cutoff = time.time() - 86400
+        self._last_fetched = {k: v for k, v in self._last_fetched.items() if v > cutoff}
         
         for name, cfg in self.instruments.items():
             # Check 5m candles
@@ -120,26 +123,27 @@ class CandleFetcher:
             
         minutes_since_open = (now - session_start).total_seconds() / 60
         
-        # Which candle just closed?
-        # The last closed candle ends at: session_start + (minutes_since_open // tf_minutes) * tf_minutes
-        last_close_minutes = (int(minutes_since_open) // tf_minutes) * tf_minutes
-        last_close_time = session_start + timedelta(minutes=last_close_minutes)
-        
-        # Don't fetch the current forming candle (it hasn't closed yet)
-        if last_close_time >= now:
+        # Candle timestamps identify the *start* of a candle.  At 09:05 the
+        # completed 5m candle started at 09:00, not 09:05 (which is the start
+        # of the currently forming candle).
+        completed_buckets = int(minutes_since_open // tf_minutes)
+        if completed_buckets <= 0:
             return
+        candle_start = session_start + timedelta(
+            minutes=(completed_buckets - 1) * tf_minutes
+        )
             
         # Create key for dedup
-        key = f"{name}:{timeframe}:{last_close_time.timestamp()}"
+        key = f"{name}:{timeframe}:{candle_start.timestamp()}"
         if key in self._last_fetched:
             return  # Already fetched this candle
             
         # Don't fetch candles older than 2 candles (avoid re-fetching old data)
-        if (now - last_close_time).total_seconds() > tf_minutes * 60 * 2:
+        if (now - candle_start).total_seconds() > tf_minutes * 60 * 3:
             return
             
         # Fetch the candle from REST API
-        self._fetch_candle(name, cfg, timeframe, last_close_time, key)
+        self._fetch_candle(name, cfg, timeframe, candle_start, key)
         
     def _fetch_candle(self, name: str, cfg: dict, timeframe: str, candle_time: datetime, key: str):
         """Fetch a single candle from REST API."""
@@ -160,11 +164,11 @@ class CandleFetcher:
             target_ts = int(candle_time.timestamp())
             tf_minutes = TIMEFRAME_MINUTES[timeframe]
             
-            # For 5m, find exact match
+            # For 5m, find the candle whose start timestamp matches exactly.
             if timeframe == "5m":
                 for candle in candles:
                     candle_ts = candle[0]
-                    if abs(candle_ts - target_ts) < 300:  # Within 5 minutes
+                    if candle_ts == target_ts:
                         bar = self._create_bar(name, timeframe, candle, candle_time, tf_minutes)
                         if bar:
                             self._last_fetched[key] = time.time()
@@ -184,7 +188,11 @@ class CandleFetcher:
                     if window_start <= candle_ts < window_end:
                         window_candles.append(candle)
                         
-                if window_candles:
+                # API ordering is not a contract.  Preserve chronological OHLC
+                # construction and only emit fully completed aggregation windows.
+                window_candles.sort(key=lambda candle: candle[0])
+                expected_count = tf_minutes // 5
+                if len(window_candles) == expected_count:
                     bar = self._aggregate_candles(name, timeframe, window_candles, candle_time, tf_minutes)
                     if bar:
                         self._last_fetched[key] = time.time()

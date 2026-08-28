@@ -61,6 +61,7 @@ def main():
             print("[System] Final state saved")
         except Exception as e:
             print(f"[System] WARNING: Final state save failed: {e}")
+        persistence.close()
         print("[System] Goodbye!")
         sys.exit(0)
 

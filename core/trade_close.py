@@ -48,7 +48,7 @@ class TradeCloseManager:
         self._event_callback = event_callback
         self._trade_ledger = trade_ledger
 
-    def close_position(self, fill: Fill, position, strategy_id: str, multiplier: float) -> bool:
+    def close_position(self, fill: Fill, position, strategy_id: str, multiplier: float, exit_reason: str = "signal_exit") -> bool:
         """Atomically close a position.
 
         Args:
@@ -56,6 +56,7 @@ class TradeCloseManager:
             position: The open Position object.
             strategy_id: Strategy identifier.
             multiplier: Contract multiplier.
+            exit_reason: Reason for close (e.g. "signal_exit", "stop_loss", "eod_close").
 
         Returns:
             True if close completed successfully, False if persistence failed.
@@ -79,7 +80,6 @@ class TradeCloseManager:
                 exit_fill=fill,
                 multiplier=multiplier,
             )
-            pnl_engine.record_trade(gross_pnl, charges, net_pnl)
         else:
             gross_pnl, charges, net_pnl = 0.0, 0.0, 0.0
 
@@ -92,12 +92,12 @@ class TradeCloseManager:
             datetime.fromtimestamp(fill.timestamp, tz=timezone.utc).isoformat()
             if fill.timestamp else None
         )
-        exit_reason = position.exit_reason or "signal_exit"
+        exit_reason_final = position.exit_reason or exit_reason
 
-        # ── Step 2: Persist trade to database FIRST ──
+        # ── Steps 2-3: Persist trade and exit fill in one transaction ──
         if self._persistence:
             try:
-                self._persistence.save_trade({
+                trade_record = {
                     "trade_id": position.position_id,
                     "strategy_id": strategy_id,
                     "instrument": fill.instrument,
@@ -111,29 +111,26 @@ class TradeCloseManager:
                     "gross_pnl": gross_pnl,
                     "charges": charges,
                     "net_pnl": net_pnl,
-                    "exit_reason": exit_reason,
+                    "exit_reason": exit_reason_final,
                     "status": "closed",
-                })
-            except Exception as e:
-                print(f"[TradeClose] CRITICAL: Failed to persist trade: {e}", flush=True)
-                return False
-
-        # ── Step 3: Persist fill to database ──
-        if self._persistence:
-            try:
-                self._persistence.save_fill({
-                    "fill_id": fill.fill_id,
-                    "order_id": fill.order_id,
-                    "strategy_id": fill.strategy_id,
-                    "instrument": fill.instrument,
-                    "side": fill.side,
-                    "quantity": fill.quantity,
-                    "price": fill.price,
+                }
+                fill_record = {
+                    "fill_id": fill.fill_id, "order_id": fill.order_id,
+                    "strategy_id": fill.strategy_id, "instrument": fill.instrument,
+                    "side": fill.side, "quantity": fill.quantity, "price": fill.price,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                })
+                }
+                if hasattr(self._persistence, "save_trade_and_fill"):
+                    self._persistence.save_trade_and_fill(trade_record, fill_record)
+                else:
+                    self._persistence.save_trade(trade_record)
+                    self._persistence.save_fill(fill_record)
             except Exception as e:
-                print(f"[TradeClose] WARNING: Failed to persist exit fill (trade already saved): {e}", flush=True)
-                # Continue — trade record is saved, fill is recoverable from reconciliation
+                print(f"[TradeClose] CRITICAL: Failed to persist close: {e}", flush=True)
+                return False
+        # Record P&L in engine AFTER successful persistence
+        if pnl_engine:
+            pnl_engine.record_trade(gross_pnl, charges, net_pnl)
 
         # ── Steps 4-8: Update in-memory state (recoverable from DB on restart) ──
 
@@ -142,7 +139,7 @@ class TradeCloseManager:
             self._position_manager.close_position(
                 position_id=position.position_id,
                 fill=fill,
-                reason=exit_reason,
+                reason=exit_reason_final,
             )
         except Exception as e:
             print(f"[TradeClose] WARNING: close_position memory update failed: {e}", flush=True)
@@ -178,7 +175,7 @@ class TradeCloseManager:
                 )
                 for t in open_trades:
                     self._trade_ledger.close_trade(
-                        t.trade_id, exit_reason=exit_reason,
+                        t.trade_id, exit_reason=exit_reason_final,
                         gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
                     )
             except Exception:
@@ -196,7 +193,7 @@ class TradeCloseManager:
                         "gross_pnl": gross_pnl,
                         "charges": charges,
                         "net_pnl": net_pnl,
-                        "exit_reason": exit_reason,
+                        "exit_reason": exit_reason_final,
                         "entry_price": position.average_entry,
                         "exit_price": fill.price,
                     },
@@ -218,7 +215,7 @@ class TradeCloseManager:
                     "gross_pnl": gross_pnl,
                     "charges": charges,
                     "net_pnl": net_pnl,
-                    "exit_reason": exit_reason,
+                    "exit_reason": exit_reason_final,
                 })
             except Exception:
                 pass

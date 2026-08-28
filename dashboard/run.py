@@ -18,76 +18,14 @@ from dashboard.routes import pnl, market_data, risk, health, replay
 from dashboard.routes import reconciliation, alerts, settings, audit_log, indicators
 
 
-def _start_engine_background(engine, persistence=None):
-    try:
-        # Restore state from last session
-        if persistence:
-            saved = persistence.load_state()
-            if saved:
-                engine.restore(saved)
-                print("[Dashboard] State restored from last session")
-            else:
-                print("[Dashboard] No saved state - fresh start")
-        engine.start()
-        print("[Dashboard] TradingEngine started with Dhan live feed")
-    except Exception as e:
-        print(f"[Dashboard] Warning: Engine start failed: {e}")
-
-
 def main():
-    engine = None
-    persistence = None
-
-    try:
-        from persistence.manager import PersistenceManager
-        persistence = PersistenceManager(
-            state_path="data/db/system_state.json",
-            db_path="data/db/trading.db",
-        )
-    except Exception:
-        pass
-
-    try:
-        from trading_engine import TradingEngine
-        engine = TradingEngine(event_callback=_on_engine_event)
-        if persistence:
-            engine.set_persistence(persistence)
-    except Exception as e:
-        print(f"[Dashboard] Warning: Could not init TradingEngine: {e}")
-
-    set_engine(engine)
-
-    for mod in [overview, strategies, positions, orders, trades,
-                pnl, market_data, risk, health, replay,
-                reconciliation, alerts, settings, audit_log, indicators]:
-        try:
-            if hasattr(mod, 'init'):
-                if persistence and hasattr(mod, 'init') and 'persistence' in mod.init.__code__.co_varnames:
-                    mod.init(engine, event_bus, persistence)
-                else:
-                    mod.init(engine, event_bus)
-        except Exception:
-            pass
-
-    if hasattr(alerts, 'init'):
-        alerts.init(engine, event_bus)
-    if hasattr(audit_log, 'init'):
-        audit_log.init(engine, event_bus)
-    if hasattr(health, 'init'):
-        health.init(engine, event_bus)
-
-    if engine:
-        import threading
-        t = threading.Thread(target=_start_engine_background, args=(engine, persistence), daemon=True)
-        t.start()
-
     print("=" * 60)
     print("  MCX GoldSilver Trading Dashboard")
     print("  http://localhost:8000")
     print("  Frontend: cd dashboard-ui && npm run dev")
     print("=" * 60)
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host=os.getenv("DASHBOARD_HOST", "127.0.0.1"), port=8000, log_level="info")
 
 
 if __name__ == "__main__":

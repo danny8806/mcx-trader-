@@ -41,6 +41,7 @@ class OrderManager:
         Returns:
             Order if created, None if rejected
         """
+        fills_to_notify = []
         with self._lock:
             # Check for duplicate signals
             key = f"{signal.strategy_id}:{signal.instrument}:{signal.timestamp}"
@@ -69,8 +70,7 @@ class OrderManager:
                     fills = self.execution_engine.get_fills(strategy_id=signal.strategy_id)
                     for fill in fills:
                         if fill.fill_id == fill_id:
-                            if self.on_fill:
-                                self.on_fill(fill)
+                            fills_to_notify.append(fill)
                             break
             elif order.state == OrderState.REJECTED:
                 # Order rejected — clean up memory
@@ -78,7 +78,12 @@ class OrderManager:
                 self._active_orders.pop(order.order_id, None)
                 return None
 
-            return order
+        # Invoke callbacks OUTSIDE the lock to prevent deadlock
+        if self.on_fill:
+            for fill in fills_to_notify:
+                self.on_fill(fill)
+
+        return order
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order."""

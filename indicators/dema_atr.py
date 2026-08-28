@@ -189,9 +189,7 @@ class DEMAATR:
         """Get current indicator state for persistence."""
         return {
             "dema": self._dema.snapshot(),
-            "dema_value": self._dema_snapshot_value(),
             "atr": self._atr.snapshot(),
-            "atr_value": self._atr_snapshot_value(),
             "prev_output": self._prev_output,
             "count": self._count,
             "initialized": self._initialized,

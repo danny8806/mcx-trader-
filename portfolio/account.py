@@ -150,3 +150,4 @@ class AccountEngine:
         self.unrealized_pnl = data.get("unrealized_pnl", 0.0)
         self.charges = data.get("charges", 0.0)
         self.used_margin = data.get("used_margin", 0.0)
+        self.cash = data.get("cash", self.starting_capital)
