@@ -63,6 +63,11 @@ class HealthMonitor:
             comp.error_count += 1
             self._error_count += 1
 
+    def mark_all(self, status: SystemStatus, message: str = "") -> None:
+        """Set every registered component to the same status."""
+        for name in list(self._components):
+            self.update_component(name, status, message)
+
     def record_tick(self) -> None:
         self._tick_count += 1
 
@@ -79,6 +84,8 @@ class HealthMonitor:
         statuses = [c.status for c in self._components.values()]
         if any(s == SystemStatus.ERROR for s in statuses):
             return SystemStatus.ERROR
+        if any(s == SystemStatus.STOPPED for s in statuses):
+            return SystemStatus.STOPPED
         if any(s == SystemStatus.DEGRADED for s in statuses):
             return SystemStatus.DEGRADED
         if not self._components:

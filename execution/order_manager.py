@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from .paper_broker import PaperExecutionEngine, Order, OrderState, Fill
 
@@ -22,13 +22,12 @@ class OrderManager:
     def __init__(
         self,
         execution_engine: PaperExecutionEngine,
-        on_fill: Optional[Callable[[Fill], None]] = None,
     ):
         self.execution_engine = execution_engine
-        self.on_fill = on_fill
 
         self._pending_signals: dict[str, Any] = {}
         self._active_orders: dict[str, Order] = {}
+        self._fills_to_notify: list[Fill] = []
         self._lock = threading.Lock()
 
     def submit_signal(self, signal: Any, multiplier: float = 1.0) -> Optional[Order]:
@@ -39,7 +38,9 @@ class OrderManager:
             multiplier: Contract multiplier for the instrument
             
         Returns:
-            Order if created, None if rejected
+            Order if created, None if rejected.
+            Fills produced by the order are collected and MUST be drained (and
+            the order persisted BEFORE them) by the caller via drain_fills().
         """
         fills_to_notify = []
         with self._lock:
@@ -78,12 +79,21 @@ class OrderManager:
                 self._active_orders.pop(order.order_id, None)
                 return None
 
-        # Invoke callbacks OUTSIDE the lock to prevent deadlock
-        if self.on_fill:
-            for fill in fills_to_notify:
-                self.on_fill(fill)
+            self._fills_to_notify = fills_to_notify
 
         return order
+
+    def drain_fills(self) -> list[Fill]:
+        """Return and clear the fills produced by the last submitted signal.
+
+        The caller is responsible for persisting the order row BEFORE dispatching
+        these fills, so the DB invariant "every fill references an existing
+        order" is never violated (even on a crash between the two).
+        """
+        with self._lock:
+            fills = self._fills_to_notify
+            self._fills_to_notify = []
+            return fills
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order."""

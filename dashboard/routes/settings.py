@@ -37,8 +37,36 @@ async def get_settings():
 def _refresh_settings_sync():
     if not _engine:
         return {"error": "Engine not initialized"}
-    _engine.config.load()
-    return {"status": "refreshed", "timestamp": time.time()}
+    applied = []
+    warnings = []
+    try:
+        _engine.config.load()
+        for name, strat in _engine.strategies.items():
+            cfg = _engine.config.strategy(name)
+            if not cfg:
+                continue
+            open_positions = _engine.position_manager.get_positions_by_strategy(name)
+            has_open = any(pos.is_open for pos in open_positions)
+            changed = {}
+            if "quantity" in cfg and cfg.get("quantity") != strat.quantity:
+                if has_open:
+                    warnings.append(f"{name}: quantity change deferred while position open")
+                else:
+                    strat.quantity = int(cfg["quantity"])
+                    changed["quantity"] = strat.quantity
+            if "enabled" in cfg and bool(cfg.get("enabled")) != strat.enabled:
+                strat.enabled = bool(cfg.get("enabled"))
+                changed["enabled"] = strat.enabled
+            if cfg.get("fast_timeframe") != strat.fast_timeframe:
+                warnings.append(f"{name}: fast_timeframe change requires engine restart")
+            if cfg.get("htf_timeframe") != strat.htf_timeframe:
+                warnings.append(f"{name}: htf_timeframe change requires engine restart")
+            if changed:
+                applied.append({"strategy_id": name, "changed": changed})
+        _engine.notify_settings_refreshed()
+    except Exception as e:
+        return {"error": str(e)}
+    return {"status": "refreshed", "applied": applied, "warnings": warnings, "timestamp": time.time()}
 
 @router.post("/api/settings/refresh")
 async def refresh_settings():

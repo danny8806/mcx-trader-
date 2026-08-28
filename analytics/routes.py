@@ -154,6 +154,7 @@ async def get_strategy_trades(
                 "entry_price": t.average_entry_price,
                 "exit_price": t.average_exit_price,
                 "quantity": t.filled_quantity,
+                "multiplier": t.multiplier,
                 "net_pnl": t.net_pnl,
                 "gross_pnl": t.gross_pnl,
                 "fees": t.fees,

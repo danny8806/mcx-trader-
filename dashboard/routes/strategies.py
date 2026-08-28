@@ -38,7 +38,7 @@ def _list_strategies_sync(instrument: Optional[str] = None, status: Optional[str
                 "fast_timeframe": cfg.get("fast_timeframe", strat.fast_timeframe),
                 "htf_timeframe": cfg.get("htf_timeframe", strat.htf_timeframe),
                 "quantity": cfg.get("quantity", strat.quantity),
-                "enabled": cfg.get("enabled", True),
+                "enabled": snap.get("enabled", cfg.get("enabled", True)),
                 "state": state,
                 "position_side": snap.get("position_side"),
                 "stop_price": snap.get("stop_price"),
@@ -91,7 +91,7 @@ def _get_strategy_sync(strategy_id: str):
                 "fast_timeframe": cfg.get("fast_timeframe", strat.fast_timeframe),
                 "htf_timeframe": cfg.get("htf_timeframe", strat.htf_timeframe),
                 "quantity": cfg.get("quantity", strat.quantity),
-                "enabled": cfg.get("enabled", True),
+                "enabled": snap.get("enabled", cfg.get("enabled", True)),
                 "dema_period": _engine.config.get("indicators.dema_period", 3),
                 "atr_period": _engine.config.get("indicators.atr_period", 6),
                 "atr_factor": _engine.config.get("indicators.atr_factor", 1.0),
@@ -123,11 +123,27 @@ def _control_strategy_sync(strategy_id: str, action: str):
         return {"error": f"Strategy {strategy_id} not found"}
     try:
         strat = _engine.strategies[strategy_id]
-        if _bus:
-            _bus.publish("strategy_control", {
-                "strategy_id": strategy_id, "action": action, "timestamp": time.time(),
-            })
-        return {"success": True, "strategy_id": strategy_id, "action": action}
+        if action == "pause":
+            open_positions = _engine.position_manager.get_positions_by_strategy(strategy_id)
+            if any(pos.is_open for pos in open_positions):
+                return {"success": False, "strategy_id": strategy_id, "action": action,
+                        "error": "Cannot pause a strategy with an open position; close it first."}
+            strat.pending_entry = None
+            strat.enabled = False
+            if _bus:
+                _bus.publish("strategy_control", {
+                    "strategy_id": strategy_id, "action": action, "timestamp": time.time(),
+                })
+            return {"success": True, "strategy_id": strategy_id, "action": action}
+        if action == "resume":
+            strat.enabled = True
+            if _bus:
+                _bus.publish("strategy_control", {
+                    "strategy_id": strategy_id, "action": action, "timestamp": time.time(),
+                })
+            return {"success": True, "strategy_id": strategy_id, "action": action}
+        return {"success": False, "strategy_id": strategy_id, "action": action,
+                "error": f"Unknown action '{action}' (expected pause or resume)"}
     except Exception as e:
         return {"error": str(e)}
 

@@ -50,7 +50,11 @@ class DhanWebSocketClient:
         self._instruments: dict[str, dict[str, str]] = {}
         self._stats = {"recv": 0, "parse_err": 0, "sub": 0, "tick": 0}
         
-        # Duplicate tick prevention: key = (security_id, ltt)
+        # Duplicate tick prevention: key = (security_id, ltt, price)
+        # LTT is second-granularity; several ticks can share it with different
+        # prices. Keying on price suppresses only true redelivered duplicates
+        # (same sid + timestamp + price) instead of dropping same-second
+        # price updates.
         self._seen_ltt: dict[str, int] = {}
         self._dedup_window = 120  # seconds to keep seen LTTs
 
@@ -162,13 +166,15 @@ class DhanWebSocketClient:
         try:
             tick = self._parse_packet(message)
             if tick and self.on_tick:
-                # Duplicate prevention: skip if same security_id + LTT seen recently
+                # Duplicate prevention: skip only if same security_id + LTT + price
                 sid = tick.get("security_id", "")
                 ltt = tick.get("ltt", 0)
-                if ltt and sid in self._seen_ltt and self._seen_ltt[sid] == ltt:
+                ltp = tick.get("ltp", 0.0)
+                dedup_key = f"{sid}|{ltt}|{ltp:.2f}"
+                if ltt and dedup_key in self._seen_ltt:
                     return  # duplicate tick after reconnect
                 if ltt:
-                    self._seen_ltt[sid] = ltt
+                    self._seen_ltt[dedup_key] = ltt
                     # Cap dict size to prevent memory leak (LTT is monotonically increasing)
                     if len(self._seen_ltt) > 10000:
                         self._seen_ltt.clear()

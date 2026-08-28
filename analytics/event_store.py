@@ -20,6 +20,7 @@ class EventStore:
         "ORDER_CREATED",
         "ORDER_SUBMITTED",
         "ORDER_ACKNOWLEDGED",
+        "ORDER_REJECTED",
         "PARTIALLY_FILLED",
         "POSITION_OPENED",
         "POSITION_UPDATED",

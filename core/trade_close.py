@@ -166,18 +166,39 @@ class TradeCloseManager:
         except Exception as e:
             print(f"[TradeClose] WARNING: risk engine update failed: {e}", flush=True)
 
-        # Step 6b: Close trade in ledger
+        # Step 6b: Close trade in ledger (position-anchored 1:1)
         if self._trade_ledger:
             try:
-                # Find the open trade for this position
-                open_trades = self._trade_ledger.get_open_trades(
-                    strategy_id=strategy_id, instrument=fill.instrument,
-                )
-                for t in open_trades:
+                # Record the exit fill leg on the trade linked to this position
+                # (trade_id == position_id), then sync authoritative P&L.
+                trade = self._trade_ledger.get_trade(position.position_id)
+                if trade:
+                    self._trade_ledger.record_fill(
+                        trade_id=position.position_id,
+                        fill_id=fill.fill_id,
+                        order_id=fill.order_id,
+                        side=fill.side,
+                        quantity=fill.quantity,
+                        price=fill.price,
+                        timestamp=fill.timestamp,
+                        is_entry=False,
+                    )
                     self._trade_ledger.close_trade(
-                        t.trade_id, exit_reason=exit_reason_final,
+                        position.position_id, exit_reason=exit_reason_final,
                         gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
                     )
+                else:
+                    # Fallback: ledger was not linked at open time (e.g. the
+                    # position predates the linkage). Close only the matching
+                    # open trade for this strategy+instrument.
+                    open_trades = self._trade_ledger.get_open_trades(
+                        strategy_id=strategy_id, instrument=fill.instrument,
+                    )
+                    for t in open_trades:
+                        self._trade_ledger.close_trade(
+                            t.trade_id, exit_reason=exit_reason_final,
+                            gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
+                        )
             except Exception:
                 pass
 

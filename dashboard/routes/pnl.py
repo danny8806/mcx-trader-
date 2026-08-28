@@ -26,11 +26,12 @@ def _get_portfolio_pnl_sync():
             cfg = strategies_cfg.get(strat_name, {})
             inst = cfg.get("instrument", strat_name)
             if inst not in by_instrument:
-                by_instrument[inst] = {"realized_gross": 0, "realized_charges": 0, "realized_net": 0, "trade_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "_count": 0}
+                by_instrument[inst] = {"realized_gross": 0, "realized_charges": 0, "realized_net": 0, "unrealized": 0, "trade_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "_count": 0}
             snap = eng.snapshot()
             by_instrument[inst]["realized_gross"] += snap.get("realized_gross", 0)
             by_instrument[inst]["realized_charges"] += snap.get("realized_charges", 0)
             by_instrument[inst]["realized_net"] += snap.get("realized_net", 0)
+            by_instrument[inst]["unrealized"] += eng.get_snapshot().unrealized_gross
             by_instrument[inst]["trade_count"] += snap.get("trade_count", 0)
             by_instrument[inst]["wins"] += snap.get("wins", 0)
             by_instrument[inst]["losses"] += snap.get("losses", 0)

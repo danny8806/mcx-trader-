@@ -101,7 +101,17 @@ class PNLEngine:
         - ASK for SHORT positions (liquidation value)
         """
         position.update_mark(current_price)
+        self._unrealized_gross = position.unrealized_pnl
         return position.unrealized_pnl
+
+    def update_unrealized_pnl(self, gross: float) -> None:
+        """Set current unrealized gross P&L from open-position marks.
+
+        Called on every tick from the engine's mark loop so the P&L snapshot
+        reports a live per-strategy unrealized figure instead of zero.
+        """
+        with self._lock:
+            self._unrealized_gross = gross
 
     def get_snapshot(self) -> PnLSnapshot:
         """Get current P&L snapshot."""

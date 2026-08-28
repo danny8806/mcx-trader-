@@ -135,7 +135,7 @@ class ReconciliationEngine:
         for check in [
             lambda: self._check_orders_vs_fills(db_orders, db_fills, result),
             lambda: self._check_fills_vs_positions(db_fills, mem_positions_open, mem_positions_closed, result),
-            lambda: self._check_positions_vs_trades(mem_positions_open, db_trades, result),
+            lambda: self._check_positions_vs_trades(mem_positions_open, mem_positions_closed, db_trades, result),
             lambda: self._check_trades_vs_pnl(db_trades, result),
             lambda: self._check_accounts_vs_positions(mem_positions_open, result),
             lambda: self._check_duplicate_fills(db_fills, result),
@@ -294,27 +294,38 @@ class ReconciliationEngine:
     def _check_positions_vs_trades(
         self,
         open_positions: list,
+        closed_positions: list,
         db_trades: list[dict],
         result: ReconciliationResult,
     ) -> None:
-        """Open positions should not have a closed trade. Closed trades should match closed positions."""
-        # A closed trade in DB means the position should be closed in memory
-        open_pos_instruments: dict[str, list] = {}
-        for pos in open_positions:
-            key = f"{pos.strategy_id}:{pos.instrument}"
-            open_pos_instruments.setdefault(key, []).append(pos)
+        """Trades are position-anchored 1:1: the DB trade row for a close uses
+        the position_id as trade_id. Match on that linkage, never on the weak
+        strategy:instrument key (which collides across sequential positions on
+        the same instrument and caused false reconciliation failures).
+        """
+        open_position_ids = {p.position_id for p in open_positions}
+        db_trade_ids = {t.get("trade_id") for t in db_trades if t.get("trade_id")}
 
+        # A persisted "closed" trade row whose trade_id is still an open position
+        # in memory means the close was written but the in-memory position was
+        # not closed (e.g. crash between persist and memory update).
         for trade in db_trades:
-            strat = trade.get("strategy_id", "")
-            inst = trade.get("instrument", "")
-            status = trade.get("status", "closed")
-            key = f"{strat}:{inst}"
-
-            if status == "closed" and key in open_pos_instruments:
+            tid = trade.get("trade_id")
+            if tid and trade.get("status") == "closed" and tid in open_position_ids:
                 result.add_error(
-                    f"Trade {trade.get('trade_id')} is closed in DB but "
-                    f"position is still open in memory for {inst} ({strat})"
+                    f"Trade {tid} is closed in DB but position is still open in memory "
+                    f"for {trade.get('instrument')} ({trade.get('strategy_id')})"
                 )
+
+        # A recently closed in-memory position with no DB trade row means the
+        # close was never persisted. trade_close persists BEFORE closing in
+        # memory, so a closed in-memory position must always have its row.
+        missing = [p.position_id for p in closed_positions if p.position_id not in db_trade_ids]
+        if missing:
+            result.add_error(
+                f"{len(missing)} closed position(s) have no trade row in DB: "
+                f"{missing[:5]}{'...' if len(missing) > 5 else ''}"
+            )
 
     def _check_trades_vs_pnl(
         self,

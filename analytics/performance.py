@@ -39,6 +39,7 @@ class TradeMetrics:
     entry_price: float = 0.0
     exit_price: float = 0.0
     quantity: int = 0
+    multiplier: float = 1.0
 
 
 @dataclass
@@ -174,6 +175,7 @@ class PerformanceEngine:
             entry_price=entry_price,
             exit_price=exit_price,
             quantity=quantity,
+            multiplier=trade.get("multiplier") or 1.0,
         )
 
     def calculate_strategy_performance(self, strategy_id: str,
@@ -613,25 +615,31 @@ class PerformanceEngine:
         return max_count
 
     def _calculate_drawdown(self, equity_curve: list[float]) -> tuple[float, float]:
-        """Calculate max drawdown and its duration."""
+        """Calculate max drawdown and its duration.
+
+        Duration = longest stretch of trades the equity stayed below its
+        running peak, including an ongoing (unrecovered) drawdown through the
+        end of the series. Measures underwater time instead of only elapsed
+        trades between recovered peaks.
+        """
         if not equity_curve:
             return 0.0, 0.0
 
         peak = equity_curve[0]
+        peak_idx = 0
         max_dd = 0.0
-        dd_start = 0
         max_dd_duration = 0.0
-        current_dd_start = 0
 
         for i, val in enumerate(equity_curve):
             if val > peak:
                 peak = val
-                dd_duration = i - current_dd_start
-                max_dd_duration = max(max_dd_duration, dd_duration)
-                current_dd_start = i
+                peak_idx = i
             dd = peak - val
             if dd > max_dd:
                 max_dd = dd
+            current_dd_duration = i - peak_idx
+            if current_dd_duration > max_dd_duration:
+                max_dd_duration = current_dd_duration
 
         return max_dd, max_dd_duration
 

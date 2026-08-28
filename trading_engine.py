@@ -25,7 +25,7 @@ from execution.order_manager import OrderManager
 from portfolio.position_manager import PositionManager, Position
 from portfolio.pnl import PNLEngine
 from portfolio.account import AccountEngine
-from monitoring.health import HealthMonitor
+from monitoring.health import HealthMonitor, SystemStatus
 from notifications.telegram_router import TelegramRouter
 from analytics.event_store import EventStore
 from analytics.trade_ledger import TradeLedger
@@ -96,6 +96,12 @@ class TradingEngine:
     def set_persistence(self, persistence) -> None:
         """Set persistence manager for trade logging."""
         self._persistence = persistence
+
+    def notify_settings_refreshed(self) -> None:
+        """Broadcast that settings were reloaded via the dashboard."""
+        self.publish_event("settings_refreshed", {
+            "timestamp": time.time(),
+        })
 
     def publish_event(self, event_type: str, data: dict) -> None:
         """Publish event to dashboard EventBus + persistence."""
@@ -240,7 +246,6 @@ class TradingEngine:
         )
         self.order_manager = OrderManager(
             execution_engine=self.execution_engine,
-            on_fill=self._on_fill,
         )
 
     def _init_portfolio(self) -> None:
@@ -328,6 +333,7 @@ class TradingEngine:
             return
         self._running = True
         self.market_status.set_engine_status(EngineStatus.INITIALIZING)
+        self.health.mark_all(SystemStatus.HEALTHY, "initializing")
         print("[Engine] Starting...", flush=True)
 
         # Wire atomic trade close manager
@@ -558,6 +564,7 @@ class TradingEngine:
                 return
             self._running = False
         self.market_status.set_engine_status(EngineStatus.STOPPED)
+        self.health.mark_all(SystemStatus.STOPPED, "engine stopped")
         self.data_adapter.disconnect()
         # Stop candle fetcher
         self.candle_fetcher.stop()
@@ -585,6 +592,15 @@ class TradingEngine:
             connected=ws_connected,
             last_tick_time=self.data_adapter.ws._last_tick_time if self.data_adapter.ws else 0.0,
         )
+
+        # Sync data_adapter health component to live feed state
+        if ws_connected:
+            self.health.update_component(
+                "data_adapter", SystemStatus.HEALTHY,
+                f"{self.data_adapter.ws._stats.get('tick', 0) if self.data_adapter.ws else 0} ticks",
+            )
+        else:
+            self.health.update_component("data_adapter", SystemStatus.ERROR, "WebSocket disconnected")
 
         # Stale connection check
         if self.data_adapter.ws and self.data_adapter.ws.is_stale():
@@ -621,6 +637,9 @@ class TradingEngine:
                 strat_positions = self.position_manager.get_positions_by_strategy(strat_id)
                 strat_unrealized = sum(p.unrealized_pnl for p in strat_positions if p.is_open)
                 self.account_engines[strat_id].update_unrealized_pnl(strat_unrealized)
+                pnl_eng = self.pnl_engines.get(strat_id)
+                if pnl_eng is not None:
+                    pnl_eng.update_unrealized_pnl(strat_unrealized)
             # Update global account
             all_unrealized = sum(p.unrealized_pnl for p in self.position_manager.open_positions)
             self.account_engine.update_unrealized_pnl(all_unrealized)
@@ -817,11 +836,54 @@ class TradingEngine:
                 "quantity": signal.quantity,
                 "reason": reason,
             })
+            if self.event_store:
+                try:
+                    self.event_store.record(
+                        trade_id=f"rejected:{signal.strategy_id}:{signal.timestamp}",
+                        strategy_id=signal.strategy_id,
+                        instrument=signal.instrument,
+                        event_type="ORDER_REJECTED",
+                        payload={
+                            "side": str(signal.signal_type),
+                            "trigger_price": signal.trigger_price,
+                            "stop_price": signal.stop_price,
+                            "quantity": signal.quantity,
+                            "reason": reason,
+                        },
+                    )
+                except Exception:
+                    pass
             return
 
         # Submit order
         order = self.order_manager.submit_signal(signal, multiplier=multiplier)
         if order:
+            # ── Persist the order row BEFORE dispensing its fills, so the DB
+            # invariant "every fill references an existing order" holds even on
+            # a crash between the two (reconciliation would otherwise flag
+            # orphan fills / filled orders with no fill rows). ──
+            if self._persistence:
+                try:
+                    self._persistence.save_order({
+                        "order_id": order.order_id,
+                        "strategy_id": signal.strategy_id,
+                        "instrument": signal.instrument,
+                        "side": str(order.side),
+                        "quantity": signal.quantity,
+                        "order_type": "MARKET",
+                        "price": signal.trigger_price,
+                        "state": str(order.state),
+                        "filled_quantity": order.quantity,
+                        "average_fill_price": order.average_fill_price,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                except Exception:
+                    pass
+            # Dispatch fills produced by the order (each persists its own fill
+            # row in _on_fill before any position references it).
+            for fill in self.order_manager.drain_fills():
+                self._on_fill(fill)
             print(f"[Order] Submitted: {order.order_id} {order.side} {order.instrument}", flush=True)
             if self.event_store:
                 try:
@@ -842,25 +904,6 @@ class TradingEngine:
                 "stop_price": signal.stop_price,
                 "quantity": signal.quantity,
             })
-            # Persist order immediately
-            if self._persistence:
-                try:
-                    self._persistence.save_order({
-                        "order_id": order.order_id,
-                        "strategy_id": signal.strategy_id,
-                        "instrument": signal.instrument,
-                        "side": str(order.side),
-                        "quantity": signal.quantity,
-                        "order_type": "MARKET",
-                        "price": signal.trigger_price,
-                        "state": str(order.state),
-                        "filled_quantity": order.quantity,
-                        "average_fill_price": order.average_fill_price,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    })
-                except Exception:
-                    pass
         else:
             # Order submission failed — reset strategy state to prevent stuck state
             print(f"[Order] SUBMISSION FAILED for {signal.strategy_id} - resetting strategy", flush=True)
@@ -920,6 +963,19 @@ class TradingEngine:
                         strat.stop_price = None
                         strat.pending_entry = None
                     return
+                # ── Persist the fill BEFORE opening any position referencing it,
+                # so position restore on restart never references a fill missing
+                # from the DB (that would put the engine into safe mode). ──
+                if self._persistence:
+                    try:
+                        self._persistence.save_fill({
+                            "fill_id": fill.fill_id, "order_id": fill.order_id,
+                            "strategy_id": fill.strategy_id, "instrument": fill.instrument,
+                            "side": fill.side, "quantity": fill.quantity, "price": fill.price,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                    except Exception:
+                        pass
                 try:
                     position = self.position_manager.open_position(
                         fill=fill, multiplier=multiplier, margin=margin,
@@ -954,7 +1010,8 @@ class TradingEngine:
                     "instrument": fill.instrument, "side": position.side.value,
                     "price": fill.price, "quantity": fill.quantity, "margin": margin,
                 })
-                # Create trade in ledger
+                # Create trade in ledger (position-anchored 1:1: trade_id =
+                # position_id) and record the entry fill leg.
                 if self.trade_ledger:
                     try:
                         strat = self.strategies.get(fill.strategy_id)
@@ -968,6 +1025,18 @@ class TradingEngine:
                             trigger_price=fill.price,
                             stop_price=stop_price or 0.0,
                             multiplier=multiplier,
+                            trade_id=position.position_id,
+                            position_id=position.position_id,
+                        )
+                        self.trade_ledger.record_fill(
+                            trade_id=position.position_id,
+                            fill_id=fill.fill_id,
+                            order_id=fill.order_id,
+                            side=fill.side,
+                            quantity=fill.quantity,
+                            price=fill.price,
+                            timestamp=fill.timestamp,
+                            is_entry=True,
                         )
                     except Exception:
                         pass
@@ -979,21 +1048,10 @@ class TradingEngine:
                         {"fill_id": fill.fill_id, "order_id": fill.order_id, "instrument": fill.instrument,
                          "side": fill.side, "price": fill.price, "quantity": fill.quantity, "strategy_id": fill.strategy_id,
                          "multiplier": multiplier, "stop_price": strat_snap.get("stop_price", 0)},
-                        strat_snap, strat_acct_snap,
+strat_snap, strat_acct_snap,
                     )
                 except Exception:
                     pass
-                # Persist fill immediately
-                if self._persistence:
-                    try:
-                        self._persistence.save_fill({
-                            "fill_id": fill.fill_id, "order_id": fill.order_id,
-                            "strategy_id": fill.strategy_id, "instrument": fill.instrument,
-                            "side": fill.side, "quantity": fill.quantity, "price": fill.price,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        })
-                    except Exception:
-                        pass
             else:
                 print(f"[Fill] MARGIN BLOCKED: {fill.strategy_id} - no margin for {fill.instrument}", flush=True)
                 # CRITICAL: Reset strategy state — _check_pending_entry already set

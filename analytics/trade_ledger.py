@@ -141,9 +141,17 @@ class TradeLedger:
                      parameter_hash: Optional[str] = None,
                      session_id: Optional[str] = None,
                      replay_id: Optional[str] = None,
+                     trade_id: Optional[str] = None,
+                     position_id: Optional[str] = None,
                      **kwargs) -> TradeRecord:
-        """Create a new trade record on signal/entry."""
-        trade_id = str(uuid.uuid4())
+        """Create a new trade record on signal/entry.
+
+        Trades are position-anchored 1:1: when opened from a live fill,
+        ``trade_id`` should be the position_id so persistence/reconciliation and
+        analytics share one identity per round trip.
+        """
+        if trade_id is None:
+            trade_id = str(uuid.uuid4())
         initial_risk = abs(trigger_price - stop_price) if stop_price else None
 
         trade = TradeRecord(
@@ -161,6 +169,7 @@ class TradeLedger:
             initial_stop=stop_price,
             initial_risk=initial_risk,
             entry_reason=entry_reason,
+            position_id=position_id,
             session_id=session_id,
             replay_id=replay_id,
             created_at=time.time(),

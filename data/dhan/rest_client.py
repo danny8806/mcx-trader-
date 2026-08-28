@@ -5,10 +5,13 @@ import json
 import os
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import requests
+
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 class TokenBucket:
@@ -253,7 +256,7 @@ class DhanRESTClient:
 
         while not self._scheduler_stop.is_set():
             try:
-                now = datetime.now()
+                now = datetime.now(IST)
                 hour = now.hour
                 minute = now.minute
 
@@ -446,8 +449,8 @@ class DhanRESTClient:
         exchange_segment: str = "MCX_COMM",
         instrument: str = "FUTCOM",
     ) -> list[list]:
-        """Backfill intraday data from contract listing to today."""
-        today = datetime.datetime.now()
+        # Backfill intraday data from contract listing to today (IST).
+        today = datetime.now(IST)
         total_candles = []
         
         probe = today - timedelta(days=90)
@@ -471,7 +474,7 @@ class DhanRESTClient:
             return []
         
         # Sweep forward from first known candle
-        cursor = datetime.datetime.fromtimestamp(first)
+        cursor = datetime.fromtimestamp(first, tz=IST)
         while cursor < today:
             to_dt = min(cursor + timedelta(days=90), today)
             candles = self.fetch_intraday(
