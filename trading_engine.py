@@ -1043,6 +1043,7 @@ class TradingEngine:
             # Exit — use atomic trade close manager
             position = open_pos[0]
             strategy_id = fill.strategy_id
+            strat_account = self.account_engines.get(strategy_id)
             if self._trade_close_manager:
                 success = self._trade_close_manager.close_position(
                     fill=fill, position=position,
