@@ -58,7 +58,7 @@ COPY dashboard/ ./dashboard/
 COPY --from=frontend-build /app/frontend/dist ./dashboard-ui/dist
 
 # Create data directory
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data/db
 
 # Environment variables (override via docker run -e)
 ENV DHAN_CLIENT_ID=1102461741

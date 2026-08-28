@@ -34,7 +34,7 @@ from dashboard.routes import reconciliation, alerts, settings, audit_log, indica
 try:
     from analytics import routes as analytics_routes
     from analytics.schema import init_analytics_db
-    _analytics_db = str(Path(__file__).resolve().parent.parent / "data" / "analytics.db")
+    _analytics_db = str(Path(__file__).resolve().parent.parent / "data" / "db" / "analytics.db")
     init_analytics_db(_analytics_db)
     analytics_routes.init(_analytics_db)
     print(f"[Analytics] Initialized with db: {_analytics_db}", file=sys.stderr, flush=True)
@@ -207,8 +207,8 @@ async def lifespan(app: FastAPI):
         try:
             from persistence.manager import PersistenceManager
             _persistence = PersistenceManager(
-                state_path=str(Path(__file__).resolve().parent.parent / "data" / "system_state.json"),
-                db_path=str(Path(__file__).resolve().parent.parent / "data" / "trading.db"),
+                state_path=str(Path(__file__).resolve().parent.parent / "data" / "db" / "system_state.json"),
+                db_path=str(Path(__file__).resolve().parent.parent / "data" / "db" / "trading.db"),
             )
         except Exception:
             pass

@@ -33,8 +33,8 @@ def main():
     try:
         from persistence.manager import PersistenceManager
         persistence = PersistenceManager(
-            state_path="data/system_state.json",
-            db_path="data/trading.db",
+            state_path="data/db/system_state.json",
+            db_path="data/db/trading.db",
         )
     except Exception:
         pass

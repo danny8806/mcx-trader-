@@ -4,15 +4,15 @@
     "version": "1.0.0",
     "environment": "paper",
     "log_level": "INFO",
-    "db_path": "data/trading.db",
-    "state_path": "data/system_state.json"
+    "db_path": "data/db/trading.db",
+    "state_path": "data/db/system_state.json"
   },
   "dhan": {
     "client_id": "1102461741",
     "access_token": "",
     "ws_url": "wss://api-feed.dhan.co",
     "rest_base": "https://api.dhan.co/v2",
-    "token_file": "data/dhan_token.json",
+    "token_file": "data/db/dhan_token.json",
     "pin": "107602",
     "totp_secret": "VUQQFLIRDEJ46O2WPXDGNIBULKCJU7FO"
   },
