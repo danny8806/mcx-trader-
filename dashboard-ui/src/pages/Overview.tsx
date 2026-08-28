@@ -1,5 +1,5 @@
 import { useData } from "../store/DataProvider";
-import { formatINR, formatPct, pnlColor, statusDot, formatTimestamp } from "../lib/utils";
+import { formatINR, formatPct, pnlColor, statusDot, formatTimestamp, safeNum, safeINR } from "../lib/utils";
 
 const panelStyle: React.CSSProperties = {
   background: "var(--bg-panel)",
@@ -46,7 +46,7 @@ function MarketCard({ name, ltp, status: _status, overview }: { name: string; lt
         </div>
       </div>
       <div style={{ fontSize: "24px", fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", marginBottom: "8px" }}>
-        {isLive ? `₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+        {isLive ? safeINR(ltp) : "—"}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", fontSize: "10px" }}>
         {overview?.strategies?.map((s: any) => (
@@ -112,10 +112,10 @@ function PositionRow({ p }: { p: any }) {
       <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.strategy_id}</span>
       <span style={{ color: p.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
       <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</span>
-      <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>₹{p.average_entry.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-      <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? `₹${p.stop_price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span>
+      <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.average_entry)}</span>
+      <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>
       <span style={{ color: pnlColor(p.unrealized_pnl), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-        {p.unrealized_pnl >= 0 ? "+" : ""}₹{p.unrealized_pnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+        {p.unrealized_pnl >= 0 ? "+" : ""}₹{safeNum(p.unrealized_pnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
       </span>
     </div>
   );
@@ -134,7 +134,7 @@ function FillRow({ f }: { f: any }) {
       <span style={{ color: "var(--text-primary)", fontWeight: 500, width: "55px" }}>{f.instrument}</span>
       <span style={{ color: f.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{f.side}</span>
       <span style={{ color: "var(--text-secondary)" }}>{f.quantity}</span>
-      <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>₹{f.price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+      <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(f.price)}</span>
       <div style={{ flex: 1 }} />
       <span style={{ color: "var(--text-muted)", fontSize: "9px" }}>{f.strategy_id}</span>
     </div>
@@ -169,7 +169,7 @@ export default function Overview() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: "8px" }}>
-        <MetricCard label="STARTING CAPITAL" value={`₹${overview.starting_capital.toLocaleString("en-IN")}`} />
+        <MetricCard label="STARTING CAPITAL" value={safeINR(overview.starting_capital)} />
         <MetricCard
           label="NET P&L"
           value={formatINR(overview.total_net_pnl)}
@@ -179,7 +179,7 @@ export default function Overview() {
         <MetricCard label="REALIZED" value={formatINR(overview.realized_pnl)} color={pnlColor(overview.realized_pnl)} />
         <MetricCard label="UNREALIZED" value={formatINR(overview.unrealized_pnl)} color={pnlColor(overview.unrealized_pnl)} />
         <MetricCard label="TODAY P&L" value={formatINR(overview.today_pnl)} color={pnlColor(overview.today_pnl)} />
-        <MetricCard label="MARGIN USED" value={`₹${overview.margin_used.toLocaleString("en-IN")}`} sub={`Avail: ₹${overview.available_margin.toLocaleString("en-IN")}`} />
+        <MetricCard label="MARGIN USED" value={safeINR(overview.margin_used)} sub={`Avail: ${safeINR(overview.available_margin)}`} />
         <MetricCard label="OPEN POSITIONS" value={String(overview.open_positions_count)} />
         <MetricCard label="ACTIVE STRATEGIES" value={String(overview.active_strategies_count)} />
       </div>

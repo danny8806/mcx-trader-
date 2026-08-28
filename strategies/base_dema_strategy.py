@@ -256,7 +256,7 @@ class BaseDEMAStrategy:
         self, side: str, close: float, high: float, low: float, timestamp: float,
         prev_high: Optional[float] = None, prev_low: Optional[float] = None,
     ) -> Signal:
-        """Create a reversal signal. Closes existing position via exit signal + creates pending entry."""
+        """Create a reversal signal. Closes existing position + creates pending entry."""
         if side == "LONG":
             trigger = high
             sl_high = prev_high if prev_high is not None else high
@@ -278,6 +278,9 @@ class BaseDEMAStrategy:
             quantity=self.quantity,
             metadata={"exit_reason": f"{side.lower()}_reversal"},
         )
+
+        # Close old position before creating pending entry
+        self._close_position(f"{side.lower()}_reversal", close, timestamp)
 
         self.pending_entry = PendingEntry(
             signal=signal,

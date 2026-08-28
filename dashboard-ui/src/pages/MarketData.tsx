@@ -1,4 +1,5 @@
 import { useData } from "../store/DataProvider";
+import { safeINR } from "../lib/utils";
 
 export default function MarketData() {
   const { marketData } = useData();
@@ -20,7 +21,7 @@ export default function MarketData() {
               </div>
             </div>
             <div style={{ fontSize: "28px", fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", marginBottom: "12px" }}>
-              {isLive ? `₹${data.ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+              {isLive ? safeINR(data.ltp) : "—"}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontSize: "10px" }}>
               {[["Spread", data.spread > 0 ? `₹${data.spread}` : "—"], ["Ticks", String(data.tick_count ?? 0)], ["Last Update", data.timestamp > 0 ? new Date(data.timestamp * 1000).toLocaleTimeString("en-IN", { hour12: false }) : "—"], ["Status", isLive ? "Connected" : "Disconnected"]].map(([k, v]) => (

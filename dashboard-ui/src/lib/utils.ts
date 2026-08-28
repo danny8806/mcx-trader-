@@ -5,18 +5,34 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatINR(val: number, showSign = true): string {
+export function safeNum(val: any, fallback = 0): number {
+  if (val == null || isNaN(val)) return fallback;
+  return Number(val);
+}
+
+export function safeINR(val: any): string {
+  return `₹${safeNum(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function safeINRShort(val: any): string {
+  return `₹${safeNum(val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatINR(val: number | null | undefined, showSign = true): string {
+  if (val == null || isNaN(val)) return "—";
   const sign = val > 0 ? "+" : val < 0 ? "-" : "";
   const abs = Math.abs(val);
   return `${showSign ? sign : ""}₹${abs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function formatINRShort(val: number): string {
+export function formatINRShort(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return "₹0";
   const sign = val >= 0 ? "+" : "";
   return `${sign}₹${Math.abs(val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
-export function formatPct(val: number): string {
+export function formatPct(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return "0.00%";
   return `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
 }
 

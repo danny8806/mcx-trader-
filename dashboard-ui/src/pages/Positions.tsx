@@ -1,5 +1,5 @@
 import { useData } from "../store/DataProvider";
-import { formatINR, pnlColor } from "../lib/utils";
+import { formatINR, pnlColor, safeNum, safeINR } from "../lib/utils";
 
 export default function Positions() {
   const { positions } = useData();
@@ -24,12 +24,12 @@ export default function Positions() {
               <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.strategy_id}</span>
               <span style={{ color: p.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
               <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</span>
-              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>₹{p.average_entry.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-              <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>₹{(p.current_mark ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? `₹${p.stop_price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span>
+              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.average_entry)}</span>
+              <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.current_mark)}</span>
+              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>
               <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatINR(p.margin, false)}</span>
               <span style={{ color: pnlColor(p.unrealized_pnl), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-                {p.unrealized_pnl >= 0 ? "+" : ""}₹{p.unrealized_pnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                {p.unrealized_pnl >= 0 ? "+" : ""}₹{safeNum(p.unrealized_pnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </span>
             </div>
           ))}

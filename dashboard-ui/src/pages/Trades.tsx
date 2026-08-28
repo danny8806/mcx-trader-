@@ -1,5 +1,5 @@
 import { useData } from "../store/DataProvider";
-import { formatTimestamp } from "../lib/utils";
+import { formatTimestamp, safeINR } from "../lib/utils";
 
 export default function Trades() {
   const { fills } = useData();
@@ -25,7 +25,7 @@ export default function Trades() {
               <span style={{ color: "var(--text-muted)" }}>{f.strategy_id}</span>
               <span style={{ color: f.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{f.side}</span>
               <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{f.quantity}</span>
-              <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>₹{f.price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(f.price)}</span>
               <span style={{ color: "var(--text-muted)" }}>×{f.multiplier}</span>
             </div>
           ))}

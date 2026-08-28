@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useData } from "../../store/DataProvider";
+import { safeINR } from "../../lib/utils";
 
 function isMarketOpen(now: Date): boolean {
   const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
@@ -94,7 +95,7 @@ export default function TopBar() {
         <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
           <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>GOLD</span>
           <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>
-            ₹{goldLtp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {safeINR(goldLtp)}
           </span>
         </div>
       )}
@@ -105,7 +106,7 @@ export default function TopBar() {
         <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
           <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>SILVERM</span>
           <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>
-            ₹{silverLtp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {safeINR(silverLtp)}
           </span>
         </div>
       )}

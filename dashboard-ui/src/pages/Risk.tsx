@@ -1,5 +1,5 @@
 import { useData } from "../store/DataProvider";
-import { formatINR } from "../lib/utils";
+import { formatINR, safeINR } from "../lib/utils";
 
 export default function Risk() {
   const { risk } = useData();
@@ -16,7 +16,7 @@ export default function Risk() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
-        {[["EQUITY", `₹${risk.equity.toLocaleString("en-IN")}`], ["MARGIN USED", `₹${risk.used_margin.toLocaleString("en-IN")}`], ["AVAILABLE", `₹${risk.available_margin.toLocaleString("en-IN")}`], ["DAILY P&L", formatINR(risk.daily_pnl)]].map(([k, v]) => (
+        {[["EQUITY", safeINR(risk.equity)], ["MARGIN USED", safeINR(risk.used_margin)], ["AVAILABLE", safeINR(risk.available_margin)], ["DAILY P&L", formatINR(risk.daily_pnl)]].map(([k, v]) => (
           <div key={String(k)} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px 12px" }}>
             <div style={{ fontSize: "9px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{String(k)}</div>
             <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{String(v)}</div>

@@ -1,5 +1,5 @@
 import { useData } from "../store/DataProvider";
-import { formatINR, pnlColor, statusDot, formatTimestamp } from "../lib/utils";
+import { formatINR, pnlColor, statusDot, formatTimestamp, safeNum, safeINR } from "../lib/utils";
 
 const panelStyle: React.CSSProperties = { background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" };
 const header: React.CSSProperties = { padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" };
@@ -20,7 +20,7 @@ export default function LiveTrading() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>{name}</span>
               <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-                {ltp > 0 ? `₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}
+                {ltp > 0 ? safeINR(ltp) : "—"}
               </span>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
@@ -54,10 +54,10 @@ export default function LiveTrading() {
                 <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.strategy_id}</span>
                 <span style={{ color: p.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
                 <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</span>
-                <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>₹{p.average_entry.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? `₹${p.stop_price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span>
+                <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.average_entry)}</span>
+                <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>
                 <span style={{ color: pnlColor(p.unrealized_pnl), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-                  {p.unrealized_pnl >= 0 ? "+" : ""}₹{p.unrealized_pnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {p.unrealized_pnl >= 0 ? "+" : ""}₹{safeNum(p.unrealized_pnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </span>
               </div>
             ))}
@@ -77,7 +77,7 @@ export default function LiveTrading() {
                 <span style={{ color: "var(--text-primary)", fontWeight: 500, width: "55px" }}>{f.instrument}</span>
                 <span style={{ color: f.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{f.side}</span>
                 <span style={{ color: "var(--text-secondary)" }}>{f.quantity}</span>
-                <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>₹{f.price.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(f.price)}</span>
                 <div style={{ flex: 1 }} />
                 <span style={{ color: "var(--text-muted)", fontSize: "9px" }}>{f.strategy_id}</span>
               </div>

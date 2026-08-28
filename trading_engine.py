@@ -1107,6 +1107,20 @@ class TradingEngine:
                 except Exception:
                     pass
 
+            # If this was a reversal (old position closed, new pending entry exists),
+            # now open the new position from the same fill
+            strat = self.strategies.get(strategy_id)
+            if strat and strat.pending_entry is not None and strat.state in (StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
+                new_side = strat.pending_entry.side
+                fill_side = "BUY" if new_side == "LONG" else "SELL"
+                margin = self._calculate_margin(fill.instrument, fill.price, fill.quantity, side=fill_side)
+                if strat_account and strat_account.block_margin(margin):
+                    self.account_engine.block_margin(margin)
+                    new_position = self.position_manager.open_position(
+                        fill=fill, multiplier=multiplier, margin=margin,
+                    )
+                    print(f"[Position] REVERSAL opened: {new_side} {fill.instrument} @ {fill.price} (strategy={strategy_id})", flush=True)
+
     def _on_status(self, status: str) -> None:
         """Handle data adapter status change."""
         print(f"[Data] Status: {status}", flush=True)
