@@ -4,8 +4,8 @@
     "version": "1.0.0",
     "environment": "paper",
     "log_level": "INFO",
-    "db_path": "trading.db",
-    "state_path": "system_state.json"
+    "db_path": "data/trading.db",
+    "state_path": "data/system_state.json"
   },
   "dhan": {
     "client_id": "1102461741",

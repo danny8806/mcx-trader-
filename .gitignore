@@ -1,4 +1,9 @@
-# Runtime files
+# Runtime files (in data/ volume — persisted via Docker -v mount)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/system_state.json
+data/dhan_token.json
 *.db
 *.db-shm
 *.db-wal

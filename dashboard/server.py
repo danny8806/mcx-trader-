@@ -34,7 +34,7 @@ from dashboard.routes import reconciliation, alerts, settings, audit_log, indica
 try:
     from analytics import routes as analytics_routes
     from analytics.schema import init_analytics_db
-    _analytics_db = str(Path(__file__).resolve().parent.parent / "analytics.db")
+    _analytics_db = str(Path(__file__).resolve().parent.parent / "data" / "analytics.db")
     init_analytics_db(_analytics_db)
     analytics_routes.init(_analytics_db)
     print(f"[Analytics] Initialized with db: {_analytics_db}", file=sys.stderr, flush=True)
