@@ -167,9 +167,10 @@ class BaseDEMAStrategy:
         cross = close > htf_val and prev_close <= prev_htf_val
         if not cross:
             return False
-        # Confirmation: 15m line must not be strongly above 1H line
+        # Confirmation: 15m line must be strictly below 1H line for LONG
+        # (matches backtest exactly: h15 < h1)
         if mid_val is not None and htf_val is not None:
-            if mid_val > htf_val * 1.015:
+            if mid_val >= htf_val:
                 return False
         return True
 
