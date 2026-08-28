@@ -210,8 +210,9 @@ class MarketStatus:
 
     def snapshot(self) -> dict:
         with self._lock:
+            current_state = self._force_state_override or self._market_state
             return {
-                "market_state": self._market_state.value,
+                "market_state": current_state.value,
                 "engine_status": self._engine_status.value,
                 "data_status": self._data_status.value,
                 "last_transition": self._last_transition.isoformat() if self._last_transition else None,

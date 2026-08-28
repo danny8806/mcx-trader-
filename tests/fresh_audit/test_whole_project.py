@@ -457,7 +457,10 @@ class TestAPIRoutes:
             if hasattr(mod, 'init'):
                 mod.init(engine, bus)
 
-        self.client = TestClient(app, raise_server_exceptions=False)
+        import dashboard.server as srv
+        srv._api_key = "test-key"  # set test key for auth bypass
+
+        self.client = TestClient(app, raise_server_exceptions=False, headers={"X-API-Key": "test-key"})
 
     def test_api_health(self):
         resp = self.client.get("/api/health")

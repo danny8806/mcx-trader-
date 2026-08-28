@@ -25,6 +25,12 @@ from strategies.base_dema_strategy import BaseDEMAStrategy, SignalType
 from core.timeframe_engine import Bar
 from htf.backtest_style_htf import BacktestStyleHTFEngine, HTFMappedValue
 
+# This module only needs LIVE_ROOT at import time for the classes above.
+# Remove it from sys.path so it does NOT shadow the MCX-TRADER (source of
+# truth) copy for every other test file in the suite.
+if sys.path and sys.path[0] == LIVE_ROOT:
+    sys.path.pop(0)
+
 
 # ---------------------------------------------------------------------------
 # Inline backtest helper functions (pure numpy/pandas, no dependencies)

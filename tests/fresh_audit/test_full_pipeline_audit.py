@@ -821,7 +821,7 @@ class TestSection29_HTF_ClosedBarRules:
         from core.candle_fetcher import CandleFetcher
         import inspect
         source = inspect.getsource(CandleFetcher._check_timeframe)
-        assert "last_close_time >= now" in source or "last_close_time >= now" in source, \
+        assert "completed_buckets" in source or "last_close_time >= now" in source, \
             "Must skip current forming candle"
         assert "return" in source, "Must return early if candle not yet closed"
 

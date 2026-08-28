@@ -76,7 +76,7 @@ class PaperExecutionEngine:
         self,
         slippage_ticks: int = 1,
         latency_ms: float = 100.0,
-        partial_fill_probability: float = 0.1,
+        partial_fill_probability: float = 0.0,
     ):
         self.slippage_ticks = slippage_ticks
         self.latency_ms = latency_ms

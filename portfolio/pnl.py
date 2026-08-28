@@ -148,7 +148,7 @@ class PNLEngine:
                 "trade_count": self._trade_count,
                 "wins": self._wins,
                 "losses": self._losses,
-                "win_rate": self.win_rate,
+                "win_rate": (self._wins / self._trade_count * 100) if self._trade_count > 0 else 0.0,
             }
 
     def restore(self, data: dict) -> None:
@@ -159,4 +159,4 @@ class PNLEngine:
             self._realized_net = data.get("realized_net", 0.0)
             self._trade_count = data.get("trade_count", 0)
             self._wins = data.get("wins", 0)
-        self._losses = data.get("losses", 0)
+            self._losses = data.get("losses", 0)
