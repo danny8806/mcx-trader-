@@ -595,8 +595,7 @@ class TradingEngine:
         self.health.record_tick()
 
         # Check for EOD force-close
-        if self.market_status.should_force_close:
-            self._execute_eod_close()
+        # (moved inside lock below to prevent race with bar close processing)
 
         # Transition engine to TRADING if market is open and data is flowing
         if (self.market_status.state == MarketState.LIVE_TRADING
@@ -605,6 +604,10 @@ class TradingEngine:
             self.market_status.set_engine_status(EngineStatus.TRADING)
 
         with self._lock:
+            # Check for EOD force-close (inside lock to prevent race with bar processing)
+            if self.market_status.should_force_close:
+                self._execute_eod_close()
+
             # [1] Update execution engine price (for order fills)
             self.execution_engine.update_price(instrument, ltp)
 
@@ -1133,12 +1136,13 @@ class TradingEngine:
                     pass
 
             # If this was a reversal (old position closed, new pending entry exists),
-            # now open the new position with a fresh fill at current market price
+            # now open the new position with a fresh fill at the signal trigger price
             strat = self.strategies.get(strategy_id)
             if strat and strat.pending_entry is not None and strat.state in (StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
                 new_side = strat.pending_entry.side
                 fill_side = "BUY" if new_side == "LONG" else "SELL"
-                entry_price = fill.price  # use current market price from the exit fill
+                # Use the signal's trigger price (bar high/low) for the new entry, not exit fill price
+                entry_price = strat.pending_entry.signal.trigger_price
                 margin = self._calculate_margin(fill.instrument, entry_price, fill.quantity, side=fill_side)
                 if strat_account and strat_account.block_margin(margin):
                     self.account_engine.block_margin(margin)
@@ -1289,36 +1293,38 @@ class TradingEngine:
         """Get complete system state for persistence.
 
         Separates LIVE STATE (restorable) from HISTORICAL STATE (in DB only).
+        Thread-safe: acquires lock to prevent inconsistent snapshots during mutations.
         """
-        return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            # Live state (restorable on restart)
-            "market_status": self.market_status.snapshot(),
-            "strategies": {
-                name: strat.snapshot()
-                for name, strat in self.strategies.items()
-            },
-            "positions": self.position_manager.snapshot(),
-            "account": self.account_engine.snapshot(),
-            "accounts_by_strategy": {
-                name: eng.snapshot()
-                for name, eng in self.account_engines.items()
-            },
-            "pnl": {
-                name: eng.snapshot()
-                for name, eng in self.pnl_engines.items()
-            },
-            "risk": self.risk_engine.snapshot(),
-            "execution": self.execution_engine.snapshot(),
-            "indicators": {
-                key: ind.snapshot()
-                for key, ind in self.indicators.items()
-            },
-            "htf": self.htf_engine.snapshot(),
-            "health": self.health.snapshot(),
-            # Historical state reference (authoritative source is trades DB)
-            "historical_source": "trading.db",
-        }
+        with self._lock:
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                # Live state (restorable on restart)
+                "market_status": self.market_status.snapshot(),
+                "strategies": {
+                    name: strat.snapshot()
+                    for name, strat in self.strategies.items()
+                },
+                "positions": self.position_manager.snapshot(),
+                "account": self.account_engine.snapshot(),
+                "accounts_by_strategy": {
+                    name: eng.snapshot()
+                    for name, eng in self.account_engines.items()
+                },
+                "pnl": {
+                    name: eng.snapshot()
+                    for name, eng in self.pnl_engines.items()
+                },
+                "risk": self.risk_engine.snapshot(),
+                "execution": self.execution_engine.snapshot(),
+                "indicators": {
+                    key: ind.snapshot()
+                    for key, ind in self.indicators.items()
+                },
+                "htf": self.htf_engine.snapshot(),
+                "health": self.health.snapshot(),
+                # Historical state reference (authoritative source is trades DB)
+                "historical_source": "trading.db",
+            }
 
     def restore(self, state: dict) -> None:
         """Restore system state from persistence.

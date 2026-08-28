@@ -127,12 +127,13 @@ class PersistenceManager:
             conn.close()
 
     def save_state(self, state: dict) -> None:
-        """Save system state to JSON file (atomic write)."""
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.state_path.with_suffix(".tmp")
-        with open(tmp, "w") as f:
-            json.dump(state, f, indent=2, default=str)
-        tmp.replace(self.state_path)
+        """Save system state to JSON file (atomic write, thread-safe)."""
+        with self._lock:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_path.with_suffix(".tmp")
+            with open(tmp, "w") as f:
+                json.dump(state, f, indent=2, default=str)
+            tmp.replace(self.state_path)
 
     def load_state(self) -> Optional[dict]:
         """Load system state from JSON file."""

@@ -86,6 +86,7 @@ class PaperExecutionEngine:
         self._fills: list[Fill] = []
         self._current_prices: dict[str, float] = {}
         self._price_lock = threading.Lock()
+        self._max_fills = 500  # Keep only last 500 fills in memory
 
     def update_price(self, instrument: str, price: float) -> None:
         """Update current market price for an instrument."""
@@ -165,6 +166,9 @@ class PaperExecutionEngine:
             multiplier=order.multiplier,
         )
         self._fills.append(fill)
+        # Prune old fills to prevent unbounded growth
+        if len(self._fills) > self._max_fills:
+            self._fills = self._fills[-self._max_fills:]
         return fill
 
     def get_order(self, order_id: str) -> Optional[Order]:
