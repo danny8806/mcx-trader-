@@ -12,6 +12,7 @@ from strategies.types import StrategyState
 
 with open("data/dhan_token.json") as f:
     TOKEN = json.load(f)["access_token"]
+print("Token:", TOKEN[:30], "...")
 
 def api_call(payload):
     r = requests.post("https://api.dhan.co/v2/charts/intraday", json=payload,
