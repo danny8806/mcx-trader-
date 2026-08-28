@@ -35,8 +35,8 @@ def main():
     print("=" * 60)
 
     persistence = PersistenceManager(
-        state_path=str(_PKG_DIR / "system_state.json"),
-        db_path=str(_PKG_DIR / "trading.db"),
+        state_path=str(_PKG_DIR / "data" / "system_state.json"),
+        db_path=str(_PKG_DIR / "data" / "trading.db"),
     )
 
     engine = TradingEngine(config_path=str(_PKG_DIR / "config" / "settings.json"))

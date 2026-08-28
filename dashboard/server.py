@@ -207,8 +207,8 @@ async def lifespan(app: FastAPI):
         try:
             from persistence.manager import PersistenceManager
             _persistence = PersistenceManager(
-                state_path=str(Path(__file__).resolve().parent.parent / "system_state.json"),
-                db_path=str(Path(__file__).resolve().parent.parent / "trading.db"),
+                state_path=str(Path(__file__).resolve().parent.parent / "data" / "system_state.json"),
+                db_path=str(Path(__file__).resolve().parent.parent / "data" / "trading.db"),
             )
         except Exception:
             pass
