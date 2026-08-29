@@ -2,22 +2,18 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
-import secrets
 import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
 # Add parent to path for engine imports
 _parent = str(Path(__file__).resolve().parent.parent)
@@ -43,53 +39,6 @@ except Exception as e:
     analytics_routes = None
 
 logger = logging.getLogger(__name__)
-
-# --- API Key Auth ---
-# Generate on first run, persist to settings.json under dashboard.api_key
-_api_key: Optional[str] = None
-_ws_paths = {"/ws"}  # WebSocket endpoints exempt from API key check
-
-
-def _get_api_key() -> Optional[str]:
-    """Load API key from config. Only enforced if explicitly set (not null)."""
-    global _api_key
-    if _api_key is not None:
-        return _api_key
-    try:
-        settings_path = Path(__file__).resolve().parent.parent / "config" / "settings.json"
-        if settings_path.exists():
-            data = json.loads(settings_path.read_text())
-            dash_cfg = data.get("dashboard", {})
-            key = dash_cfg.get("api_key")
-            if key:
-                _api_key = key
-                return _api_key
-            # Missing credentials must never turn a network control plane into
-            # an unauthenticated service.
-            _api_key = ""  # sentinel: checked, authentication unavailable
-            return None
-    except Exception:
-        pass
-    return None
-
-
-async def verify_api_key(request: Request):
-    """FastAPI dependency: verify API key via header or query param.
-    
-    Skips WebSocket paths (handled separately in WS endpoint).
-    """
-    if request.url.path in _ws_paths:
-        return  # WS has its own auth flow
-    key = _get_api_key()
-    if not key:
-        raise HTTPException(status_code=503, detail="Dashboard API key is not configured")
-    # Check header: X-API-Key
-    provided = request.headers.get("X-API-Key")
-    if not provided:
-        # Check query param: ?api_key=...
-        provided = request.query_params.get("api_key")
-    if not provided or not secrets.compare_digest(provided, key):
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 event_bus = EventBus(max_events=50000)
@@ -337,22 +286,6 @@ from starlette.responses import FileResponse
 _frontend_dist = Path(__file__).resolve().parent.parent / "dashboard-ui" / "dist"
 _frontend_available = _frontend_dist.exists()
 
-class APIKeyMiddleware(BaseHTTPMiddleware):
-    """Middleware to verify API key on all HTTP requests."""
-    async def dispatch(self, request: Request, call_next):
-        # Skip WebSocket and health endpoints
-        if request.url.path in _ws_paths or request.url.path.startswith("/api/health"):
-            return await call_next(request)
-        key = _get_api_key()
-        if not key:
-            return JSONResponse(status_code=503, content={"detail": "Dashboard API key is not configured"})
-        provided = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-        if not provided or not secrets.compare_digest(provided, key):
-            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
-        return await call_next(request)
-
-app.add_middleware(APIKeyMiddleware)
-
 # Register all routers
 for r in [overview, strategies, positions, orders, trades, pnl, market_data,
           risk, health, replay, reconciliation, alerts, settings, audit_log, indicators]:
@@ -364,17 +297,10 @@ if analytics_routes:
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, client_id: Optional[str] = None, api_key: Optional[str] = None):
-    # Verify WebSocket API key (from query param)
-    key = _get_api_key()
-    if not key:
-        await websocket.close(code=1013, reason="Dashboard API key is not configured")
-        return
-    if not api_key or not secrets.compare_digest(api_key, key):
-        await websocket.close(code=4001, reason="Invalid API key")
-        return
+async def websocket_endpoint(websocket: WebSocket):
+    # Accept connection (auth gate removed - dashboard open)
     await websocket.accept()
-    cid = client_id or f"client_{uuid.uuid4().hex[:8]}"
+    cid = f"client_{uuid.uuid4().hex[:8]}"
     ws_manager.connect(cid, websocket, ["all"])
     try:
         while True:
