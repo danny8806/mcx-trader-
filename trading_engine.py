@@ -872,7 +872,7 @@ class TradingEngine:
                         "quantity": signal.quantity,
                         "order_type": "MARKET",
                         "price": signal.trigger_price,
-                        "state": str(order.state),
+                        "state": order.state.value,
                         "filled_quantity": order.quantity,
                         "average_fill_price": order.average_fill_price,
                         "created_at": datetime.now(timezone.utc).isoformat(),
