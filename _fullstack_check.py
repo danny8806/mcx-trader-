@@ -203,7 +203,7 @@ def boot_server(engine, persistence):
     from analytics import routes as aroutes
 
     ana = Path(engine.trade_ledger._db_path)
-    aroutes.init(str(ana))
+    aroutes.init(str(ana), strategy_ids=list(engine.strategies.keys()))
 
     ds.set_engine(engine)
     ds._persistence = persistence
@@ -254,6 +254,9 @@ async def main_checks(engine, ref):
         ok("health.market_state", r.get("market_status") == "live_trading" and r.get("engine_status") == "trading"
            and r.get("data_status") == "connected",
            f"market={r.get('market_status')} engine={r.get('engine_status')} data={r.get('data_status')}")
+        comp = next((d for d in r.get("components", []) if d.get("name") == "data_adapter"), {})
+        ok("health.uptime_present", comp.get("uptime", 0) > 0,
+           f"data_adapter uptime={comp.get('uptime')}")
 
         # ── overview ──
         r = (await c.get("/api/overview")).json()
@@ -288,6 +291,9 @@ async def main_checks(engine, ref):
            f"state={r.get('current_state',{}).get('state')}")
         ok("strategies.gold01.pnl", abs(r.get("performance", {}).get("realized_net", 0) - ref["nets"][list(ref["gold01"])[0]]) < 0.01,
            f"api={r.get('performance',{}).get('realized_net')}")
+        htf_ind = (r.get("htf") or {}).get("indicator") or {}
+        ok("strategies.gold01.htf_flattened", "dema_value" in htf_ind and "atr_value" in htf_ind,
+           f"htf_indicator_keys={sorted(htf_ind)}")
         r = (await c.get("/api/strategies/silver_01")).json()
         ok("strategies.silver01.open", r.get("current_state", {}).get("state") == "long_position"
            and len(r.get("positions", [])) == 1,
@@ -424,7 +430,8 @@ async def main_checks(engine, ref):
         # ── analytics (REST) ──
         r = (await c.get("/api/analytics/strategies")).json()
         ast = r if isinstance(r, list) else r.get("strategies", [])
-        ok("an.strategies", isinstance(ast, list) and len(ast) == 8, f"count={len(ast)}")
+        ok("an.strategies", isinstance(ast, list) and len(ast) == len(engine.strategies),
+           f"count={len(ast)} engine={len(engine.strategies)}")
         r = (await c.get("/api/analytics/strategies/gold_01")).json()
         ok("an.strategy", isinstance(r, dict) and ("strategy_id" in r or "trade_count" in r),
            f"keys={list(r)[:6]}")

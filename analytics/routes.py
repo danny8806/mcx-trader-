@@ -1,5 +1,6 @@
 """Analytics API Routes - Strategy Intelligence and Performance Analytics."""
 from __future__ import annotations
+import json
 import time
 from typing import Optional
 from fastapi import APIRouter, Query
@@ -12,12 +13,47 @@ _event_store = None
 _trade_ledger = None
 _performance_engine = None
 _db_path = None
+_STRATEGY_IDS = None
+
+_STRATEGY_FALLBACK = ["gold_01", "gold_02", "silver_01", "silver_02"]
 
 
-def init(db_path: str = "analytics.db"):
-    """Initialize analytics routes with database path."""
-    global _event_store, _trade_ledger, _performance_engine, _db_path
+def _strategy_ids() -> list[str]:
+    """Live strategy ids: explicit engine list first, then config file, then
+    distinct ids present in the analytics DB, then defaults."""
+    if _STRATEGY_IDS:
+        return list(_STRATEGY_IDS)
+    try:
+        cfg_path = Path(__file__).resolve().parent.parent / "config" / "settings.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        strat = cfg.get("strategies") or {}
+        ids = [k for k in strat if strat.get(k)]
+        if ids:
+            return ids
+    except Exception:
+        pass
+    try:
+        if _db_path:
+            import sqlite3
+            conn = sqlite3.connect(f"file:{_db_path}?mode=ro", uri=True)
+            try:
+                ids = [r[0] for r in conn.execute(
+                    "SELECT DISTINCT strategy_id FROM trades_analytics "
+                    "ORDER BY strategy_id")]
+            finally:
+                conn.close()
+            if ids:
+                return ids
+    except Exception:
+        pass
+    return list(_STRATEGY_FALLBACK)
+
+
+def init(db_path: str = "analytics.db", strategy_ids: Optional[list[str]] = None):
+    """Initialize analytics routes with database path and optional strategy list."""
+    global _event_store, _trade_ledger, _performance_engine, _db_path, _STRATEGY_IDS
     _db_path = db_path
+    _STRATEGY_IDS = list(strategy_ids) if strategy_ids else None
     try:
         from .schema import init_analytics_db
         init_analytics_db(db_path)
@@ -50,10 +86,7 @@ async def get_strategies_overview():
     if not _performance_engine:
         return {"error": "Analytics not initialized"}
     
-    strategy_ids = [
-        "gold_01", "gold_02", "gold_03", "gold_04",
-        "silver_01", "silver_02", "silver_03", "silver_04",
-    ]
+    strategy_ids = _strategy_ids()
     
     strategies = []
     for sid in strategy_ids:
@@ -367,10 +400,7 @@ async def get_correlation():
     if not _performance_engine:
         return {"error": "Analytics not initialized"}
     
-    strategy_ids = [
-        "gold_01", "gold_02", "gold_03", "gold_04",
-        "silver_01", "silver_02", "silver_03", "silver_04",
-    ]
+    strategy_ids = _strategy_ids()
     
     corr = _performance_engine.calculate_strategy_correlation(strategy_ids)
     return corr
@@ -386,10 +416,7 @@ async def get_portfolio_analytics():
     if not _performance_engine:
         return {"error": "Analytics not initialized"}
     
-    strategy_ids = [
-        "gold_01", "gold_02", "gold_03", "gold_04",
-        "silver_01", "silver_02", "silver_03", "silver_04",
-    ]
+    strategy_ids = _strategy_ids()
     
     contributions = _performance_engine.calculate_portfolio_contribution(strategy_ids)
     total_pnl = sum(c["net_pnl"] for c in contributions)
@@ -561,10 +588,7 @@ async def get_reconciliation():
         return {"error": "Analytics not initialized"}
     
     issues = []
-    strategy_ids = [
-        "gold_01", "gold_02", "gold_03", "gold_04",
-        "silver_01", "silver_02", "silver_03", "silver_04",
-    ]
+    strategy_ids = _strategy_ids()
     
     for sid in strategy_ids:
         # Check: no trade with strategy_id = NULL

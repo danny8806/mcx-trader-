@@ -95,6 +95,8 @@ def _get_strategy_sync(strategy_id: str):
         htf_snap = _engine.htf_engine.snapshot()
         htf_key = f"{inst}:{strat.htf_timeframe}"
         htf_state = htf_snap.get(htf_key, {})
+        if isinstance(htf_state, dict) and isinstance(htf_state.get("indicator"), dict):
+            htf_state = {**htf_state, "indicator": _with_flat_indicators(htf_state["indicator"])}
 
         positions = _engine.position_manager.get_positions_by_strategy(strategy_id)
         pos_list = []

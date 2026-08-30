@@ -105,7 +105,8 @@ class HealthMonitor:
             "fill_count": self._fill_count,
             "error_count": self._error_count,
             "components": {
-                name: comp.to_dict() for name, comp in self._components.items()
+                name: {**comp.to_dict(), "uptime": max(0.0, time.time() - comp.last_update)}
+                for name, comp in self._components.items()
             },
             "timestamp": datetime.now(IST).isoformat(),
         }
