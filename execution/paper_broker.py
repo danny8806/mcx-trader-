@@ -6,7 +6,7 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from strategies.types import Signal, SignalType
 
@@ -77,9 +77,15 @@ class PaperExecutionEngine:
         slippage_ticks: int = 1,
         latency_ms: float = 100.0,
         partial_fill_probability: float = 0.0,
+        clock: Optional[Callable[[], float]] = None,
     ):
         self.slippage_ticks = slippage_ticks
         self.latency_ms = latency_ms
+        # Optional replay clock: when set, order/fill timestamps come from it
+        # instead of wall-clock time.  Production leaves this None so every
+        # timestamp is time.time() exactly as before; the replay drivers set it
+        # to the candle's end_ts so persisted history carries the day's times.
+        self._clock: Optional[Callable[[], float]] = clock
         if partial_fill_probability != 0:
             raise ValueError(
                 "Partial fills are not supported by the position ledger; "
@@ -92,6 +98,9 @@ class PaperExecutionEngine:
         self._current_prices: dict[str, float] = {}
         self._price_lock = threading.Lock()
         self._max_fills = 500  # Keep only last 500 fills in memory
+
+    def _now(self) -> float:
+        return self._clock() if self._clock is not None else time.time()
 
     def update_price(self, instrument: str, price: float) -> None:
         """Update current market price for an instrument."""
@@ -119,6 +128,8 @@ class PaperExecutionEngine:
             quantity=signal.quantity,
             state=OrderState.CREATED,
             multiplier=multiplier,
+            created_at=self._now(),
+            updated_at=self._now(),
         )
         self._orders[order.order_id] = order
         return order
@@ -129,7 +140,7 @@ class PaperExecutionEngine:
             raise ValueError(f"Cannot submit order in state {order.state}")
 
         order.state = OrderState.SUBMITTED
-        order.updated_at = time.time()
+        order.updated_at = self._now()
 
         # Simulate execution
         fill = self._execute_order(order)
@@ -168,7 +179,7 @@ class PaperExecutionEngine:
             side=order.side,
             quantity=order.quantity,
             price=fill_price,
-            timestamp=time.time(),
+            timestamp=self._now(),
             strategy_id=order.strategy_id,
             multiplier=order.multiplier,
         )
@@ -206,7 +217,7 @@ class PaperExecutionEngine:
         order = self._orders.get(order_id)
         if order and order.state in (OrderState.CREATED, OrderState.SUBMITTED):
             order.state = OrderState.CANCELED
-            order.updated_at = time.time()
+            order.updated_at = self._now()
             return True
         return False
 

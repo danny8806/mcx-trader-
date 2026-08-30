@@ -281,7 +281,11 @@ class TradeLedger:
             if trade:
                 trade.status = "CLOSED"
                 trade.exit_reason = exit_reason
-                trade.closed_at = time.time()
+                # Preserve the fill-derived close time (set in _update_exit_fill
+                # from last_exit_fill_time); only fall back to wall clock when
+                # the trade was closed without an exit fill (replay/history then
+                # carries the real trading-day time, not the run time).
+                trade.closed_at = trade.closed_at or time.time()
                 trade.updated_at = time.time()
                 if gross_pnl is not None:
                     trade.gross_pnl = gross_pnl

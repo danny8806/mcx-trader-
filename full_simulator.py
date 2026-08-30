@@ -306,6 +306,11 @@ def replay(engine, stream_by_day):
     engine._running = True
     engine.market_status.set_engine_status(EngineStatus.READY)
     ws = engine.data_adapter.ws
+    # Replay clock: stamp every order/fill with the candle's historical end_ts
+    # so persisted trades carry the real trading-day times instead of the
+    # wall-clock moment the replay ran.  Production (no clock) is untouched.
+    clock_holder = {"ts": 0.0}
+    engine.execution_engine._clock = lambda: clock_holder["ts"]
 
     def live_tick(instrument, ltp, ts):
         # Production _on_tick derives CONNECTED from ws._last_tick_time;
@@ -319,6 +324,7 @@ def replay(engine, stream_by_day):
         last_close = {}
         last_ts = {}
         for bar in bars:
+            clock_holder["ts"] = bar.end_ts
             strat = _fast_strategy(engine, bar)
             if strat is not None:
                 # Direct market LTP for the bar (close, unless a signal

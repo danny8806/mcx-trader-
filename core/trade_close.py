@@ -15,6 +15,7 @@ If step 4-8 fails: state is recoverable from database on restart.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -118,7 +119,7 @@ class TradeCloseManager:
                     "fill_id": fill.fill_id, "order_id": fill.order_id,
                     "strategy_id": fill.strategy_id, "instrument": fill.instrument,
                     "side": fill.side, "quantity": fill.quantity, "price": fill.price,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
                 }
                 if hasattr(self._persistence, "save_trade_and_fill"):
                     self._persistence.save_trade_and_fill(trade_record, fill_record)

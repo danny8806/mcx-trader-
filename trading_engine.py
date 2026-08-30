@@ -969,8 +969,8 @@ class TradingEngine:
                         "state": order.state.value,
                         "filled_quantity": order.quantity,
                         "average_fill_price": order.average_fill_price,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.fromtimestamp(order.created_at or time.time(), tz=timezone.utc).isoformat(),
+                        "updated_at": datetime.fromtimestamp(order.updated_at or time.time(), tz=timezone.utc).isoformat(),
                     })
                 except Exception:
                     pass
@@ -1098,7 +1098,7 @@ class TradingEngine:
                             "fill_id": fill.fill_id, "order_id": fill.order_id,
                             "strategy_id": fill.strategy_id, "instrument": fill.instrument,
                             "side": fill.side, "quantity": fill.quantity, "price": fill.price,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
                         })
                     except Exception:
                         pass
