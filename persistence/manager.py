@@ -336,6 +336,20 @@ class PersistenceManager:
             ))
             conn.commit()
 
+    def save_account_snapshot_from_state(self, state: dict) -> None:
+        """Derive and persist an account-snapshot row from an engine snapshot."""
+        acct = (state or {}).get("account")
+        if not acct:
+            return
+        self.save_account_snapshot({
+            "timestamp": state.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+            "equity": acct.get("equity"),
+            "realized_pnl": acct.get("realized_pnl"),
+            "unrealized_pnl": acct.get("unrealized_pnl"),
+            "used_margin": acct.get("used_margin"),
+            "available_margin": acct.get("available_margin"),
+        })
+
     def close(self) -> None:
         """Close the persistent database connection."""
         with self._lock:

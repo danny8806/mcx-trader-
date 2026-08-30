@@ -43,6 +43,20 @@ export function formatTimestamp(ts: number): string {
   });
 }
 
+export function formatDT(ts: any): string {
+  if (ts == null || ts === "") return "—";
+  let ms: number;
+  if (typeof ts === "number") ms = ts * 1000;
+  else if (typeof ts === "string") {
+    ms = Date.parse(ts);
+    if (isNaN(ms)) return ts;
+  } else return "—";
+  return new Date(ms).toLocaleString("en-IN", {
+    day: "2-digit", month: "short",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+  });
+}
+
 export function timeAgo(ts: number): string {
   if (!ts) return "—";
   const diff = (Date.now() / 1000) - ts;

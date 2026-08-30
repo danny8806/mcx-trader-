@@ -12,6 +12,7 @@ interface DataContextType {
   positions: any[];
   orders: any[];
   fills: any[];
+  trades: any[];
   pnl: any;
   pnlByInstrument: Record<string, any>;
   risk: any;
@@ -53,6 +54,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [positions, setPositions] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [fills, setFills] = useState<any[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
   const [pnl, setPnl] = useState<any>(null);
   const [pnlByInstrument, setPnlByInstrument] = useState<Record<string, any>>({});
   const [risk, setRisk] = useState<any>(null);
@@ -73,6 +75,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const timersRef = useRef<Record<string, number>>({});
   const mountedRef = useRef(true);
+  const wsActiveRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -84,6 +87,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchOverview = useCallback(async () => {
     try {
       const d = await api.overview() as any;
+      if (wsActiveRef.current) return;
       safe(setOverview)({
         total_equity: extractVal(d, "total_equity") ?? 0,
         starting_capital: extractVal(d, "starting_capital") ?? 0,
@@ -112,6 +116,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchStrategies = useCallback(async () => {
     try {
       const d = await api.strategies() as any;
+      if (wsActiveRef.current) return;
       safe(setStrategies)(Array.isArray(d?.strategies) ? d.strategies : []);
     } catch (e: any) { setLastError(`strategies: ${e?.message || e}`); }
   }, [safe]);
@@ -119,6 +124,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchPositions = useCallback(async () => {
     try {
       const d = await api.positions() as any;
+      if (wsActiveRef.current) return;
       safe(setPositions)(Array.isArray(d?.positions) ? d.positions : []);
     } catch (e: any) { setLastError(`positions: ${e?.message || e}`); }
   }, [safe]);
@@ -135,6 +141,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const d = await api.fills() as any;
       safe(setFills)(Array.isArray(d?.fills) ? d.fills : []);
     } catch (e: any) { setLastError(`fills: ${e?.message || e}`); }
+  }, [safe]);
+
+  const fetchTrades = useCallback(async () => {
+    try {
+      const d = await api.trades() as any;
+      safe(setTrades)(Array.isArray(d?.trades) ? d.trades : []);
+    } catch (e: any) { setLastError(`trades: ${e?.message || e}`); }
   }, [safe]);
 
   const fetchPnl = useCallback(async () => {
@@ -196,7 +209,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchEquityCurve = useCallback(async () => {
     try {
       const d = await api.equityCurve() as any;
-      safe(setEquityCurve)(d?.equity_curve ?? []);
+      const pts = (d?.equity_curve ?? []).map((r: any) => {
+        const ts = typeof r.timestamp === "number" ? r.timestamp : ((Date.parse(r.timestamp) / 1000) || 0);
+        return { timestamp: ts, equity: Number(r.equity ?? 0) };
+      }).sort((a: any, b: any) => a.timestamp - b.timestamp);
+      safe(setEquityCurve)(pts);
     } catch (e: any) { setLastError(`equity: ${e?.message || e}`); }
   }, [safe]);
 
@@ -208,18 +225,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const map: Record<string, () => void> = {
       overview: fetchOverview, goldOverview: fetchGoldOverview, silverOverview: fetchSilverOverview,
       strategies: fetchStrategies, positions: fetchPositions, orders: fetchOrders,
-      fills: fetchFills, pnl: fetchPnl, risk: fetchRisk, indicators: fetchIndicators,
+      fills: fetchFills, trades: fetchTrades, pnl: fetchPnl, risk: fetchRisk, indicators: fetchIndicators,
       htf: fetchHtf, health: fetchHealth, reconciliation: fetchReconciliation,
       settings: fetchSettings, audit: fetchAudit, alerts: fetchAlerts,
       equityCurve: fetchEquityCurve, marketData: fetchMarketData,
     };
     if (key && map[key]) map[key]();
     else Object.values(map).forEach(fn => fn());
-  }, [fetchOverview, fetchGoldOverview, fetchSilverOverview, fetchStrategies, fetchPositions, fetchOrders, fetchFills, fetchPnl, fetchRisk, fetchIndicators, fetchHtf, fetchHealth, fetchReconciliation, fetchSettings, fetchAudit, fetchAlerts, fetchEquityCurve, fetchMarketData]);
+  }, [fetchOverview, fetchGoldOverview, fetchSilverOverview, fetchStrategies, fetchPositions, fetchOrders, fetchFills, fetchTrades, fetchPnl, fetchRisk, fetchIndicators, fetchHtf, fetchHealth, fetchReconciliation, fetchSettings, fetchAudit, fetchAlerts, fetchEquityCurve, fetchMarketData]);
 
   useEffect(() => {
     fetchOverview(); fetchGoldOverview(); fetchSilverOverview();
     fetchStrategies(); fetchPositions(); fetchOrders(); fetchFills();
+    fetchTrades();
     fetchPnl(); fetchRisk(); fetchIndicators(); fetchHtf();
     fetchHealth(); fetchReconciliation(); fetchSettings();
     fetchAudit(); fetchAlerts(); fetchEquityCurve(); fetchMarketData();
@@ -234,6 +252,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       positions: window.setInterval(fetchPositions, 2000),
       orders: window.setInterval(fetchOrders, 3000),
       fills: window.setInterval(fetchFills, 3000),
+      trades: window.setInterval(fetchTrades, 5000),
       pnl: window.setInterval(fetchPnl, 5000),
       risk: window.setInterval(fetchRisk, 3000),
       indicators: window.setInterval(fetchIndicators, 5000),
@@ -241,10 +260,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       health: window.setInterval(fetchHealth, 10000),
       audit: window.setInterval(fetchAudit, 10000),
       alerts: window.setInterval(fetchAlerts, 5000),
+      equityCurve: window.setInterval(fetchEquityCurve, 10000),
       marketData: window.setInterval(fetchMarketData, 2000),
     };
     return () => { Object.values(timersRef.current).forEach(clearInterval); timersRef.current = {}; };
-  }, [fetchOverview, fetchGoldOverview, fetchSilverOverview, fetchStrategies, fetchPositions, fetchOrders, fetchFills, fetchPnl, fetchRisk, fetchIndicators, fetchHtf, fetchHealth, fetchAudit, fetchAlerts, fetchMarketData]);
+  }, [fetchOverview, fetchGoldOverview, fetchSilverOverview, fetchStrategies, fetchPositions, fetchOrders, fetchFills, fetchTrades, fetchPnl, fetchRisk, fetchIndicators, fetchHtf, fetchHealth, fetchAudit, fetchAlerts, fetchEquityCurve, fetchMarketData]);
 
   useEffect(() => {
     let reconnectTimer: number;
@@ -257,6 +277,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (mountedRef.current) setConnected(true);
       };
       ws.onclose = () => {
+        wsActiveRef.current = false;
         if (mountedRef.current) setConnected(false);
         reconnectTimer = window.setTimeout(connect, 3000);
       };
@@ -266,6 +287,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const msg = JSON.parse(evt.data);
           if (msg.type === "engine_state") {
             const s = msg.data;
+            wsActiveRef.current = true;
             safe(setWsState)(s);
             if (s?.account) {
               setOverview((prev: any) => prev ? {
@@ -318,7 +340,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider value={{
       connected, overview, goldOverview, silverOverview, strategies, positions,
-      orders, fills, pnl, pnlByInstrument, risk, indicators, htf,
+      orders, fills, trades, pnl, pnlByInstrument, risk, indicators, htf,
       healthComponents, overallHealth, reconciliation, settings, audit,
       alerts, equityCurve, marketData, wsEvents, wsState, refresh, lastError,
     }}>

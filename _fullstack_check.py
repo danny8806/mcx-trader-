@@ -325,6 +325,12 @@ async def main_checks(engine, ref):
         sides = {p.get("strategy_id"): p.get("side") for p in pl}
         ok("positions.count", r.get("count") == 2, f"count={r.get('count')}")
         ok("positions.sides", sides.get("gold_02") == "SHORT" and sides.get("silver_01") == "LONG", f"{sides}")
+        rc = (await c.get("/api/positions", params={"status": "closed"})).json()
+        ok("positions.closed", rc.get("count") == ref["count"],
+           f"closed={rc.get('count')} trades={ref['count']}")
+        ra = (await c.get("/api/positions", params={"status": "all"})).json()
+        ok("positions.all", ra.get("count") == 2 + ref["count"],
+           f"all={ra.get('count')} open=2 closed={ref['count']}")
         pid = pl[0].get("position_id") if pl else None
         r = (await c.get(f"/api/positions/{pid}")).json()
         ok("positions.detail", r.get("position_id") == pid and r.get("strategy_id") in ("gold_02", "silver_01"), f"{r.get('strategy_id')}")
@@ -356,6 +362,9 @@ async def main_checks(engine, ref):
            and abs(r.get("net_pnl", 0) - ref["nets"][trid]) < 0.01
            and r.get("exit_reason") == "stop_loss_hit",
            f"net={r.get('net_pnl')} ref={ref['nets'][trid]} reason={r.get('exit_reason')}")
+        r = (await c.get(f"/api/positions/{trid}")).json()
+        ok("trades.closed_position", r.get("status") == "closed" and r.get("position_id") == trid,
+           f"status={r.get('status')} pid={r.get('position_id')}")
 
         # ── pnl / equity ──
         r = (await c.get("/api/pnl")).json()
@@ -371,7 +380,12 @@ async def main_checks(engine, ref):
            and abs(r.get("realized", {}).get("realized_net", 0) - ref["nets"][list(ref["gold01"])[0]]) < 0.01,
            f"realized={r.get('realized',{}).get('realized_net')}")
         r = (await c.get("/api/equity-curve")).json()
-        ok("pnl.equity_curve", "equity_curve" in r, f"keys={list(r)}")
+        pts = r.get("equity_curve", [])
+        acct_eq = engine.account_engine.equity if hasattr(engine, "account_engine") else 0.0
+        ok("pnl.equity_curve", "equity_curve" in r and isinstance(pts, list) and len(pts) >= 1,
+           f"points={len(pts)}")
+        ok("pnl.equity_curve_value", len(pts) >= 1 and abs(pts[0].get("equity", 0) - acct_eq) < 0.01,
+           f"snap={pts[0].get('equity') if pts else None} acct={acct_eq:.2f}")
 
         # ── market data ──
         r = (await c.get("/api/market-data")).json()

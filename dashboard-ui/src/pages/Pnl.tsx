@@ -1,8 +1,9 @@
 import { useData } from "../store/DataProvider";
 import { formatINR, pnlColor } from "../lib/utils";
+import EquityCurveChart from "../components/EquityCurveChart";
 
 export default function Pnl() {
-  const { pnl, pnlByInstrument } = useData();
+  const { pnl, pnlByInstrument, equityCurve } = useData();
   if (!pnl) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const instruments = Object.entries(pnlByInstrument);
@@ -24,6 +25,15 @@ export default function Pnl() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          EQUITY CURVE
+        </div>
+        <div style={{ padding: "12px" }}>
+          <EquityCurveChart points={equityCurve ?? []} />
+        </div>
       </div>
 
       <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>

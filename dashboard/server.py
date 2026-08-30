@@ -110,20 +110,21 @@ def _enrich_strategies(snap):
 
 
 async def _periodic_save_state():
-    """Periodically persist engine state to disk (every 60s) for crash recovery."""
+    """Persist engine state + account snapshot (immediately and every 60s)."""
     while True:
         try:
-            await asyncio.sleep(60)
             if _engine and _persistence:
                 import concurrent.futures
                 loop = asyncio.get_event_loop()
                 state = await loop.run_in_executor(None, _engine.snapshot)
                 if state:
                     await loop.run_in_executor(None, _persistence.save_state, state)
+                    await loop.run_in_executor(None, _persistence.save_account_snapshot_from_state, state)
         except asyncio.CancelledError:
             break
         except Exception as e:
             print(f"[SaveState] Periodic save failed: {e}", file=sys.stderr, flush=True)
+        await asyncio.sleep(60)
 
 
 _push_executor: concurrent.futures.ThreadPoolExecutor | None = None
@@ -258,6 +259,10 @@ async def lifespan(app: FastAPI):
             state = _engine.snapshot()
             if _persistence:
                 _persistence.save_state(state)
+                try:
+                    _persistence.save_account_snapshot_from_state(state)
+                except Exception:
+                    pass
                 print("[Lifespan] State saved", file=sys.stderr, flush=True)
             # Stop token scheduler before engine
             if hasattr(_engine, 'data_adapter') and hasattr(_engine.data_adapter, 'rest'):

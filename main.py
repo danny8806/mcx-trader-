@@ -58,6 +58,7 @@ def main():
         try:
             state = engine.snapshot()
             persistence.save_state(state)
+            persistence.save_account_snapshot_from_state(state)
             print("[System] Final state saved")
         except Exception as e:
             print(f"[System] WARNING: Final state save failed: {e}")
@@ -78,6 +79,7 @@ def main():
             try:
                 state = engine.snapshot()
                 persistence.save_state(state)
+                persistence.save_account_snapshot_from_state(state)
             except Exception as e:
                 print(f"[System] WARNING: Periodic state save failed: {e}")
     except KeyboardInterrupt:

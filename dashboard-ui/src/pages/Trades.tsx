@@ -1,32 +1,35 @@
 import { useData } from "../store/DataProvider";
-import { formatTimestamp, safeINR } from "../lib/utils";
+import { formatDT, formatINR, pnlColor, safeNum } from "../lib/utils";
 
 export default function Trades() {
-  const { fills } = useData();
-  if (!fills) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
+  const { trades } = useData();
+  if (!trades) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   return (
     <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
       <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-        TRADES ({fills.length})
+        TRADEBOOK ({trades.length})
       </div>
-      {fills.length === 0 ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: "10px" }}>No trades recorded</div>
+      {trades.length === 0 ? (
+        <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: "10px" }}>No completed trades recorded</div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "55px 90px 70px 100px 50px 40px 90px 40px", gap: "8px", padding: "5px 12px", fontSize: "9px", color: "var(--text-disabled)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-table-header)" }}>
-            <span>Time</span><span>ID</span><span>Instrument</span><span>Strategy</span><span>Side</span><span>Qty</span><span>Price</span><span>Mult</span>
+          <div style={{ display: "grid", gridTemplateColumns: "150px 85px 60px 100px 50px 35px 80px 80px 80px 90px 90px", gap: "8px", padding: "5px 12px", fontSize: "9px", color: "var(--text-disabled)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-table-header)" }}>
+            <span>Entry</span><span>Exit</span><span>Instrument</span><span>Strategy</span><span>Side</span><span>Qty</span><span style={{ textAlign: "right" }}>Entry</span><span style={{ textAlign: "right" }}>Exit</span><span style={{ textAlign: "right" }}>Gross</span><span style={{ textAlign: "right" }}>Net P&L</span><span>Status</span>
           </div>
-          {fills.map((f: any) => (
-            <div key={f.fill_id} style={{ display: "grid", gridTemplateColumns: "55px 90px 70px 100px 50px 40px 90px 40px", gap: "8px", padding: "5px 12px", fontSize: "10px", borderBottom: "1px solid var(--border-subtle)", alignItems: "center" }}>
-              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatTimestamp(f.timestamp)}</span>
-              <span style={{ color: "var(--text-muted)", fontFamily: "monospace", fontSize: "9px", overflow: "hidden", textOverflow: "ellipsis" }}>{f.fill_id}</span>
-              <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{f.instrument}</span>
-              <span style={{ color: "var(--text-muted)" }}>{f.strategy_id}</span>
-              <span style={{ color: f.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{f.side}</span>
-              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{f.quantity}</span>
-              <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(f.price)}</span>
-              <span style={{ color: "var(--text-muted)" }}>×{f.multiplier}</span>
+          {trades.map((t: any) => (
+            <div key={t.trade_id} style={{ display: "grid", gridTemplateColumns: "150px 85px 60px 100px 50px 35px 80px 80px 80px 90px 90px", gap: "8px", padding: "5px 12px", fontSize: "10px", borderBottom: "1px solid var(--border-subtle)", alignItems: "center" }}>
+              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatDT(t.entry_timestamp)}</span>
+              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatDT(t.exit_timestamp)}</span>
+              <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{t.instrument}</span>
+              <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.strategy_id}</span>
+              <span style={{ color: t.side === "LONG" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{t.side}</span>
+              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{t.quantity}</span>
+              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>₹{safeNum(t.entry_price).toLocaleString("en-IN")}</span>
+              <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>₹{safeNum(t.exit_price).toLocaleString("en-IN")}</span>
+              <span style={{ color: pnlColor(Number(t.gross_pnl)), fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{formatINR(safeNum(t.gross_pnl))}</span>
+              <span style={{ color: pnlColor(Number(t.net_pnl)), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{formatINR(safeNum(t.net_pnl))}</span>
+              <span style={{ color: t.status === "closed" ? "var(--text-muted)" : "var(--amber)", fontFamily: "monospace", fontSize: "9px" }}>{t.status}</span>
             </div>
           ))}
         </>

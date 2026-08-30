@@ -19,13 +19,21 @@ def _get_market_data_sync():
     try:
         prices = _engine.execution_engine._current_prices
         instruments = _engine.config.get("instruments", {})
+        inst_ticks = {}
+        try:
+            adapter = getattr(_engine, "data_adapter", None)
+            stats_obj = getattr(adapter, "stats", {}) or {}
+            if isinstance(stats_obj, dict):
+                inst_ticks = stats_obj.get("instrument_ticks", {}) or {}
+        except Exception:
+            inst_ticks = {}
         data = {}
         for name, cfg in instruments.items():
             ltp = prices.get(name, 0.0)
             data[name] = {
                 "ltp": ltp,
                 "spread": 0.0,
-                "tick_count": 0,
+                "tick_count": inst_ticks.get(name, 0),
                 "timestamp": time.time(),
             }
         ws_connected = False

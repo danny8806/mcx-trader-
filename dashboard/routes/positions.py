@@ -20,10 +20,18 @@ def _list_positions_sync(status: Optional[str] = "open", instrument: Optional[st
     if not _engine:
         return {"error": "Engine not initialized"}
     try:
-        positions_snap = _engine.position_manager.snapshot()
-        open_positions = positions_snap.get("open_positions", {})
+        pm = _engine.position_manager
+        status = (status or "open").lower()
+        if status == "closed":
+            raw = [p.snapshot() for p in pm.closed_positions]
+        elif status == "all":
+            raw = [p.snapshot() for p in pm.closed_positions] + [
+                v for v in pm.snapshot().get("open_positions", {}).values()
+            ]
+        else:
+            raw = list(pm.snapshot().get("open_positions", {}).values())
         result = []
-        for pid, pos in open_positions.items():
+        for pos in raw:
             if instrument and pos.get("instrument", "").upper() != instrument.upper():
                 continue
             result.append(pos)

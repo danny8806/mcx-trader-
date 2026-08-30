@@ -70,6 +70,7 @@ class DhanDataAdapter:
         self._last_tick_time = 0.0
         self._tick_count = 0
         self._error_count = 0
+        self._instrument_ticks: dict[str, int] = {}
 
         # Live LTP cache
         self._live_ltp: dict[str, dict] = {}
@@ -86,6 +87,7 @@ class DhanDataAdapter:
             "rest": self.rest.stats,
             "tick_count": self._tick_count,
             "error_count": self._error_count,
+            "instrument_ticks": dict(self._instrument_ticks),
         }
 
     def register_instruments(self, instruments: dict[str, dict]) -> None:
@@ -120,6 +122,9 @@ class DhanDataAdapter:
             if tick and self.on_tick:
                 self._tick_count += 1
                 self._last_tick_time = time.time()
+                self._instrument_ticks[tick["instrument"]] = (
+                    self._instrument_ticks.get(tick["instrument"], 0) + 1
+                )
 
                 # Update live LTP cache
                 with self._ltp_lock:

@@ -182,9 +182,14 @@ class PositionManager:
                     pos.update_mark(price)
 
     def get_position(self, position_id: str) -> Optional[Position]:
-        """Get position by ID."""
+        """Get position by ID (open or recently closed)."""
         with self._lock:
-            return self._positions.get(position_id)
+            if position_id in self._positions:
+                return self._positions[position_id]
+            for p in self._closed_positions:
+                if p.position_id == position_id:
+                    return p
+            return None
 
     def get_positions_by_strategy(self, strategy_id: str) -> list[Position]:
         """Get all positions for a strategy."""
