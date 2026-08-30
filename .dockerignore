@@ -15,6 +15,7 @@ dhan_token.json
 node_modules
 dashboard-ui/dist
 dashboard-ui/node_modules
+_*.py
 tests
 audit_reports
 *.log
