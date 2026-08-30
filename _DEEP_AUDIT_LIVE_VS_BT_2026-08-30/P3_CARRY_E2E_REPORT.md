@@ -34,15 +34,15 @@ session states with a spy on `_execute_eod_close`.
 | `DB_SILVERM_no_dup_orders` | **PASS** | dup=0 |
 | `DB_SILVERM_no_orphan_fills` | **PASS** | orphan=0 |
 | `DB_SILVERM_tracking` | **PASS** | closed=22 trade_closed_events=22 |
-| `B1_GOLDM_gold_01_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@162340.0 pre=SHORT pid=c1e049a0-e03c-40eb-be2c-b9a7e726fbb9 same_trade=True pend=None |
-| `B2_GOLDM_gold_02_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@162300.0 pre=SHORT pid=5f912f71-ccfd-4417-84dc-cda731a8008f same_trade=True pend=None |
-| `B3_GOLDM_gold_02_carry@2026-08-25->2026-08-26` | **PASS** | end=SHORT@161449.0 pre=SHORT pid=1e24846c-ee42-4971-831f-04605c8328d0 same_trade=True pend=None |
-| `B4_SILVERM_silver_01_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@255397.0 pre=SHORT pid=178cca83-185b-4be3-ba27-700d7ec46600 same_trade=True pend=None |
-| `B5_SILVERM_silver_01_carry@2026-08-25->2026-08-26` | **PASS** | end=LONG@252149.0 pre=LONG pid=552b1ac7-6cc2-464b-9604-06f0d80eb1f5 same_trade=True pend=None |
-| `B6_SILVERM_silver_01_carry@2026-08-27->2026-08-28` | **PASS** | end=LONG@249750.0 pre=LONG pid=8c1e14b5-296a-4912-8fa0-61cebda438a9 same_trade=True pend=None |
-| `B7_SILVERM_silver_02_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@255397.0 pre=SHORT pid=09a1154e-1848-4423-9fab-393691776228 same_trade=True pend=None |
-| `B8_SILVERM_silver_02_carry@2026-08-25->2026-08-26` | **PASS** | end=LONG@251897.0 pre=LONG pid=dceb38bb-841d-4c5c-a9a0-632a355551d2 same_trade=True pend=None |
-| `B9_SILVERM_silver_02_carry@2026-08-27->2026-08-28` | **PASS** | end=LONG@249750.0 pre=LONG pid=b28438c0-16fe-4f5d-89c6-bb884f03fdb0 same_trade=True pend=None |
+| `B1_GOLDM_gold_01_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@162340.0 pre=SHORT pid=7537f923-08a5-42e0-afd6-3465144cdda5 same_trade=True pend=None |
+| `B2_GOLDM_gold_02_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@162300.0 pre=SHORT pid=e164c66e-0014-40d8-9a48-c77ac084c4e2 same_trade=True pend=None |
+| `B3_GOLDM_gold_02_carry@2026-08-25->2026-08-26` | **PASS** | end=SHORT@161449.0 pre=SHORT pid=e84decd7-84a9-42e9-9376-9365549f9d79 same_trade=True pend=None |
+| `B4_SILVERM_silver_01_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@255397.0 pre=SHORT pid=87781756-0f88-4fee-afe1-f3138e65aa0d same_trade=True pend=None |
+| `B5_SILVERM_silver_01_carry@2026-08-25->2026-08-26` | **PASS** | end=LONG@252149.0 pre=LONG pid=9cd9866f-71b3-43f0-97c6-34c0c79c00b9 same_trade=True pend=None |
+| `B6_SILVERM_silver_01_carry@2026-08-27->2026-08-28` | **PASS** | end=LONG@249750.0 pre=LONG pid=89c8aba5-c805-44fa-a74a-e58d681134fa same_trade=True pend=None |
+| `B7_SILVERM_silver_02_carry@2026-08-24->2026-08-25` | **PASS** | end=SHORT@255397.0 pre=SHORT pid=94517c3e-d3f4-4dd3-ac20-ae76fe458dd1 same_trade=True pend=None |
+| `B8_SILVERM_silver_02_carry@2026-08-25->2026-08-26` | **PASS** | end=LONG@251897.0 pre=LONG pid=d2149118-1052-44f9-ab6c-96b9e25fc88e same_trade=True pend=None |
+| `B9_SILVERM_silver_02_carry@2026-08-27->2026-08-28` | **PASS** | end=LONG@249750.0 pre=LONG pid=52d5044f-61d0-4064-a477-410885f6c9a7 same_trade=True pend=None |
 | `G_carry_boundaries_found` | **PASS** | nightly carried positions = 9 |
 | `G_carry_all_ok` | **PASS** | ok=9/9 |
 | `PEND_GOLDM_gold_01_carry@2026-08-27->2026-08-28` | **PASS** | pend=SHORT armed end=23:25 trigger=158074.0 pre_next=SHORT entry_fill_at_trigger=True |
@@ -50,15 +50,15 @@ session states with a spy on `_execute_eod_close`.
 | `G_pending_carried` | **PASS** | pending boundaries = 2 |
 | `G_carried_pnl_trades_found` | **PASS** | carried overnight trades = 9 |
 | `G_carried_pnl_all_ok` | **PASS** | ok=9/9 |
-| `PL_GOLDM_gold_01_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=162340.0 exit=162426.0 pid=c1e049a0-e03c-40eb-be2c-b9a7e726fbb9 gross=-860.0 chg=313.01 net=-1173.01 reason=long_reversal nights=1 |
-| `PL_GOLDM_gold_02_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=162300.0 exit=162452.0 pid=5f912f71-ccfd-4417-84dc-cda731a8008f gross=-1520.0 chg=312.97 net=-1832.97 reason=long_reversal nights=1 |
-| `PL_GOLDM_gold_02_carried_2026-08-25->2026-08-26` | **PASS** | SHORT entry=161449.0 exit=161771.0 pid=1e24846c-ee42-4971-831f-04605c8328d0 gross=-3220.0 chg=311.63 net=-3531.63 reason=stop_loss_hit nights=1 |
-| `PL_SILVERM_silver_01_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=255397.0 exit=253001.0 pid=178cca83-185b-4be3-ba27-700d7ec46600 gross=11980.0 chg=255.89 net=11724.11 reason=long_reversal nights=1 |
-| `PL_SILVERM_silver_01_carried_2026-08-25->2026-08-26` | **PASS** | LONG entry=252149.0 exit=253167.0 pid=552b1ac7-6cc2-464b-9604-06f0d80eb1f5 gross=5090.0 chg=254.28 net=4835.72 reason=short_reversal nights=1 |
-| `PL_SILVERM_silver_01_carried_2026-08-27->2026-08-28` | **PASS** | LONG entry=249750.0 exit=248098.0 pid=8c1e14b5-296a-4912-8fa0-61cebda438a9 gross=-8260.0 chg=250.56 net=-8510.56 reason=short_reversal nights=1 |
-| `PL_SILVERM_silver_02_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=255397.0 exit=253001.0 pid=09a1154e-1848-4423-9fab-393691776228 gross=11980.0 chg=255.89 net=11724.11 reason=long_reversal nights=1 |
-| `PL_SILVERM_silver_02_carried_2026-08-25->2026-08-26` | **PASS** | LONG entry=251897.0 exit=253167.0 pid=dceb38bb-841d-4c5c-a9a0-632a355551d2 gross=6350.0 chg=254.24 net=6095.76 reason=short_reversal nights=1 |
-| `PL_SILVERM_silver_02_carried_2026-08-27->2026-08-28` | **PASS** | LONG entry=249750.0 exit=248263.0 pid=b28438c0-16fe-4f5d-89c6-bb884f03fdb0 gross=-7435.0 chg=250.66 net=-7685.66 reason=stop_loss_hit nights=1 |
+| `PL_GOLDM_gold_01_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=162340.0 exit=162426.0 pid=7537f923-08a5-42e0-afd6-3465144cdda5 gross=-860.0 chg=313.01 net=-1173.01 reason=long_reversal nights=1 |
+| `PL_GOLDM_gold_02_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=162300.0 exit=162452.0 pid=e164c66e-0014-40d8-9a48-c77ac084c4e2 gross=-1520.0 chg=312.97 net=-1832.97 reason=long_reversal nights=1 |
+| `PL_GOLDM_gold_02_carried_2026-08-25->2026-08-26` | **PASS** | SHORT entry=161449.0 exit=161771.0 pid=e84decd7-84a9-42e9-9376-9365549f9d79 gross=-3220.0 chg=311.63 net=-3531.63 reason=stop_loss_hit nights=1 |
+| `PL_SILVERM_silver_01_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=255397.0 exit=253001.0 pid=87781756-0f88-4fee-afe1-f3138e65aa0d gross=11980.0 chg=255.89 net=11724.11 reason=long_reversal nights=1 |
+| `PL_SILVERM_silver_01_carried_2026-08-25->2026-08-26` | **PASS** | LONG entry=252149.0 exit=253167.0 pid=9cd9866f-71b3-43f0-97c6-34c0c79c00b9 gross=5090.0 chg=254.28 net=4835.72 reason=short_reversal nights=1 |
+| `PL_SILVERM_silver_01_carried_2026-08-27->2026-08-28` | **PASS** | LONG entry=249750.0 exit=248098.0 pid=89c8aba5-c805-44fa-a74a-e58d681134fa gross=-8260.0 chg=250.56 net=-8510.56 reason=short_reversal nights=1 |
+| `PL_SILVERM_silver_02_carried_2026-08-24->2026-08-25` | **PASS** | SHORT entry=255397.0 exit=253001.0 pid=94517c3e-d3f4-4dd3-ac20-ae76fe458dd1 gross=11980.0 chg=255.89 net=11724.11 reason=long_reversal nights=1 |
+| `PL_SILVERM_silver_02_carried_2026-08-25->2026-08-26` | **PASS** | LONG entry=251897.0 exit=253167.0 pid=d2149118-1052-44f9-ab6c-96b9e25fc88e gross=6350.0 chg=254.24 net=6095.76 reason=short_reversal nights=1 |
+| `PL_SILVERM_silver_02_carried_2026-08-27->2026-08-28` | **PASS** | LONG entry=249750.0 exit=248263.0 pid=52d5044f-61d0-4064-a477-410885f6c9a7 gross=-7435.0 chg=250.66 net=-7685.66 reason=stop_loss_hit nights=1 |
 | `ACCT_GOLDM_gold_01_realized` | **PASS** | realized=-44578.689999999995 sum_of_its_trades=-44578.69 closed=14 |
 | `ACCT_GOLDM_gold_02_realized` | **PASS** | realized=-21446.69 sum_of_its_trades=-21446.690000000002 closed=7 |
 | `ACCT_SILVERM_silver_01_realized` | **PASS** | realized=-12840.689999999999 sum_of_its_trades=-12840.689999999999 closed=9 |
