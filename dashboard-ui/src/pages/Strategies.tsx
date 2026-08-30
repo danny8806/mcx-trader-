@@ -26,7 +26,7 @@ export default function Strategies() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px", fontSize: "10px" }}>
             {[["Instrument", s.instrument], ["Fast TF", s.fast_timeframe], ["HTF", s.htf_timeframe], ["Qty", s.quantity],
-              ["Trades", s.trade_count], ["Win%", `${(s.win_rate * 100).toFixed(1)}%`],
+              ["Trades", s.trade_count], ["Win%", `${s.win_rate.toFixed(1)}%`],
               ["P&L", formatINR(s.realized_net)]].map(([k, v]) => (
               <div key={String(k)} style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--text-muted)" }}>{String(k)}</span>

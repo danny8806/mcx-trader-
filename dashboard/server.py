@@ -76,7 +76,8 @@ def _snapshot_sync():
 
 
 def _enrich_strategies(snap):
-    """Enrich strategy data with PNL."""
+    """Enrich strategy data with PNL so the WS engine_state carries the SAME
+    contract as /api/strategies (live enabled, timeframe config, P&L stats)."""
     instruments = _engine.config.get("instruments", {})
     strategies_cfg = _engine.config.get("strategies", {})
     enriched_strats = {}
@@ -86,15 +87,21 @@ def _enrich_strategies(snap):
         inst_cfg = instruments.get(inst, {})
         pnl_engine = _engine.pnl_engines.get(name)
         pnl_snap = pnl_engine.snapshot() if pnl_engine else {}
+        val = lambda k, d=0: (pnl_snap.get(k, {}).get("value", d)
+                              if isinstance(pnl_snap.get(k), dict) else pnl_snap.get(k, d))
         enriched_strats[name] = {
             **strat_snap,
-            "enabled": cfg.get("enabled", True),
-            "realized_net": pnl_snap.get("realized_net", {}).get("value", 0) if isinstance(pnl_snap.get("realized_net"), dict) else pnl_snap.get("realized_net", 0),
-            "realized_gross": pnl_snap.get("realized_gross", {}).get("value", 0) if isinstance(pnl_snap.get("realized_gross"), dict) else pnl_snap.get("realized_gross", 0),
-            "trade_count": pnl_snap.get("trade_count", 0),
-            "wins": pnl_snap.get("wins", 0),
-            "losses": pnl_snap.get("losses", 0),
-            "win_rate": pnl_snap.get("win_rate", 0.0),
+            "fast_timeframe": cfg.get("fast_timeframe", strat_snap.get("fast_timeframe", "")),
+            "htf_timeframe": cfg.get("htf_timeframe", strat_snap.get("htf_timeframe", "")),
+            "quantity": cfg.get("quantity", strat_snap.get("quantity", 1)),
+            "enabled": bool(strat_snap.get("enabled", cfg.get("enabled", True))),
+            "realized_net": val("realized_net"),
+            "realized_gross": val("realized_gross"),
+            "realized_charges": val("realized_charges"),
+            "trade_count": val("trade_count"),
+            "wins": val("wins"),
+            "losses": val("losses"),
+            "win_rate": val("win_rate", 0.0),
         }
     snap["strategies"] = enriched_strats
     return snap
@@ -146,11 +153,11 @@ async def _push_events():
     if _events_executor is None:
         import concurrent.futures
         _events_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="events")
-    last_id = 0
+    last_id = -1
     while True:
         try:
             loop = asyncio.get_running_loop()
-            events = await loop.run_in_executor(_events_executor, event_bus.get_recent, 50)
+            events = await loop.run_in_executor(_events_executor, event_bus.get_recent, None, 50)
             new_events = [e for e in events if e["id"] > last_id]
             if new_events:
                 await ws_manager.broadcast("events", new_events)

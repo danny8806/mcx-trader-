@@ -89,7 +89,7 @@ function StrategyRow({ s }: { s: any }) {
         {s.position_side ?? "FLAT"}
       </span>
       <span style={{ color: "var(--text-secondary)" }}>{s.trade_count}</span>
-      <span style={{ color: "var(--text-muted)" }}>{(s.win_rate * 100).toFixed(0)}%</span>
+      <span style={{ color: "var(--text-muted)" }}>{(s.win_rate).toFixed(0)}%</span>
       <span style={{ color: pnlColor(s.realized_net), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
         {formatINR(s.realized_net)}
       </span>
@@ -110,7 +110,7 @@ function PositionRow({ p }: { p: any }) {
     }}>
       <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{p.instrument}</span>
       <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.strategy_id}</span>
-      <span style={{ color: p.side === "BUY" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
+      <span style={{ color: p.side === "LONG" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
       <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</span>
       <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.average_entry)}</span>
       <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>

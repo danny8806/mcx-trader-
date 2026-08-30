@@ -129,7 +129,7 @@ function StrategyRow({
             fontSize: 9,
           }}
         >
-          {(s.win_rate * 100).toFixed(0)}%
+          {s.win_rate.toFixed(0)}%
         </span>
         <span
           style={{
