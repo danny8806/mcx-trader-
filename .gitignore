@@ -41,6 +41,9 @@ desktop.ini
 # Logs
 *.log
 
+# Runtime credentials (never commit)
+*.env
+
 # Temp
 *.tmp
 *.bak
