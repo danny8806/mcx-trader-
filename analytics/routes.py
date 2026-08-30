@@ -274,8 +274,8 @@ async def get_strategy_mae_mfe(strategy_id: str):
             "trade_id": t.trade_id,
             "mfe": t.mfe or 0,
             "mae": t.mae or 0,
-            "mfe_pct": (t.mfe / entry * 100) if entry > 0 else 0,
-            "mae_pct": (t.mae / entry * 100) if entry > 0 else 0,
+            "mfe_pct": ((t.mfe or 0) / entry * 100) if entry > 0 else 0,
+            "mae_pct": ((t.mae or 0) / entry * 100) if entry > 0 else 0,
             "net_pnl": t.net_pnl or 0,
             "side": t.side,
         })
