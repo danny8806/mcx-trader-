@@ -1,0 +1,10 @@
+instrument,check,pass
+GOLDM,V1 warmup 290/75 + initialized,PASS
+GOLDM,"V2 870 bars processed, 0 exceptions",PASS
+GOLDM,V3 entry order submitted + filled,PASS
+GOLDM,"V4 fills/orders persisted, no orphan fills",PASS
+GOLDM,V5 closed trades in ledger,PASS
+GOLDM,V6 strategy/position reconciled,PASS
+GOLDM,V7 margin ledger consistent,PASS
+GOLDM,V8 15m DEMA value == independent ref (last),PASS
+GOLDM,V9 safe mode clean,PASS

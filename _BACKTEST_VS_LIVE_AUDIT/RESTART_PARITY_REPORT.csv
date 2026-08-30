@@ -1,0 +1,13 @@
+check,value,expect,pass
+R1_htf15_endtimes_identical,290,290 identical times,PASS
+R1_htf15_values_identical,156235.61253106612,identical float lists,PASS
+R1_htf1h_values_identical,156860.39184649254,identical float lists,PASS
+R1_indicator_counts_identical,"(290, 75, 870)","(290, 75, 870)",PASS
+R2_partial_warmup_has_fewer_sessions,116,< 5 sessions served,PASS
+R2_restart_recomputed_equals_full,156235.61253106612,identical to uninterrupted run eA,PASS
+R2_partial_differs_from_full,116,partial past is genuinely different state,PASS
+R3_restore_roundtrip,"(555.0, 'long_position')",live state tamper visible (precondition),PASS
+R3_restore_roundtrip,"(0.0, 'flat', None)",live state reverted to snapshot,PASS
+R3_restore_leaves_candle_state_pristine,HTF unchanged by restore,"end_times/values identical (recomputed on re-warm, never persisted)",PASS
+R3_restore_idempotent,no-op on second restore,live + candle state stable,PASS
+R4_double_warm_idempotent,"(290, 75, 870)","(290, 75, 870) unchanged, no double-feed",PASS

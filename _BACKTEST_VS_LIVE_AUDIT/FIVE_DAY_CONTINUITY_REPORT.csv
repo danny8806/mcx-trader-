@@ -1,0 +1,12 @@
+check,value,expect,pass
+C1_session_set_is_LAST5,"['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28']","['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28']",PASS
+C2C3_day_counts_2026-08-24,5m=174 15m=58 1h=15 first5m=09:00 last5m=23:25,5m=174 15m=58 1h=15 09:00/23:25 09:15/23:30,PASS
+C2C3_day_counts_2026-08-25,5m=174 15m=58 1h=15 first5m=09:00 last5m=23:25,5m=174 15m=58 1h=15 09:00/23:25 09:15/23:30,PASS
+C2C3_day_counts_2026-08-26,5m=174 15m=58 1h=15 first5m=09:00 last5m=23:25,5m=174 15m=58 1h=15 09:00/23:25 09:15/23:30,PASS
+C2C3_day_counts_2026-08-27,5m=174 15m=58 1h=15 first5m=09:00 last5m=23:25,5m=174 15m=58 1h=15 09:00/23:25 09:15/23:30,PASS
+C2C3_day_counts_2026-08-28,5m=174 15m=58 1h=15 first5m=09:00 last5m=23:25,5m=174 15m=58 1h=15 09:00/23:25 09:15/23:30,PASS
+C4_transition_2026-08-24_to_2026-08-25,15m->2026-08-24 23:30:00 1h->2026-08-25 00:00:00 val_cont=True,15m->2026-08-24 23:30:00 1h->2026-08-25 00:00:00 val_cont=True (same continuous line),PASS
+C4_transition_2026-08-25_to_2026-08-26,15m->2026-08-25 23:30:00 1h->2026-08-26 00:00:00 val_cont=True,15m->2026-08-25 23:30:00 1h->2026-08-26 00:00:00 val_cont=True (same continuous line),PASS
+C4_transition_2026-08-26_to_2026-08-27,15m->2026-08-26 23:30:00 1h->2026-08-27 00:00:00 val_cont=True,15m->2026-08-26 23:30:00 1h->2026-08-27 00:00:00 val_cont=True (same continuous line),PASS
+C4_transition_2026-08-27_to_2026-08-28,15m->2026-08-27 23:30:00 1h->2026-08-28 00:00:00 val_cont=True,15m->2026-08-27 23:30:00 1h->2026-08-28 00:00:00 val_cont=True (same continuous line),PASS
+C5_no_reseed_counts,15m_count=290 1h_count=75,290 / 75,PASS

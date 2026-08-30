@@ -1,0 +1,7 @@
+scenario,instrument,requested_from,requested_to,window_days,extensions,sessions_fetched,required_sessions,fetch_calls,pass,detail
+holiday_cluster_extend,GOLDM,2026-08-10,2026-08-23,13,1,8,5,2,PASS,"final_range=2026-08-03..2026-08-23 sessions=[datetime.date(2026, 8, 3), datetime.date(2026, 8, 4), datetime.date(2026, 8, 5), datetime.date(2026, 8, 6), datetime.date(2026, 8, 7), datetime.date(2026, 8, 19), datetime.date(2026, 8, 20), datetime.date(2026, 8, 21)]"
+normal_window_no_extend,GOLDM,2026-08-10,2026-08-23,13,0,10,5,1,PASS,"sessions=[datetime.date(2026, 8, 10), datetime.date(2026, 8, 11), datetime.date(2026, 8, 12), datetime.date(2026, 8, 13), datetime.date(2026, 8, 14), datetime.date(2026, 8, 17), datetime.date(2026, 8, 18), datetime.date(2026, 8, 19), datetime.date(2026, 8, 20), datetime.date(2026, 8, 21)]"
+cap_reached_warn,GOLDM,2026-08-10,2026-08-23,13,0,3,5,1,PASS,final_range=2026-08-10..2026-08-23 sessions=3
+e2e_warmup_last5,GOLDM,,,,0,5,5,2,PASS,GOLDM: 15m=290 1h=75 ind_ok=True tail1h=156860.4
+e2e_warmup_last5,SILVERM,,,,0,5,5,2,PASS,GOLDM: 15m=290 1h=75 ind_ok=True tail1h=156860.4; SILVERM: 15m=290 1h=75 ind_ok=True tail1h=246511.0
+e2e_last5_seed_dates,GOLDM/SILVERM,,,,0,5,5,2,PASS,first 15m bucket dates = ['2026-08-24'] (expect 2026-08-24)

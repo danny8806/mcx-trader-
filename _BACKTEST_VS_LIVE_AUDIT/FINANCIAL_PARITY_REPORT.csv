@@ -1,0 +1,7 @@
+run,instrument,ref_trades,live_trades,ref_net_sum,live_net_sum,ref_gross_sum,live_gross_sum,ref_fees_sum,live_fees_sum,live_slippage_cost_sum
+A_controlled,GOLDM,7,7,-28717.01,-21446.69,-26550.0,-19280.0,2167.01,2166.69,0
+A_controlled,SILVERM,10,9,-9275.84,-12840.69,-6735.0,-10555.0,2540.84,2285.69,0
+B_production,GOLDM,7,6,-28717.01,-18823.69,-26550.0,-16970.0,2167.01,1853.69,0
+B_production,SILVERM,10,7,-9275.84,789.12,-6735.0,2570.0,2540.84,1780.88,0
+C_matched,GOLDM,7,7,-28717.01,-26356.04,-26550.0,-24190.0,2167.01,2166.04,0
+C_matched,SILVERM,10,9,-9275.84,-16885.16,-6735.0,-14600.0,2540.84,2285.16,0

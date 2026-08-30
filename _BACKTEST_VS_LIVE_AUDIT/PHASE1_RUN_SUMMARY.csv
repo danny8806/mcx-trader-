@@ -1,0 +1,10 @@
+gate,script,pass,exit_code
+warmup,_p1_warmup_test.py,PASS,0
+resample,_p1_resample_test.py,PASS,0
+parity,_p1_parity_test.py,PASS,0
+continuity,_p1_continuity_test.py,PASS,0
+restart,_p1_restart_test.py,PASS,0
+regression,_p1_regression_test.py,PASS,0
+lifecycle,_p1_lifecycle_test.py,PASS,0
+map4,_p1_map4_test.py,PASS,0
+signals,_p1_signal4_test.py,PASS,0

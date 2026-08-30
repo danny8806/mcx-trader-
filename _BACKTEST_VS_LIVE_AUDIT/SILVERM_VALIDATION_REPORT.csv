@@ -1,0 +1,10 @@
+instrument,check,pass
+SILVERM,V1 warmup 290/75 + initialized,PASS
+SILVERM,"V2 870 bars processed, 0 exceptions",PASS
+SILVERM,V3 entry order submitted + filled,PASS
+SILVERM,"V4 fills/orders persisted, no orphan fills",PASS
+SILVERM,V5 closed trades in ledger,PASS
+SILVERM,V6 strategy/position reconciled,PASS
+SILVERM,V7 margin ledger consistent,PASS
+SILVERM,V8 15m DEMA value == independent ref (last),PASS
+SILVERM,V9 safe mode clean,PASS

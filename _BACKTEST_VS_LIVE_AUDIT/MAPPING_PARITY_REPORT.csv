@@ -1,0 +1,14 @@
+test_point,timeframe,fast_end,idx_ref,mapped_ts,confirmed,no_lookahead,pass
+before_first,15m,2026-08-24 09:14:59,-1,(none),False,True,PASS
+at_first,15m,2026-08-24 09:15:00,0,2026-08-24 09:15:00,True,True,PASS
+past_first,15m,2026-08-24 09:15:01,0,2026-08-24 09:15:00,True,True,PASS
+mid_two,15m,2026-08-24 09:22:30,0,2026-08-24 09:15:00,True,True,PASS
+past_last,15m,2026-08-28 23:30:05,289,2026-08-28 23:30:00,True,True,PASS
+all_5m_bars(870),15m,,,,,all checked,PASS
+before_first,1h,2026-08-24 09:59:59,-1,(none),False,True,PASS
+at_first,1h,2026-08-24 10:00:00,0,2026-08-24 10:00:00,True,True,PASS
+past_first,1h,2026-08-24 10:00:01,0,2026-08-24 10:00:00,True,True,PASS
+mid_two,1h,2026-08-24 10:30:00,0,2026-08-24 10:00:00,True,True,PASS
+past_last,1h,2026-08-29 00:00:05,74,2026-08-29 00:00:00,True,True,PASS
+all_5m_bars(870),1h,,,,,all checked,PASS
+no_lookahead_future_mutation,15m,,,,past_values_after_last=0,all prior values unchanged,PASS

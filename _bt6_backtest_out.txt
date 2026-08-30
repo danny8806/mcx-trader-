@@ -1,0 +1,432 @@
+[Data] GOLDM: 1045 x5m | 348 x15m | 84 x1h
+[Data] SILVERM: 1045 x5m | 348 x15m | 84 x1h
+[Data] 2954 bars across 6 trading days
+[Market] Engine: initializing -> ready
+[Market] Engine: ready -> trading
+[Margin] GOLDM: 146828 (slope=0.125, intercept=126930.0, price=159180.0, qty=1)
+[Margin] GOLDM: 146828 (slope=0.125, intercept=126930.0, price=159181.0, qty=1)
+[Position] Opened: LONG GOLDM @ 159181.0 (strategy=gold_02)
+[Order] Submitted: 0cd98f08-a780-4b01-a228-b4a3ed8639ee BUY GOLDM
+[Margin] GOLDM: 146828 (slope=0.125, intercept=126930.0, price=159180.0, qty=1)
+[Margin] GOLDM: 146828 (slope=0.125, intercept=126930.0, price=159181.0, qty=1)
+[Position] Opened: LONG GOLDM @ 159181.0 (strategy=gold_01)
+[Order] Submitted: c8ab0a2f-68e1-401b-891e-926396be999c BUY GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-2617.51
+[Order] Submitted: 94838500-71b5-44d9-ab3a-793ee142c0ab SELL GOLDM
+[Margin] GOLDM: 146830 (slope=0.125, intercept=126930.0, price=159200.0, qty=1)
+[Margin] GOLDM: 146830 (slope=0.125, intercept=126930.0, price=159201.0, qty=1)
+[Position] Opened: LONG GOLDM @ 159201.0 (strategy=gold_01)
+[Order] Submitted: e812d456-5eae-40ab-9349-17b30305b349 BUY GOLDM
+[Margin] SILVERM: 158829 (slope=0.0625, intercept=142900.0, price=254863.0, qty=1)
+[Margin] SILVERM: 158829 (slope=0.0625, intercept=142900.0, price=254864.0, qty=1)
+[Position] Opened: LONG SILVERM @ 254864.0 (strategy=silver_02)
+[Order] Submitted: fc2a70a6-53a3-4e2a-821d-11e14dad4727 BUY SILVERM
+[Margin] SILVERM: 158850 (slope=0.0625, intercept=142900.0, price=255200.0, qty=1)
+[Margin] SILVERM: 158850 (slope=0.0625, intercept=142900.0, price=255201.0, qty=1)
+[Position] Opened: LONG SILVERM @ 255201.0 (strategy=silver_01)
+[Order] Submitted: 0f7bd51c-8c6e-4418-83d4-b6c655920d51 BUY SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=-4305.57
+[Margin] SILVERM: 158799 (slope=0.0625, intercept=142900.0, price=254391.0, qty=1)
+[Margin] SILVERM: 158799 (slope=0.0625, intercept=142900.0, price=254391.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254391.0 (strategy=silver_01)
+[Order] Submitted: 65e2b663-0932-4e0c-ac97-38f9f99605f8 SELL SILVERM
+[Order] Submitted: eb6ddb31-57b8-4a55-8ef7-b4bc4d27a8ff SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-2910.48
+[Order] Submitted: ed14a11c-6da1-4262-b0ed-5d4c2e5925f6 SELL SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=-4305.57
+[Order] Submitted: 5c76ede6-9cd9-4392-b212-15fed9a0ab2e BUY SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=742.02
+[Margin] GOLDM: 146843 (slope=0.125, intercept=126930.0, price=159306.0, qty=1)
+[Margin] GOLDM: 146843 (slope=0.125, intercept=126930.0, price=159306.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 159306.0 (strategy=gold_01)
+[Order] Submitted: c7e42ea5-04fe-4c35-a19d-44be14333e37 SELL GOLDM
+[Order] Submitted: b8bf6ee5-0949-40cc-80a5-a5adea2ca47c SELL GOLDM
+[Margin] SILVERM: 158784 (slope=0.0625, intercept=142900.0, price=254150.0, qty=1)
+[Margin] SILVERM: 158784 (slope=0.0625, intercept=142900.0, price=254149.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254149.0 (strategy=silver_02)
+[Order] Submitted: e163455d-4b5b-43e4-ab8f-a6307c0d0e64 SELL SILVERM
+[TradeClose] Closed: strategy=gold_02 P&L=5061.48
+[Margin] GOLDM: 146895 (slope=0.125, intercept=126930.0, price=159718.0, qty=1)
+[Margin] GOLDM: 146895 (slope=0.125, intercept=126930.0, price=159718.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 159718.0 (strategy=gold_02)
+[Order] Submitted: ad587fdb-31ac-414b-9a66-e4670320431c SELL GOLDM
+[Order] Submitted: 1f0d0e2c-6f22-4e1e-a341-c469535e91de SELL GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-7988.26
+[Order] Submitted: c92d1625-d3ec-440a-95f3-06e358c20774 BUY GOLDM
+[TradeClose] Closed: strategy=silver_02 P&L=-6345.44
+[Order] Submitted: 861b3307-729d-4760-b39e-f6bb0c0a4f3f BUY SILVERM
+[Margin] GOLDM: 146902 (slope=0.125, intercept=126930.0, price=159773.0, qty=1)
+[Margin] GOLDM: 146902 (slope=0.125, intercept=126930.0, price=159772.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 159772.0 (strategy=gold_01)
+[Order] Submitted: 7ba0b261-7101-4243-8de7-00b05ad2abe8 SELL GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-4158.90
+[Order] Submitted: 414fc2ed-9157-4ce7-af4b-bed739e805e1 BUY GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=-6528.89
+[Order] Submitted: 8d8543c7-1c16-445b-a4d8-38841028982e BUY GOLDM
+[Margin] SILVERM: 158774 (slope=0.0625, intercept=142900.0, price=253986.0, qty=1)
+[Margin] SILVERM: 158774 (slope=0.0625, intercept=142900.0, price=253985.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 253985.0 (strategy=silver_02)
+[Order] Submitted: 5a5a3f00-6354-4350-90ab-53c5ec974d4f SELL SILVERM
+[Margin] SILVERM: 158783 (slope=0.0625, intercept=142900.0, price=254131.0, qty=1)
+[Margin] SILVERM: 158783 (slope=0.0625, intercept=142900.0, price=254130.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254130.0 (strategy=silver_01)
+[Order] Submitted: 62fd23b1-fe2a-40d0-8c70-6c2c133490fb SELL SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=-7155.45
+[Order] Submitted: 527f8482-7ef6-427a-9820-5756f84208a8 BUY SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-7325.34
+[Order] Submitted: 094803a9-811a-49b7-887b-71e81650eb47 BUY SILVERM
+[Margin] SILVERM: 158805 (slope=0.0625, intercept=142900.0, price=254483.0, qty=1)
+[Margin] SILVERM: 158805 (slope=0.0625, intercept=142900.0, price=254482.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254482.0 (strategy=silver_02)
+[Order] Submitted: 7bd7fcdc-0012-4dd4-9248-f45b645f1600 SELL SILVERM
+[Margin] SILVERM: 158778 (slope=0.0625, intercept=142900.0, price=254050.0, qty=1)
+[Margin] SILVERM: 158778 (slope=0.0625, intercept=142900.0, price=254049.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254049.0 (strategy=silver_01)
+[Order] Submitted: e3c69c0d-7a78-43a4-942a-cc675dcea5dd SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-2480.59
+[Order] Submitted: f1613c82-4ff2-40e9-95b0-43554bdb39e7 BUY SILVERM
+[Margin] SILVERM: 158806 (slope=0.0625, intercept=142900.0, price=254500.0, qty=1)
+[Margin] SILVERM: 158806 (slope=0.0625, intercept=142900.0, price=254499.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254499.0 (strategy=silver_02)
+[Order] Submitted: 3f2107bb-f5bb-4f1b-b222-4b8ceae57538 SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-2265.60
+[Order] Submitted: c4330c73-3f8c-40ab-8431-90b75aa32940 BUY SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=-7515.40
+[Order] Submitted: 8759d458-ccb6-4ad2-be91-84cbb0a604c8 BUY SILVERM
+[Margin] SILVERM: 158804 (slope=0.0625, intercept=142900.0, price=254461.0, qty=1)
+[Margin] SILVERM: 158804 (slope=0.0625, intercept=142900.0, price=254460.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254460.0 (strategy=silver_01)
+[Order] Submitted: bcc38bc8-3e71-40d3-b843-adbb2ef702b4 SELL SILVERM
+[Margin] SILVERM: 158804 (slope=0.0625, intercept=142900.0, price=254461.0, qty=1)
+[Margin] SILVERM: 158804 (slope=0.0625, intercept=142900.0, price=254460.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 254460.0 (strategy=silver_02)
+[Order] Submitted: 8c3a4e14-f276-4280-b3e1-7e3aa9c0bb5a SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-3755.61
+[Order] Submitted: 4f89d237-ed3f-4d62-85fa-b3fdb132877e BUY SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=-3755.61
+[Order] Submitted: 10f42596-e560-4603-bbc1-35195303137f BUY SILVERM
+[Margin] SILVERM: 158865 (slope=0.0625, intercept=142900.0, price=255436.0, qty=1)
+[Margin] SILVERM: 158865 (slope=0.0625, intercept=142900.0, price=255435.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 255435.0 (strategy=silver_01)
+[Order] Submitted: 13bc5fb4-b43f-416c-be6b-9f650615dd1e SELL SILVERM
+[Margin] SILVERM: 158865 (slope=0.0625, intercept=142900.0, price=255436.0, qty=1)
+[Margin] SILVERM: 158865 (slope=0.0625, intercept=142900.0, price=255435.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 255435.0 (strategy=silver_02)
+[Order] Submitted: 7944d2ee-a70a-4e42-a1e1-44d252e96727 SELL SILVERM
+[Margin] GOLDM: 147227 (slope=0.125, intercept=126930.0, price=162379.0, qty=1)
+[Margin] GOLDM: 147227 (slope=0.125, intercept=126930.0, price=162378.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 162378.0 (strategy=gold_01)
+[Order] Submitted: 38a8e1fc-3f03-4132-aa22-3eb73ed8e34c SELL GOLDM
+[Margin] GOLDM: 147227 (slope=0.125, intercept=126930.0, price=162376.0, qty=1)
+[Margin] GOLDM: 147227 (slope=0.125, intercept=126930.0, price=162375.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 162375.0 (strategy=gold_02)
+[Order] Submitted: 758c4e13-7964-42a0-b5e1-50e7a3e1e640 SELL GOLDM
+[TradeClose] Closed: strategy=silver_02 P&L=10039.03
+[Margin] SILVERM: 158736 (slope=0.0625, intercept=142900.0, price=253376.0, qty=1)
+[Margin] SILVERM: 158736 (slope=0.0625, intercept=142900.0, price=253376.0, qty=1)
+[Position] Opened: LONG SILVERM @ 253376.0 (strategy=silver_02)
+[Order] Submitted: 844d9cb1-a84a-4627-824e-66a36008a79d BUY SILVERM
+[Order] Submitted: 1ab51d3b-d6a3-41d6-8edc-ede1ec46f135 BUY SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-3764.15
+[Order] Submitted: 61836701-a52c-4d8d-a1b3-0a34e1a14e99 SELL SILVERM
+[Margin] SILVERM: 158640 (slope=0.0625, intercept=142900.0, price=251834.0, qty=1)
+[Margin] SILVERM: 158640 (slope=0.0625, intercept=142900.0, price=251835.0, qty=1)
+[Position] Opened: LONG SILVERM @ 251835.0 (strategy=silver_02)
+[Order] Submitted: 1c418470-da94-4ee8-8e38-28b43edce5d3 BUY SILVERM
+[TradeClose] Closed: strategy=silver_01 P&L=16744.24
+[Margin] SILVERM: 158652 (slope=0.0625, intercept=142900.0, price=252035.0, qty=1)
+[Margin] SILVERM: 158652 (slope=0.0625, intercept=142900.0, price=252035.0, qty=1)
+[Position] Opened: LONG SILVERM @ 252035.0 (strategy=silver_01)
+[Order] Submitted: 00760cac-1d82-4617-9ec7-5fe8ef340248 BUY SILVERM
+[Order] Submitted: e5fb1c74-ca7f-4383-aa1f-e9673f53dc4d BUY SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=3637.08
+[Margin] GOLDM: 147178 (slope=0.125, intercept=126930.0, price=161983.0, qty=1)
+[Margin] GOLDM: 147178 (slope=0.125, intercept=126930.0, price=161983.0, qty=1)
+[Position] Opened: LONG GOLDM @ 161983.0 (strategy=gold_01)
+[Order] Submitted: c8ed7c07-a09d-450f-b038-54a2197a15fc BUY GOLDM
+[Order] Submitted: e1da8ddd-276a-44d5-be2d-6e8a4b88fef8 BUY GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=1857.03
+[Margin] GOLDM: 147200 (slope=0.125, intercept=126930.0, price=162158.0, qty=1)
+[Margin] GOLDM: 147200 (slope=0.125, intercept=126930.0, price=162158.0, qty=1)
+[Position] Opened: LONG GOLDM @ 162158.0 (strategy=gold_02)
+[Order] Submitted: 3ace2f69-e46b-45a1-b580-4185eff3a0e7 BUY GOLDM
+[Order] Submitted: 6cfdc411-2eab-4017-a644-2e1dde22aa4f BUY GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-3651.96
+[Margin] GOLDM: 147136 (slope=0.125, intercept=126930.0, price=161649.0, qty=1)
+[Margin] GOLDM: 147136 (slope=0.125, intercept=126930.0, price=161649.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 161649.0 (strategy=gold_01)
+[Order] Submitted: 4a50c2fd-eedf-4ba1-be43-2d6f60d58aa7 SELL GOLDM
+[Order] Submitted: b497896c-abb8-4a0b-a71a-aa95ef733229 SELL GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-1861.90
+[Order] Submitted: a5d9853e-dfc6-43ef-90e9-da20c1791352 BUY GOLDM
+[Margin] GOLDM: 147117 (slope=0.125, intercept=126930.0, price=161497.0, qty=1)
+[Margin] GOLDM: 147117 (slope=0.125, intercept=126930.0, price=161496.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 161496.0 (strategy=gold_01)
+[Order] Submitted: 4b6d60b8-201b-412e-b98a-f4a02fcc4cd6 SELL GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=-7101.79
+[Margin] GOLDM: 147115 (slope=0.125, intercept=126930.0, price=161479.0, qty=1)
+[Margin] GOLDM: 147115 (slope=0.125, intercept=126930.0, price=161479.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 161479.0 (strategy=gold_02)
+[Order] Submitted: 69cfa60e-6e98-43a5-a9a5-8410d672f4dc SELL GOLDM
+[Order] Submitted: 0815c886-b5f3-4247-8553-64dedf57d8a2 SELL GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-3651.71
+[Order] Submitted: b79ac70c-b137-4904-b80d-31000ef8a38c BUY GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=-4531.71
+[Order] Submitted: 790860dd-4170-4ad3-aa72-8664d7fddb6d BUY GOLDM
+[Margin] GOLDM: 147117 (slope=0.125, intercept=126930.0, price=161495.0, qty=1)
+[Margin] GOLDM: 147117 (slope=0.125, intercept=126930.0, price=161494.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 161494.0 (strategy=gold_01)
+[Order] Submitted: 6e0cfa69-48d8-46a2-bfee-0ca726156396 SELL GOLDM
+[TradeClose] Closed: strategy=silver_01 P&L=5145.77
+[Margin] SILVERM: 158720 (slope=0.0625, intercept=142900.0, price=253115.0, qty=1)
+[Margin] SILVERM: 158720 (slope=0.0625, intercept=142900.0, price=253115.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 253115.0 (strategy=silver_01)
+[Order] Submitted: 8c087cd5-74b1-4959-8d32-00e5b446eaf6 SELL SILVERM
+[Order] Submitted: 681f46ae-4074-4f0c-9f43-15c68282a695 SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=6145.80
+[Margin] SILVERM: 158720 (slope=0.0625, intercept=142900.0, price=253115.0, qty=1)
+[Margin] SILVERM: 158720 (slope=0.0625, intercept=142900.0, price=253115.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 253115.0 (strategy=silver_02)
+[Order] Submitted: 31b8721b-a0c7-45b8-8320-517a01a16848 SELL SILVERM
+[Order] Submitted: ba8ce2e7-7183-4d51-a1cd-0d038c5cc87f SELL SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-3049.49
+[Order] Submitted: ac5c7aa0-f7e8-4bf8-9a5b-b65266853829 BUY SILVERM
+[Margin] SILVERM: 158716 (slope=0.0625, intercept=142900.0, price=253056.0, qty=1)
+[Margin] SILVERM: 158716 (slope=0.0625, intercept=142900.0, price=253055.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 253055.0 (strategy=silver_02)
+[Order] Submitted: b2a98999-046e-4f18-9713-e1ba9508d96b SELL SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=408.42
+[Margin] GOLDM: 147108 (slope=0.125, intercept=126930.0, price=161422.0, qty=1)
+[Margin] GOLDM: 147108 (slope=0.125, intercept=126930.0, price=161422.0, qty=1)
+[Position] Opened: LONG GOLDM @ 161422.0 (strategy=gold_01)
+[Order] Submitted: 88041494-fbf4-439b-8c5a-8984dc5bf88a BUY GOLDM
+[Order] Submitted: 1154d164-2d23-403d-8f4f-d2f89fb8e2fe BUY GOLDM
+[Margin] GOLDM: 147111 (slope=0.125, intercept=126930.0, price=161449.0, qty=1)
+[Margin] GOLDM: 147111 (slope=0.125, intercept=126930.0, price=161450.0, qty=1)
+[Position] Opened: LONG GOLDM @ 161450.0 (strategy=gold_02)
+[Order] Submitted: a6419e66-4ddd-4628-bbe8-5121b863d71d BUY GOLDM
+[TradeClose] Closed: strategy=silver_01 P&L=-2179.46
+[Margin] SILVERM: 158744 (slope=0.0625, intercept=142900.0, price=253500.0, qty=1)
+[Margin] SILVERM: 158744 (slope=0.0625, intercept=142900.0, price=253500.0, qty=1)
+[Position] Opened: LONG SILVERM @ 253500.0 (strategy=silver_01)
+[Order] Submitted: f89401ca-cbbf-4427-ae6a-0976eb7b83a6 BUY SILVERM
+[Order] Submitted: 8495aa38-1cfa-4fc9-b7e4-bbd75d464714 BUY SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-1749.40
+[Order] Submitted: eb250967-8edb-4d3e-aedf-d48835971a48 BUY SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=-1971.26
+[Order] Submitted: 1f948431-5510-42d8-a2be-f5e9761f53fd SELL GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=-2871.19
+[Order] Submitted: 7c11d79b-19d9-4213-a00d-18a2d6e16d68 SELL GOLDM
+[TradeClose] Closed: strategy=silver_01 P&L=-5154.07
+[Order] Submitted: d0c8328c-c2e1-4f2a-9865-bd0571bbbab8 SELL SILVERM
+[Margin] SILVERM: 158489 (slope=0.0625, intercept=142900.0, price=249422.0, qty=1)
+[Margin] SILVERM: 158489 (slope=0.0625, intercept=142900.0, price=249423.0, qty=1)
+[Position] Opened: LONG SILVERM @ 249423.0 (strategy=silver_02)
+[Order] Submitted: 98db0d9c-0993-4864-99fe-f45dbedb330e BUY SILVERM
+[Margin] SILVERM: 158497 (slope=0.0625, intercept=142900.0, price=249558.0, qty=1)
+[Margin] SILVERM: 158497 (slope=0.0625, intercept=142900.0, price=249559.0, qty=1)
+[Position] Opened: LONG SILVERM @ 249559.0 (strategy=silver_01)
+[Order] Submitted: bf0850c0-a55c-4f3f-9f4d-42e090444300 BUY SILVERM
+[TradeClose] Closed: strategy=silver_02 P&L=-11544.89
+[Order] Submitted: d9838e54-de13-4b92-8d24-be28006e607d SELL SILVERM
+[Margin] GOLDM: 146714 (slope=0.125, intercept=126930.0, price=158275.0, qty=1)
+[Margin] GOLDM: 146714 (slope=0.125, intercept=126930.0, price=158276.0, qty=1)
+[Position] Opened: LONG GOLDM @ 158276.0 (strategy=gold_02)
+[Order] Submitted: a06045f9-9f8b-4395-9df8-5717c90c24db BUY GOLDM
+[Margin] GOLDM: 146714 (slope=0.125, intercept=126930.0, price=158275.0, qty=1)
+[Margin] GOLDM: 146714 (slope=0.125, intercept=126930.0, price=158276.0, qty=1)
+[Position] Opened: LONG GOLDM @ 158276.0 (strategy=gold_01)
+[Order] Submitted: d01a63b5-2703-4d94-a882-a224378e7db7 BUY GOLDM
+[Margin] SILVERM: 158492 (slope=0.0625, intercept=142900.0, price=249476.0, qty=1)
+[Margin] SILVERM: 158492 (slope=0.0625, intercept=142900.0, price=249477.0, qty=1)
+[Position] Opened: LONG SILVERM @ 249477.0 (strategy=silver_02)
+[Order] Submitted: 814b686e-62d2-45ce-915d-b376fd9ff0b8 BUY SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=-2016.10
+[Margin] GOLDM: 146693 (slope=0.125, intercept=126930.0, price=158105.0, qty=1)
+[Margin] GOLDM: 146693 (slope=0.125, intercept=126930.0, price=158105.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 158105.0 (strategy=gold_01)
+[Order] Submitted: 5c2386f9-a49c-4515-9447-f02f920d10d6 SELL GOLDM
+[Order] Submitted: 97c3c51f-4f89-4355-b0d5-1f6fd46ce972 SELL GOLDM
+[TradeClose] Closed: strategy=gold_02 P&L=-1276.20
+[Margin] GOLDM: 146702 (slope=0.125, intercept=126930.0, price=158179.0, qty=1)
+[Margin] GOLDM: 146702 (slope=0.125, intercept=126930.0, price=158179.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 158179.0 (strategy=gold_02)
+[Order] Submitted: 007746bb-c6b6-439a-bb27-6a368e2e5358 SELL GOLDM
+[Order] Submitted: 49e90192-feb6-406c-8eb2-edcfb0eea23d SELL GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-2596.12
+[Order] Submitted: de796bc2-b734-44c4-81d0-82df8608ad37 BUY GOLDM
+[Margin] GOLDM: 146693 (slope=0.125, intercept=126930.0, price=158101.0, qty=1)
+[Margin] GOLDM: 146692 (slope=0.125, intercept=126930.0, price=158100.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 158100.0 (strategy=gold_01)
+[Order] Submitted: c36713ee-8fc7-4c25-b8ca-37b2862e2896 SELL GOLDM
+[TradeClose] Closed: strategy=silver_02 P&L=-2891.07
+[Order] Submitted: d655066d-3df9-40f7-b3d1-3795520e08f1 SELL SILVERM
+[Margin] SILVERM: 158560 (slope=0.0625, intercept=142900.0, price=250563.0, qty=1)
+[Margin] SILVERM: 158560 (slope=0.0625, intercept=142900.0, price=250564.0, qty=1)
+[Position] Opened: LONG SILVERM @ 250564.0 (strategy=silver_02)
+[Order] Submitted: 5bb3dee3-5027-43b7-9b01-4b796cc15433 BUY SILVERM
+[TradeClose] Closed: strategy=gold_02 P&L=-1666.21
+[Margin] GOLDM: 146719 (slope=0.125, intercept=126930.0, price=158315.0, qty=1)
+[Margin] GOLDM: 146719 (slope=0.125, intercept=126930.0, price=158315.0, qty=1)
+[Position] Opened: LONG GOLDM @ 158315.0 (strategy=gold_02)
+[Order] Submitted: 3c01a655-833b-4680-b892-7d6e307588bd BUY GOLDM
+[Order] Submitted: 62e3ca06-8cf5-411e-b107-8ad7a0b2edaf BUY GOLDM
+[TradeClose] Closed: strategy=gold_01 P&L=-2456.11
+[Margin] GOLDM: 146719 (slope=0.125, intercept=126930.0, price=158315.0, qty=1)
+[Margin] GOLDM: 146719 (slope=0.125, intercept=126930.0, price=158315.0, qty=1)
+[Position] Opened: LONG GOLDM @ 158315.0 (strategy=gold_01)
+[Order] Submitted: f234a550-e146-434b-b261-e5879bed00f3 BUY GOLDM
+[Order] Submitted: ec851380-2c62-432e-8e6b-83ddb2bd00d0 BUY GOLDM
+[TradeClose] Closed: strategy=silver_02 P&L=5171.97
+[Margin] SILVERM: 158628 (slope=0.0625, intercept=142900.0, price=251649.0, qty=1)
+[Margin] SILVERM: 158628 (slope=0.0625, intercept=142900.0, price=251649.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 251649.0 (strategy=silver_02)
+[Order] Submitted: dd7d8555-945d-4549-9ed2-b9a1f41670e5 SELL SILVERM
+[Order] Submitted: 60fe1df2-57e8-4d45-8c4a-19e88835227f SELL SILVERM
+[TradeClose] Closed: strategy=gold_02 P&L=43.56
+[Margin] GOLDM: 146724 (slope=0.125, intercept=126930.0, price=158350.0, qty=1)
+[Margin] GOLDM: 146724 (slope=0.125, intercept=126930.0, price=158350.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 158350.0 (strategy=gold_02)
+[Order] Submitted: 13b6713b-2c86-466d-9595-d9e946d2bcc8 SELL GOLDM
+[Order] Submitted: 98061051-a4af-4ee0-a67c-c61e65d37df5 SELL GOLDM
+[TradeClose] Closed: strategy=silver_01 P&L=2503.15
+[Margin] SILVERM: 158532 (slope=0.0625, intercept=142900.0, price=250110.0, qty=1)
+[Margin] SILVERM: 158532 (slope=0.0625, intercept=142900.0, price=250110.0, qty=1)
+[Position] Opened: SHORT SILVERM @ 250110.0 (strategy=silver_01)
+[Order] Submitted: e0ffbffb-950f-43f2-961a-6ecf0c24d876 SELL SILVERM
+[Order] Submitted: 36b8fa39-96ee-45e9-b902-808b3f82df35 SELL SILVERM
+[TradeClose] Closed: strategy=gold_01 P&L=43.56
+[Margin] GOLDM: 146724 (slope=0.125, intercept=126930.0, price=158350.0, qty=1)
+[Margin] GOLDM: 146724 (slope=0.125, intercept=126930.0, price=158350.0, qty=1)
+[Position] Opened: SHORT GOLDM @ 158350.0 (strategy=gold_01)
+[Order] Submitted: 0e831026-7f28-480f-9282-de8f86c0b450 SELL GOLDM
+[Order] Submitted: aaa46e51-4393-4f77-8fbb-2418e805cfdc SELL GOLDM
+[Replay] done in 11.1s  | independent cross events = 77
+[Market] Engine: trading -> stopped
+[CandleFetcher] Stopped
+[Engine] Stopped
+
+=== BACKTEST TRADES  2026-08-21 .. 2026-08-28  (real engine, fresh data) ===
+
+--- Fri 08-21   (net -47837.91) ---
+  08-21 11:30 gold_02   LONG   159,181 -> 08-21 12:00  159,718 short_re  gross  5370.00 fee 308.52 net   5061.48
+  08-21 11:30 gold_01   LONG   159,181 -> 08-21 11:35  158,950 stop      gross -2310.00 fee 307.51 net  -2617.51
+  08-21 11:50 gold_01   LONG   159,201 -> 08-21 12:00  159,306 short_re  gross  1050.00 fee 307.98 net    742.02
+  08-21 13:55 silver_02 LONG   254,864 -> 08-21 14:00  254,333 stop      gross -2655.00 fee 255.48 net  -2910.48
+  08-21 14:00 silver_01 LONG   255,201 -> 08-25 21:00  254,391 short_re  gross -4050.00 fee 255.57 net  -4305.57
+  08-21 15:45 silver_01 SHORT  254,391 -> 08-21 16:00  255,201 stop      gross -4050.00 fee 255.57 net  -4305.57
+  08-21 18:10 gold_01   SHORT  159,306 -> 08-21 18:15  160,074 stop      gross -7680.00 fee 308.26 net  -7988.26
+  08-21 18:10 silver_02 SHORT  254,149 -> 08-21 18:15  255,367 stop      gross -6090.00 fee 255.44 net  -6345.44
+  08-21 18:15 gold_02   SHORT  159,718 -> 08-21 18:30  160,340 stop      gross -6220.00 fee 308.89 net  -6528.89
+  08-21 19:05 gold_01   SHORT  159,772 -> 08-21 19:10  160,157 stop      gross -3850.00 fee 308.90 net  -4158.90
+  08-21 20:10 silver_02 SHORT  253,985 -> 08-21 20:15  255,399 stop      gross -7070.00 fee 255.34 net  -7325.34
+  08-21 20:15 silver_01 SHORT  254,130 -> 08-21 20:30  255,510 stop      gross -6900.00 fee 255.45 net  -7155.45
+
+--- Fri 08-28   (net   5259.09) ---
+  08-28 12:20 silver_02 LONG   250,564 -> ?  251,649 short_re  gross  5425.00 fee 253.03 net   5171.97
+  08-28 12:30 gold_02   LONG   158,315 -> ?  158,350 short_re  gross   350.00 fee 306.44 net     43.56
+  08-28 12:30 gold_01   LONG   158,315 -> ?  158,350 short_re  gross   350.00 fee 306.44 net     43.56
+  08-28 19:35 silver_02 SHORT  251,649 -> ?        - -         gross     0.00 fee   0.00 net      0.00
+  08-28 19:45 gold_02   SHORT  158,350 -> ?        - -         gross     0.00 fee   0.00 net      0.00
+  08-28 19:45 silver_01 SHORT  250,110 -> ?        - -         gross     0.00 fee   0.00 net      0.00
+  08-28 19:45 gold_01   SHORT  158,350 -> ?        - -         gross     0.00 fee   0.00 net      0.00
+
+--- Mon 08-24   (net  12504.57) ---
+  08-24 09:25 silver_02 SHORT  254,482 -> 08-24 09:30  254,927 stop      gross -2225.00 fee 255.59 net  -2480.59
+  08-24 09:30 silver_01 SHORT  254,049 -> 08-24 09:45  255,501 stop      gross -7260.00 fee 255.40 net  -7515.40
+  08-24 11:00 silver_02 SHORT  254,499 -> 08-24 11:05  254,901 stop      gross -2010.00 fee 255.60 net  -2265.60
+  08-24 13:45 silver_01 SHORT  254,460 -> 08-24 14:00  255,160 stop      gross -3500.00 fee 255.61 net  -3755.61
+  08-24 13:45 silver_02 SHORT  254,460 -> 08-24 13:50  255,160 stop      gross -3500.00 fee 255.61 net  -3755.61
+  08-24 19:15 silver_01 SHORT  255,435 -> 08-24 21:15  252,035 long_rev  gross 17000.00 fee 255.76 net  16744.24
+  08-24 19:15 silver_02 SHORT  255,435 -> 08-24 19:50  253,376 long_rev  gross 10295.00 fee 255.97 net  10039.03
+  08-24 21:20 gold_01   SHORT  162,378 -> 08-24 21:55  161,983 long_rev  gross  3950.00 fee 312.92 net   3637.08
+  08-24 21:30 gold_02   SHORT  162,375 -> 08-24 22:30  162,158 long_rev  gross  2170.00 fee 312.97 net   1857.03
+
+--- Thu 08-27   (net -21943.55) ---
+  08-27 10:25 silver_02 LONG   249,423 -> 08-27 10:30  247,164 stop      gross -11295.00 fee 249.89 net -11544.89
+  08-27 10:30 silver_01 LONG   249,559 -> 08-27 21:30  250,110 short_re  gross  2755.00 fee 251.85 net   2503.15
+  08-27 21:15 gold_02   LONG   158,276 -> 08-28 12:30  158,179 short_re  gross  -970.00 fee 306.20 net  -1276.20
+  08-27 21:15 gold_01   LONG   158,276 -> 08-28 12:30  158,105 short_re  gross -1710.00 fee 306.10 net  -2016.10
+  08-27 21:20 silver_02 LONG   249,477 -> 08-27 21:25  248,949 stop      gross -2640.00 fee 251.07 net  -2891.07
+  08-27 22:50 gold_01   SHORT  158,105 -> 08-27 22:55  158,334 stop      gross -2290.00 fee 306.12 net  -2596.12
+  08-27 23:00 gold_02   SHORT  158,179 -> 08-27 23:30  158,315 long_rev  gross -1360.00 fee 306.21 net  -1666.21
+  08-27 23:20 gold_01   SHORT  158,100 -> 08-28 19:45  158,315 long_rev  gross -2150.00 fee 306.11 net  -2456.11
+
+--- Tue 08-25   (net -13271.65) ---
+  08-25 12:05 silver_02 LONG   253,376 -> 08-25 12:10  252,674 stop      gross -3510.00 fee 254.15 net  -3764.15
+  08-25 20:50 silver_02 LONG   251,835 -> 08-26 18:00  253,115 short_re  gross  6400.00 fee 254.20 net   6145.80
+  08-25 21:00 silver_01 LONG   252,035 -> 08-26 18:00  253,115 short_re  gross  5400.00 fee 254.23 net   5145.77
+  08-25 21:05 gold_01   LONG   161,983 -> 08-26 17:50  161,649 short_re  gross -3340.00 fee 311.96 net  -3651.96
+  08-25 21:15 gold_02   LONG   162,158 -> 08-26 18:00  161,479 short_re  gross -6790.00 fee 311.79 net  -7101.79
+  08-25 22:05 gold_01   SHORT  161,649 -> 08-25 22:10  161,804 stop      gross -1550.00 fee 311.90 net  -1861.90
+  08-25 22:40 gold_01   SHORT  161,496 -> 08-25 22:45  161,830 stop      gross -3340.00 fee 311.71 net  -3651.71
+  08-25 22:45 gold_02   SHORT  161,479 -> 08-25 23:00  161,901 stop      gross -4220.00 fee 311.71 net  -4531.71
+
+--- Wed 08-26   (net -16566.45) ---
+  08-26 11:50 gold_01   SHORT  161,494 -> 08-27 22:50  161,422 long_rev  gross   720.00 fee 311.58 net    408.42
+  08-26 12:00 silver_01 SHORT  253,115 -> 08-26 13:45  253,500 long_rev  gross -1925.00 fee 254.46 net  -2179.46
+  08-26 12:00 silver_02 SHORT  253,115 -> 08-26 12:05  253,674 stop      gross -2795.00 fee 254.49 net  -3049.49
+  08-26 13:45 silver_02 SHORT  253,055 -> 08-26 13:50  253,354 stop      gross -1495.00 fee 254.40 net  -1749.40
+  08-26 17:50 gold_01   LONG   161,422 -> 08-26 17:55  161,256 stop      gross -1660.00 fee 311.26 net  -1971.26
+  08-26 18:00 gold_02   LONG   161,450 -> 08-26 18:15  161,194 stop      gross -2560.00 fee 311.19 net  -2871.19
+  08-26 18:00 silver_01 LONG   253,500 -> 08-26 18:15  252,520 stop      gross -4900.00 fee 254.07 net  -5154.07
+
+--- TOTALS (by strategy) ---
+  gold_01    trades=15  wins= 4  net  -28138.75
+  gold_02    trades=10  wins= 3  net  -17013.92
+  silver_01  trades=11  wins= 3  net   -9977.97
+  silver_02  trades=15  wins= 3  net  -26725.26
+
+TOTAL closed = 51  net P&L = -81855.90  (entry unresolved 0, exit unresolved 7)
+
+CHECK:
+  PASS  reconciliation
+  PASS  pnl gold_01/LONG
+  PASS  pnl silver_01/LONG
+  PASS  pnl gold_02/LONG
+  PASS  pnl silver_02/LONG
+  PASS  pnl gold_01/SHORT
+  PASS  pnl gold_02/SHORT
+  PASS  pnl silver_02/LONG
+  PASS  pnl gold_01/SHORT
+  PASS  pnl gold_02/LONG
+  PASS  pnl gold_01/LONG
+  PASS  pnl silver_02/LONG
+  PASS  pnl silver_01/LONG
+  PASS  pnl gold_02/LONG
+  PASS  pnl gold_01/LONG
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_01/SHORT
+  PASS  pnl gold_01/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_02/LONG
+  PASS  pnl silver_01/LONG
+  PASS  pnl gold_02/SHORT
+  PASS  pnl gold_01/SHORT
+  PASS  pnl gold_02/LONG
+  PASS  pnl gold_01/SHORT
+  PASS  pnl gold_01/LONG
+  PASS  pnl gold_02/SHORT
+  PASS  pnl gold_01/SHORT
+  PASS  pnl silver_01/SHORT
+  PASS  pnl silver_02/LONG
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_01/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_01/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl silver_01/SHORT
+  PASS  pnl gold_02/SHORT
+  PASS  pnl gold_01/SHORT
+  PASS  pnl silver_02/SHORT
+  PASS  pnl gold_01/SHORT
+  PASS  pnl gold_02/LONG
+  PASS  pnl gold_01/LONG
+  PASS  pnl silver_01/SHORT
+  PASS  pnl silver_02/LONG
+  PASS  pnl silver_01/LONG
+  PASS  pnl gold_01/LONG
+RESULT: ALL CHECKS PASSED
+[DONE]

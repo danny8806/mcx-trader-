@@ -1,0 +1,13 @@
+question,answer,verified_by
+Where is the exact failure domain of the original dedup reconnect bug?,Crash/reconnect window: fill saved to DB but mark_processed missed. Closed by get_fill guard + durable mark after save_fill/save_trade_and_fill.,B1-B3 + I15 replay test
+Is the fill DB ever double-written?,No. get_fill guard plus dedup dedupe keeps rows unique (I1/I2 zero dup rows across 5 days).,I1.I2/I15
+Are restart paths IST-correct?,Yes: _warmup_from_rest and Dhan reconcile use timezone(+05:30).,B4/B5
+Is the dashboard reachable without credentials?,Admin HTTP/WS gated when DASHBOARD_API_KEY is set; open by default. Health exempt.,"B6-B8, auth gate 8/8"
+Is the frontend contract consistent with the backend?,StrategyDetail/positions/indicators/analytics contracts verified end-to-end via browser-less UI state checks.,D.deep 97/97
+How was a 5-day continuous run validated?,"Real engine, 2460 bars, 5 distinct calendar days, restart, WS outage, REST outage, crash+checkpoint recovery.",73/73 invariants
+Are positions preserved across a clean restart?,"Yes, 4->4 both for a clean restart and identical set after REST-outage restart.",I10/I13
+Is crash recovery faithful?,Checkpoint at 40%: positions re-opened exactly; crash-window fills exist in fills DB (documented) and replayed duplicates are ignored.,I14/I15
+Were kill-breakers engaged during the audit?,"No—engine ran with kill_switch=false, max_daily_loss=999999999, drawdown 100% (intentional paper-trade gate).",B20
+Is reconciliation consistent?,ReconciliationReport live: Consistent=True / 0 errors / 0 warnings every day.,I8
+Are indicator snapshots DEMA/ATR-correct for the UI?,Flattened additive dema_value/atr_value with raw keys preserved.,B11/B12
+Are P&L units consistent?,Documented: Pnl page fraction*100 vs strategies/overview percent; verified by deep check.,D.deep 97/97

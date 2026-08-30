@@ -1,0 +1,8 @@
+rig,scope,result,detail
+pytest,unit+integration,562 passed / 32 skipped / 1 warning,PASS
+_fullstack_check.py,engine+dashboard+DB HTTP,85/85,PASS
+_frontend_deep_check.py,UI state + analytics deep,97/97,PASS
+_live_flow_check.py,live signal/order/fill flow,48/48,PASS
+_audit_auth_gate.py,DASHBOARD_API_KEY gate on/off,8/8,PASS
+_audit_5day.py,5-day lifecycle + fault injection,73/73 invariants,PASS
+_audit_pass2.py,PASS 2 independent re-verification,37/37 checks,PASS

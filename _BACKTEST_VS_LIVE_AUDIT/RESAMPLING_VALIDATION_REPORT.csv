@@ -1,0 +1,12 @@
+scenario,timeframe,keep_partial,anchor_ok,single_session_ok,counts_ok,pass,detail
+T1_full_droppartial,15m/1h,False,True,True,True,PASS,15m=174(exp 174) 1h=42(exp 42)
+T1_full_keeppartial,15m/1h,True,True,True,True,PASS,15m=174(exp 174) 1h=45(exp 45)
+T2_partial_boundary_drop,15m/1h,False,True,True,True,PASS,15m=5(exp 5) 1h=1(exp 1 — 23:00 partial dropped)
+T2_partial_boundary_keep,15m/1h,True,True,True,True,PASS,15m=6 1h=2(exp 6/2 — partial kept)
+T3_cross_midnight,15m/1h,False,True,True,True,PASS,no next-day/-bucket rows; 15m=58 1h=14
+T4_interleaved_sessions,15m/1h,False,True,True,True,PASS,15m=116(exp 116) 1h=28(exp 28)
+T5_duplicate_candle,15m,False,True,True,True,PASS,duplicate input => 1 unique 15m buckets (no dup start_ts)
+T6a_missing_candle,15m,False,True,True,True,PASS,1 dropped 5m candle removes only its window -> 15m=2(exp 2)
+T6b_shuffled_input,15m/1h,False,True,True,True,PASS,shuffled rows produce identical 15m/1h buckets as sorted rows
+T7_warmup_ref_parity_15m,15m,True,True,True,True,PASS,ref_full_in_agg=True DEMA_mismatches=0 sets_equal=True live=290 agg=290
+T7_warmup_ref_parity_1h,1h,True,True,True,True,PASS,ref_full_in_agg=True DEMA_mismatches=0 sets_equal=True live=75 agg=75

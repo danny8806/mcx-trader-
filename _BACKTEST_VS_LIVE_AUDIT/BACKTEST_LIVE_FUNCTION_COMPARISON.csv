@@ -1,0 +1,39 @@
+AREA,COMPONENT,BACKTEST_SOURCE,BT_FILE:LINE,LIVE_SOURCE,LIVE_FILE:LINE,EQUIVALENT,EXACT?,DIFFERENCE_NOTE
+PARAMETERS,Combo,15m/15m/60m BASE,show_15_15_60.py:26,"gold_02/silver_01 fast=15m mid=15m htf=1h",config/settings.json:60-97,YES,YES,same triple-timeframe
+PARAMETERS,DEMA period,3,dema_mtf.py:25 "3",3,settings.json:55-59,YES,YES,
+PARAMETERS,ATR period,6,goldm_dema_mtf_futures.py:56,6,settings.json:56,YES,YES,
+PARAMETERS,ATR factor,1.0,goldm_dema_mtf_futures.py:57,"1.0",settings.json:57,YES,YES,
+PARAMETERS,Session open,09:00,goldm_dema_mtf_futures.py:58,"09:00",settings.json:28/45,YES,YES,
+PARAMETERS,Capital,300000,show_15_15_60.py:25,"300000/strategy",settings.json:131,YES,YES,
+PARAMETERS,Quantity,1,show_15_15_60.py:31,QTY=1 lot,settings.json:66,YES,YES,
+DATA,Warmup window,"filter ONLY LAST5 (5 days)",show_15_15_60.py:60,"REST 7 days back",trading_engine.py:1351,NO,NO,WARMUP_DEPTH_DIFFERENCE (live has deeper history)
+DATA,Bucket keep rule,"KEEP ALL BUCKETS (base_mod)",show_15_15_60.py:17 + dema_mtf_base.py,"COMPLETE WINDOWS ONLY (expected_count)",candle_fetcher.py:194 + trading_engine.py:1409,NO,NO,PARTIAL_BUCKET_DIFFERENCE (23:00 1h slot kept in backtest, dropped live)
+DATA,Bucketing anchor,session_start+.floor(minutes) anchored to session_open,dema_mtf_base.py; core/dema_mtf.py:72-74,"bucket=session_start+((mins-bucket)//tf)*tf",trading_engine.py:1402-1403,YES,YES,
+DATA,OHLC aggregation,open first/high max/low min/close last/volume sum,dema_mtf_base.py:81-83; candle_fetcher.py:243-247,candle_fetcher._aggregate_candles,candle_fetcher.py:243-247,YES,YES,identical rule
+DATA,Candle dedupe,"sort + drop_duplicates(keep=last)",goldm_dema_mtf_futures.py:108,"API order preserved; de-dup by fetch key",candle_fetcher.py:137-143,YES,ARBITRARY,bar series equal in practice
+INDICATOR,DEMA,"2*EMA1-EMA2, alpha=2/(n+1), ewm adjust=False min_periods=1",build_15min_enriched.py:84-85/106-107,incremental DEMA (seed=first value),indicators/dema.py:1-40,YES,YES,verified vs ewm
+INDICATOR,ATR,"Wilder: TR, first=mean(first N), 1/N smoothing",build_15min_enriched.py:88-102,Wilder ATR stateful,indicators/atr.py:1-80,YES,YES,
+INDICATOR,DEMA-ATR band clamp,"recursive clamp: lower/upper vs prev output",build_15min_enriched.py:116-123,DEMAATR recursive clamp,dema_atr.py:56-98,YES,YES,byte-identical clamp rule
+INDICATOR,Warmup seeding,"DM-ATR seeded on first 15m bar of 08-24 (5-day feed)",show_15_15_60.py:60,"seeded on 7-day REST series",trading_engine.py:1347-1352,NO,NO,WARMUP_DEPTH_DIFFERENCE
+MAPPING,HTF availability,src_avail = bucket+rule_min (HTF END),core/dema_mtf.py:106,end_times = bar.end_ts (HTF END),backtest_style_htf.py:61/80,YES,YES,
+MAPPING,Target close,"target_close = base_dt + base_min (base END)",core/dema_mtf.py:114,fast_bar.end_ts,backtest_style_htf.py:111,YES,YES,equal for 15m base (base_min=15)
+MAPPING,Index,"searchsorted(src_avail,target,right)-1",core/dema_mtf.py:117,bisect_right(end_times,ts)-1,backtest_style_htf.py:114,YES,YES,mathematically identical
+SIGNAL,LONG crossover,"close>h1 AND prev<=prev_h1 AND h15<h1",goldm_dema_mtf_futures.py:271,"close>htf AND prev<=prev_htf AND mid<htf",base_dema_strategy.py:226-234,YES,YES,strict filters equal
+SIGNAL,SHORT crossover,"close<h1 AND prev>=prev_h1 AND h15>h1",goldm_dema_mtf_futures.py:274,"close<htf AND prev>=prev_htf AND mid>htf",base_dema_strategy.py:247-254,YES,YES,
+SIGNAL,NaN guard,skip while any of h1/prev_h1/h15 NaN,goldm_dema_mtf_futures.py:264,"skip when htf/prev_htf unconfirmed",base_dema_strategy.py:144-145,YES,YES,
+SIGNAL,Trigger barrier,"signal bar HIGH (long) / LOW (short)",goldm_dema_mtf_futures.py:287-288,"signal bar HIGH/LOW",base_dema_strategy.py:325-334,YES,YES,
+SIGNAL,SL level,"min(low,low-1) long / max(high,high-1) short",goldm_dema_mtf_futures.py:273-276,"min(low,prev_low)/max(high,prev_high)",base_dema_strategy.py:329-333,YES,YES,
+EXECUTION,Entry fill,"OPEN of first bar crossing trigger (high>trig / low<trig)",goldm_dema_mtf_futures.py:167-173,"trigger LEVEL (live): bar.high>trigger fills at trigger",base_dema_strategy.py:427-449,YES,NO,INTENTIONAL_EXECUTION_DIFFERENCE per audit brief
+EXECUTION,Entry fill bar,first bar after signal whose high/low crosses trigger,goldm_dema_mtf_futures.py:167-173,first later closed fast bar or live tick crossing trigger,base_dema_strategy.py:427/557-561,YES,MAYBE,same bar index in bar-model; live tick path may fill mid-bar
+EXECUTION,Slippage,none,show_15_15_60.py:49-52,"+/-1 INR per fill (slippage_ticks=1)",paper_broker.py:156-161 + settings.json:99,NO,NO,LIVE_ONLY_SLIPPAGE
+EXECUTION,Order type,backtrader internal (no order objects),goldm_dema_mtf_futures.py:139-148,MARKET order + fill dispatch,order_manager.py:33-84,YES,N/A,equivalent outcome
+EXIT,Reversal exit,"OPEN of bar signal_idx+1",goldm_dema_mtf_futures.py:161-163,'OPEN of next fast bar (deferred, on_bar path)',trading_engine.py:738-781,YES,YES,bar-model replay; tick path fills at first tick LTP after signal-bar end
+EXIT,SL exit,"CLOSE of bar breaking stop",goldm_dema_mtf_futures.py:255-258,"bar CLOSE (low/high break)",base_dema_strategy.py:461-475,YES,YES,
+EXIT,Same-bar stop,"entry bar SL break -> exit at bar close",goldm_dema_mtf_futures.py:144-146+249-258,"same_bar_stop -> exit at entry bar close",base_dema_strategy.py:167-170+477-501,YES,YES,
+EXIT,Pending re-arm,"new signal replaces unfilled pending",goldm_dema_mtf_futures.py:290-302,"_detect_signal replaces pending (FLAT/PENDING)",base_dema_strategy.py:201-210:277-281,YES,YES,
+EXIT,Pending expiry,none,goldm_dema_mtf_futures.py:279-302,"50-bar timeout",base_dema_strategy.py:152-159,NO,NO,LIVE_ONLY_TIMEOUT (audit: no expiry triggered in 5 days expected)
+EXIT,EOD force close,none (not implemented),goldm_dema_mtf_futures.py,"DISABLED returns False",market_status.py:136-141,YES,YES,matches carry-forward model
+P&L,Gross,"(exit-entry)*MULT*QTY long / (entry-exit) short",goldm_dema_mtf_futures.py:221-224,"(exit-entry)*qty*mult / (entry-exit)",pnl.py:64-67,YES,YES,
+P&L,Charges,"brokerage 20x2, STT sell leg 0.01%, exch 0.0026%, sebi 0.0001%, gst 18%",goldm_dema_mtf_futures.py:68-79,same rates via MCXFeeModel,fee_model.py:49-91,YES,MAYBE,STT side handling differs for SHORT (backtest uses exit turnover; live uses sell leg)
+P&L,Net,"gross - charges",goldm_dema_mtf_futures.py:226,"gross - fees.total",pnl.py:77,YES,YES,
+P&L,Win definition,gross? net>=0,goldm_dema_mtf_futures.py:88-90,net >= 0,pnl.py:87-90,YES,YES,net-based win counting both sides

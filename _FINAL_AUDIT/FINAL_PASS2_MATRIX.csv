@@ -1,0 +1,10 @@
+pass2_check,domain,status
+A1-A7,independent AST inventory (79 files / 74 classes / 620 fns / 56 routes / 1 ws),VERIFIED
+B1-B3,fill dedup ontology: get_fill guard + note_processed + durable mark after saves,VERIFIED
+B4-B5,IST zone correctness (warmup + reconcile); 0 naive now() in adapter,VERIFIED
+B6-B8,"auth gate: env, health exemption, WS key",VERIFIED
+B9-B13,"API contract fixes (entry_price, starting_capital, flat indicators, events)",VERIFIED
+B14-B16,no hardcoded client id; config token paths,VERIFIED
+B17-B19,dead file removed; .gitignore; UI starting capital,VERIFIED
+B20,"audit constraints: kill switches off, scaled losses, 1.2M capital",VERIFIED
+D.pytest/D.fullstack/D.deep/D.live/D.auth_gate/D.5day,full rig re-run on final tree,VERIFIED

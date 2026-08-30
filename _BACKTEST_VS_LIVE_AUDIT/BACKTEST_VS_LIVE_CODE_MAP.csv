@@ -1,0 +1,22 @@
+BASE_AREA,ROLE,BACKTEST_PATH,BACKTEST_SYMBOL,LIVE_PATH,LIVE_SYMBOL,PARITY_VERDICT
+DATA_IN,5m OHLC loader,"project/goldm_dema_mtf_futures.py",load_5m,"core/candle_fetcher.py",_fetch_candle/_create_bar,SAME CONTRACT DATA; different validation/loading (compat)
+RESAMPLE,15m base resample,"%TEMP%/opencode/dema_mtf_base.py",resample_ohlcv(KEEP-ALL),"core/candle_fetcher.py + trading_engine.py:1397-1413",complete-window agg,KEEP-ALL_VS_COMPLETE-DIFF (23:00 1h bucket)
+RESAMPLE,HTF resample,"core/dema_mtf.py (overridden)",resample_ohlcv,"trading_engine.py:1397-1413",complete-window agg,DIFFERS for partial HTF buckets
+INDICATOR,EMA,"build_15min_enriched.py",pine_ema,"indicators/dema.py",DEMA.EMA1/EMA2,MATCH (min_periods=1; alpha 2/(n+1))
+INDICATOR,ATR,"build_15min_enriched.py",wilder_atr,"indicators/atr.py",ATR,MATCH (Wilder; first=mean of N)
+INDICATOR,DMATR,"build_15min_enriched.py",dema_atr,"indicators/dema_atr.py",DEMAATR,MATCH (recursive band clamp)
+HTF_LINE,1H signal line,"core/dema_mtf.py",htf_dema_line(df,60),htf/backtest_style_htf.py + trading_engine.py:699-700,on_htf_bar_closed+map,MAPPING_MATCH; DATA-SERIES may differ (bucket keep/warmup)
+HTF_LINE,15m mid line,"core/dema_mtf.py",htf_dema_line(df,15),"trading_engine.py:699-700 + :716-719",mid_mapped,MAPPING_MATCH; equal-time 1:1
+MAP,HTF->fast,"core/dema_mtf.py:106-121",searchsorted(right)-1,"htf/backtest_style_htf.py:99-131",bisect_right-1,IDENTICAL
+SIGNAL,Crossover logic,"goldm_dema_mtf_futures.py:_signal_at",buy/sell,"strategies/base_dema_strategy.py:_check_long/short_cross",LONG/SHORT,MATCH
+FILL,Entry exec,"goldm_dema_mtf_futures.py:_execute_pending/_open_position",fill@open,"strategies/base_dema_strategy.py:_check_pending_entry",fill@trigger,INTENTIONAL_EXECUTION_DIFFERENCE
+FILL,Reversal exit,"goldm_dema_mtf_futures.py:161-163",exit@open signal_idx+1,"trading_engine.py:_process_deferred_exit",exit@next-bar open,MATCH (bar-model)
+FILL,SL exit,"goldm_dema_mtf_futures.py:_check_sl_hit",exit@close,"strategies/base_dema_strategy.py:_check_stop_loss",exit@close,MATCH
+FILL,Same-bar stop,"goldm_dema_mtf_futures.py:144-146+249-258",exit@close same bar,"strategies/base_dema_strategy.py:477-501 + trading_engine.py:733-736",exit@close same bar,MATCH
+EXEC_BROKER,Order/fill object,backtrader cerebro (internal),NA,"execution/order_manager.py + paper_broker.py",OrderManager/PaperExecutionEngine,N/A (live adds slippage +/-1)
+FEES,Charges model,"goldm_dema_mtf_futures.py:futures_charges",rates,"execution/fee_model.py:MCXFeeModel",rates,NEAR-MATCH (STT side handling on SHORT differs)
+P&L,Realized P&L,"goldm_dema_mtf_futures.py:_finalize",gross/net,"portfolio/pnl.py:PNLEngine",gross/net,MATCH
+STATE_DRIVER,Bar loop,backtrader next(),goldm_dema_mtf_futures.py:139-148,"trading_engine.py:_on_bar_closed + _on_tick",engine callbacks,PARITY-REPLAYED via real engine
+WARMUP,History depth,"show_15_15_60.py:60",LAST5 only,"trading_engine.py:1351",7-day REST,WARMUP_DEPTH_DIFFERENCE
+EOD,Overnight carry,NA (position persists),goldm_dema_mtf_futures.py,"market_status.py:136-141",should_force_close=False,MATCH (carry-forward both)
+TIMEOUT,Pending expiry,None,goldm_dema_mtf_futures.py:279-302,"base_dema_strategy.py:152-159",50-bar,LIVE_ONLY (impact audited: none in 5-day window)

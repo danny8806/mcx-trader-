@@ -1,0 +1,53 @@
+LAYER,COMPONENT,FILE,FUNCTION,LINE,INPUT,OUTPUT,CALLER,CALLEE,STATE,DATA_SOURCE,DATABASE,NETWORK,THREAD,ERROR_PATH
+APP,Entry point,main.py,main,:32,OS launch,engine started,OS/powershell,persistence/engine/snapshot loop,INITIALIZING->TRADING,config/settings.json + ${ENV},system_state.json/trading.db,-,main thread,SIGINT/SIGTERM->shutdown()
+APP,State restore,main.py,main:load_state,:46-52,system_state.json,engine.restore(),main,TradingEngine.restore,RESTORING,data/db/system_state.json,system_state.json,-,-,missing file -> fresh start
+APP,Periodic persist,main.py,60s loop,:75-84,1min timer,engine.snapshot()->save_state,main,engine.snapshot + persistence.save_state,-,engine memory,trading.db + system_state.json,-,main thread,exception->WARN continue
+CONFIG,Singleton config,config/__init__.py,load/get/instrument/strategy,:23-71,settings.json+${ENV} resolution,config dict,engine+all init,all components,-,config/settings.json,-,-,-,None
+AUTH,PIN+TOTP token renew,data/dhan/rest_client.py,renew_token,:156,PIN+TOTP secret,new access token,ensure_token/scheduler/_post,None,renew lock + 130s cooldown,dhan_token.json,-,DhanLogin.generate_token API,direct call,no PIN/TOTP -> "" (no renew)
+AUTH,Token ensure,data/dhan/rest_client.py,ensure_token,:206,token cache/JWT exp,valid token,_headers/adapter init/ws token_loader,renew_token,JWT is source of truth,dhan_token.json,-,DhanLogin on expiry,-,decode failure -> assume valid
+AUTH,Proactive scheduler,data/dhan/rest_client.py,_scheduler_loop,:249,clock,renew at 7AM + 6h safety,start_scheduler,renew_token,-,dhan_token.json,-,DhanLogin,-,daemon thread "token-scheduler",loop try/except sleep 30-60s
+AUTH,HTTP post w/retry,data/dhan/rest_client.py,_post,:326,rate-limited POST path,response json,all REST methods,_headers+renew on auth failure,TokenBucket 3.5rps burst3,-,dhan_token.json,https://api.dhan.co/v2,direct call,429 wait2s; 401/DH-906 -> renew once; DhanAuthError
+DATA,WS run loop,data/dhan/websocket_client.py,_run_loop,:92,-,reconnect w/ exp backoff 10->300s,connect(),_connect_once,connected: bool,ws._seen_ltt (dedup),-,wss://api-feed.dhan.co?version=2,daemon thread (ws notifier),token reload fail->continue
+DATA,WS connect/subscribe,data/dhan/websocket_client.py,_connect_once/_on_open,:115/138,instrument list,RequestCode 17 subs batches of 100,adapter.connect,_on_open,_connected flag,ws._instruments,-,wss://api-feed.dhan.co,daemon thread,on_error/on_close->on_status cb
+DATA,WS packet parse,data/dhan/websocket_client.py,_parse_packet,:199,binary quote(4)/price(2),tick dict(ltp/ltq/ltt/cumvol),_on_message,adapter._process_tick,-,-,-,-,-,parse_err++
+DATA,WS dedup,data/dhan/websocket_client.py,_on_message,:158,sid|ltt|price key,skip dup after reconnect,ws thread,next,120s window cap 10000,-,ws._seen_ltt,-,ws thread,parse err
+DATA,Adapter init,data/dhan/adapter.py,__init__,30,client_id/pin/totp/token_file,rest+ws wired,engine._init_data_adapter,ensure_token/start_scheduler,-,dhan_token.json,-,DhanLogin + ws,-,None
+DATA,Adapter tick normalize,data/dhan/adapter.py,_process_tick/_normalize_tick,:116/138,raw tick sec_id,live LTP cache+on_tick,ws.on_message,engine._on_tick,_live_ltp dict (-),ws._live_ltp,-,-,-,tick/err counters,unknown sec_id -> drop
+DATA,REST fetch candles,data/dhan/rest_client.py,fetch_intraday/fetch_daily,:424/404,securityId+range+interval,OHLCV [[t,o,h,l,c,v]],adapter.fetch_historical_candles,_to_candles,-,dhan REST,-,https://api.dhan.co/v2/charts/intraday,direct call,empty->[] ; DhanAuthError rethrows
+DATA,Historical wrap,data/dhan/adapter.py,fetch_historical_candles,:177,symbol+tf+dates,list candles,engine._warmup_from_rest + candle_fetcher,dhan fetch_intraday,-,dhan REST,-,Dhan REST,direct call,-,unknown instrument ValueError
+FETCH,Candle poll loop,core/candle_fetcher.py,_run,:79,30s timer,gated by should_fetch_candles,start(),_check_and_fetch,-,market_status.should_fetch_candles,-,-,daemon "candle-fetcher",loop try/except
+FETCH,Timeframe check,core/candle_fetcher.py,_check_timeframe,:107,now+cfg,5m/15m/1h fetch decision,session_open guard,:115/_fetch_candle,last_fetched dedup key,cfg keep_partial,-,-,-,-,stale buckets skipped (3x tf window)
+FETCH,Same-day REST fetch,core/candle_fetcher.py,_fetch_candle,:154,candle_time (same day),aggregated Bar on_candle_closed,candle_start target,on_candle_closed->engine._on_bar_closed,keep_partial (-import),5m REST same-day fetch,-,Dhan charts,daemon thread,fetch err -> print continue
+FETCH,Bar build,core/candle_fetcher.py,_create_bar/_aggregate_candles,:215/244,candle rows,Bar(CLOSED) IST,expected_count= tf/5,:205,-,5m REST,-,-,-,bar parse err -> None
+SESSION,Market state m/c,core/market_status.py,_check_transition,:273,IST clock+weekday,OVERNIGHT->...->OVERNIGHT,state property (every access),on_transition callbacks,8 states,IST clock,-,-,-,state access,weekend->OVERNIGHT
+SESSION,Trading gate,core/market_status.py,is_trading_allowed/should_fetch_candles,:117/132,state+engine+data,proxy flags,engine._process_signal + candle_fetcher,None,TRADING+CONNECTED,-,-,-,-,None
+SESSION,EOD close rule,core/market_status.py,should_force_close,:136,-,False (carry-forward),engine,_execute_eod_close guard,-,-,-,-,-,None
+SESSION,Restore/daily reset,core/market_status.py,restore,:230,session_date,resets warmup/reconcile/eod flags,engine.restore,_check_transition,-,system_state.json,-,-,-,new day flags=0
+IND,DEMA-ATR line,indicators/dema_atr.py,update,:56,OHLC of bar,clamped DEMA-ATR,engine._on_bar_closed + _warmup_from_rest,None,recursive _prev_output,None,-,-,-,stateful (no reset/day),returns None pre-warmup
+HTF,HTF state,htf/backtest_style_htf.py,on_htf_bar_closed,:48,1h/15m closed bar,append end_times+values+indicator,_on_bar_closed(699-700)+load_batch_htf,None,per-inst tf values,None,-,-,-,None
+HTF,HTF->fast map,htf/backtest_style_htf.py,_map_htf_to_fast,:84,5m bar,HTFMappedValue,hft map_to_fast_bar/map_mid_to_fast_bar,:68/76,None - bisect_right(end_times, bar.end_ts)-1,-,-,-,-,idx<0 or value None -> unconfirmed
+STRAT,Bar signal engine,strategies/base_dema_strategy.py,on_bar,:96,bar+htf_mapped+mid+fast_value,Signal|None (pending model),engine._on_bar_closed:727,condition fns,FLAT/PENDING_L/S/POSITION/EXIT_ORDER_SUBMITTED,-,-,-,-,pending expired -> FLAT None
+STRAT,Tick trigger/SL,strategies/base_dema_strategy.py,on_tick,:528,ltp+ts,Signal if trigger/SL hit,engine._on_tick:679,None,pending_exit_at_open suppress,-,-,-,-,just_entered -> skip
+ORDER,Intent submit,execution/order_manager.py,submit_signal,:33,Signal(y+N),Order|None dedup,engine._process_signal:953,paper_broker create/submit,dedup key strat:inst:ts,pending_signals dict,-,-,-,duplicate -> None; rejected cleanup
+BROKER,Paper execution,execution/paper_broker.py,submit_order/_execute_order,:126/147,Order,_execute slippage+latency,Fill,order_manager,CREATED->FILLED/REJECTED,execution_engine._current_prices,-,-,-,no LTP -> REJECTED "No market data"
+BROKER,Price feed,execution/paper_broker.py,update_price,:96,instrument+ltp,current_prices,engine._on_tick:635 + fill_price override :952,None,per-instrument price,ltp cache,-,-,-,None
+POSITION,Open,portfolio/position_manager.py,open_position,:114,entry Fil,l,Position(uuid),engine._on_fill:1106,close_position,:140,-,None,-,-,None
+POSITION,Mark-to-market,portfolio/position_manager.py,Position.update_mark,:57,price,unrealized pnl,engine._on_tick mark loop,:641/652,-,-,-,-,-,-,None
+CLOSE,Atomic trade close,core/trade_close.py,close_position,:51,exit Fill+Position,True/False (durable),engine._on_fill:1215 + EOD,persistence/position/pnl/account/risk/ledger/event/telegram,order of ops 1-8,None,INSERT trades+fills (single tx),|,-,persist exception -> False (no memory update)
+PNL,PnL calc,portfolio/pnl.py,calculate_realized_pnl,:52,entry+exit Fills, (gross,charges,net),trade_close,MCXFeeModel,-,-,-,-,pure (no side effects)
+PNL,Trade record,portfolio/pnl.py,record_trade,:80,gross/charges/net,running totals,trade_close:133,-,trade_count/wins/losses,-,-,-,lock
+ACC,Account engine,portfolio/account.py,block_margin/update_upl/release,:95/91/105,margin+upl,equity+margin+pnl,engine hold/fill close,trade_close,-,-,-,-,block if insufficient
+RISK,Order risk gate,core/risk_engine.py,check_order,:52,signal+positions+margin+equity,(allowed,reason),engine._process_signal:897,None,kill switch+daily reset,-,-,-,lock
+RISK,Daily pnl/drawdown,core/risk_engine.py,update_daily_pnl/update_peak_equity,:98/104,pnl/equity,running totals,trade_close/engine tick,-,IST reset date,-,-,-,lock
+PERSIST,Write stores,persistence/manager.py,save_trade/order/fill/trade_and_fill,154-291,records dict,INSERT OR REPLACE commit,engine + trade_close,_get_conn,None,trading.db WAL sync=NORMAL,-,-,RLock,
+PERSIST,Idempotent fill,persistence/manager.py,get_fill,:232,fill_id,row|None,engine._on_fill:1054,None,None,trading.db fills,-,-,None
+PERSIST,State json,persistence/manager.py,save_state/load_state,:135/144,state dict,tmp+replace atomic,/main.py 60s loop,restore,None,system_state.json,-,-,None
+DEDUP,Fill dedup,core/fill_dedup.py,is_duplicate/mark_processed/note_processed,:54/79/106,fill_id,bool,engine._on_fill,None,in-memory set + DB table,processed_fills (trading.db),-,-,lock,IntegrityError -> duplicate
+RECON,Full reconcile,reconciliation/engine.py,reconcile,:93,db + memory,result,engine.start:379,9 checks,-,trading.db read-only,-,-,-,errors->safe_mode reconciliation_failed
+SAFEMODE,Guard,core/safe_mode.py,should_allow_trading/enter/exit,:46-120,reasons,engine gates,_process_signal + engine,None,reasons dict (8 codes),-,-,-,lock,exit cooldown
+MONITOR,Health,monitoring/health.py,register/update/record,304-312,component+status,tracker,engine init + tick,None,None,None,-,-,-,None
+NOTIFY,Telegram,notifications/telegram_router.py,start/send/on_fill/on_trade_close,315-319,event payloads,HTTPS send,engine+trade_close,telegram try/except,-,-,HTTPS Telegram Bot API,-,disabled -> pass
+ANALYTICS,Event store,analytics/event_store.py,record,read module,event dict,analytics.db row,engine everywhere,None,None,analytics.db,-,-,-,except pass
+LEDGER,Trade ledger,analytics/trade_ledger.py,create_trade/record_fill/close_trade,module,position/fill,lifecycle rows,engine:_on_fill:1141/_on_bar,,trade_close:170,None,analytics.db,-,-,-,except pass
+DASH,Dashboard server,dashboard/server.py+run.py,server,module,engine EventBus,web UI,main/run.py,engine,publish/ws,-,-,localhost HTTP/WS,-,None
+REPLAY,Offline replay harness,_parity_replay.py,main,:32,CSV 5m,Engine events,audit scripts,engine,_parity_replay CSV_PATHS :57-58,-,data_mcx/*.5m.csv comparator,-,-,None

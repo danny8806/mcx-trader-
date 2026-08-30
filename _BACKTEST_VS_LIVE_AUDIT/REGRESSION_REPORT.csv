@@ -1,0 +1,14 @@
+check,value,expect,pass
+G4_paper_ceiling_live_rejected,"EXECUTION_MODE must be 'paper', got 'live'. Live trading is not supported in thi",EXECUTION_MODE must be 'paper',PASS
+G1_entry_opened_once,1,1 open position,PASS
+G1_dup_ignored_inprocess,1,still 1 open position,PASS
+G1_exit_closed_position,0,0 open positions,PASS
+G1_margin_released,0,0.0 margin used,PASS
+G2_replay_entry_skipped,0,0 positions (DB replay skip),PASS
+G2_replay_close_skipped,0,0 positions (no phantom short),PASS
+G2_dedup_marks_persisted,"['F_CLOSE_1', 'F_OPEN_1']",both ids marked,PASS
+G3_replay_entry_of_closed_trade_skipped,0,0 (entry fill in DB),PASS
+G5_entry_blocked_in_safe_mode,0,"0 orders, strategy FLAT (ghost cleared)",PASS
+G5_precond_position_open,1,1 open position before exit,PASS
+G5_exit_rides_through_safe_mode,0,exit closed the position despite safe mode,PASS
+G6_day_fold_anchor,15m->2026-08-24 23:30:00 1h->2026-08-25 00:00:00,15m->2026-08-24 23:30:00 (23:30) 1h->2026-08-25 00:00:00 (00:00 2026-08-25),PASS
