@@ -690,6 +690,44 @@ class TestHTFMapping:
         assert v1 is not None and v2 is not None
         assert v1 == pytest.approx(v2, abs=1e-10)
 
+    def test_backfill_reset_before_refeed_matches_fresh_compute(self):
+        """refeed-after-restore must equal fresh compute (no double counting).
+
+        Locks the startup-warmup fix: a restored session snapshot carries EMA/
+        ATR history; re-feeding the same overlapping REST window on top of it
+        double-counts bars and drifts the line.  reset_instrument() clears the
+        restored state so the backfill recomputes a single authoritative series.
+        """
+        bars = [
+            Bar("GOLDM", "1h", 28800 + i * 3600, 32400 + i * 3600,
+                o, o + 2.0, o - 2.0, o, 100, BarState.CLOSED)
+            for i, o in enumerate([float(100 + i) for i in range(12)])
+        ]
+
+        # Reference: fresh engine warmed from the 12 bars.
+        fresh = BacktestStyleHTFEngine()
+        fresh.register("GOLDM", "1h", 3, 6, 1.0)
+        fresh.load_batch_htf("GOLDM", "1h", bars)
+        ref_value = fresh.get_htf_value("GOLDM", "1h")
+        assert ref_value is not None
+
+        # Old behaviour: restored engine + refeed of the same window doubles up.
+        restored = BacktestStyleHTFEngine()
+        restored.register("GOLDM", "1h", 3, 6, 1.0)
+        restored.restore(fresh.snapshot())
+        restored.load_batch_htf("GOLDM", "1h", bars)    # no reset (bug)
+        assert restored.get_htf_value("GOLDM", "1h") != pytest.approx(ref_value)
+        assert restored.snapshot()["GOLDM:1h"]["htf_count"] == 24
+
+        # Fixed behaviour: reset_instrument clears restored state before refeed.
+        again = BacktestStyleHTFEngine()
+        again.register("GOLDM", "1h", 3, 6, 1.0)
+        again.restore(fresh.snapshot())
+        again.reset_instrument("GOLDM")
+        again.load_batch_htf("GOLDM", "1h", bars)
+        assert again.get_htf_value("GOLDM", "1h") == pytest.approx(ref_value)
+        assert again.snapshot()["GOLDM:1h"]["htf_count"] == len(bars)
+
     def test_htf_no_bars_returns_none(self):
         """HTF engine with no bars returns None values."""
         engine = BacktestStyleHTFEngine()

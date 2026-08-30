@@ -134,8 +134,11 @@ class MarketStatus:
 
     @property
     def should_force_close(self) -> bool:
-        return (self.state == MarketState.MARKET_CLOSE
-                and not self._eod_close_done_today)
+        # EOD force-close is intentionally DISABLED: open positions carry
+        # overnight to the next session until the opposite trade is placed
+        # (reversal) or the stop-loss hits — mirroring the backtest model.
+        # MARKET_CLOSE still gates new entries after hours.
+        return False
 
     @property
     def should_warmup(self) -> bool:

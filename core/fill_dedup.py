@@ -103,6 +103,17 @@ class FillDeduplicator:
             self._processed_fills.add(fill_id)
         return True
 
+    def note_processed(self, fill_id: str) -> None:
+        """Add a fill to the in-memory dedup set only (no DB write).
+
+        Used to hold the in-process duplicate lock the moment a fill is handed
+        to the engine, while the durable DB mark (mark_processed) happens only
+        AFTER all financial effects are applied — closing the crash window in
+        which a fill was indelibly marked before its rows were written.
+        """
+        with self._lock:
+            self._processed_fills.add(fill_id)
+
     def is_processed(self, fill_id: str) -> bool:
         """Alias for is_duplicate — checks if fill was already processed."""
         return self.is_duplicate(fill_id)

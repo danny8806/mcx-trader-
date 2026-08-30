@@ -50,15 +50,24 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0].start_ts, candle_start.timestamp())
 
-    def test_reversal_is_an_exit_then_pending_entry(self):
+    def test_reversal_is_deferred_exit_then_pending_entry(self):
         strategy = BaseDEMAStrategy("s", "GOLDM", "5m", "1h")
         strategy.state = StrategyState.SHORT_POSITION
         strategy.position_side = "SHORT"
         signal = strategy._create_reversal_signal("LONG", 100, 101, 99, 1)
-        self.assertEqual(signal.signal_type, SignalType.LONG)
-        self.assertTrue(signal.metadata["exit"])
-        self.assertEqual(strategy.state, StrategyState.PENDING_LONG)
+        # Backtest-placement model: no order is placed on the signal bar.  The
+        # held position exits at the NEXT fast bar's OPEN (deferred exit) and
+        # the opposite side arms as a non-immediate breakout pending at the
+        # signal bar's HIGH.
+        self.assertIsNone(signal)
+        self.assertEqual(strategy.state, StrategyState.EXIT_ORDER_SUBMITTED)
         self.assertIsNotNone(strategy.pending_entry)
+        self.assertFalse(strategy.pending_entry.immediate)
+        self.assertEqual(strategy.pending_entry.side, "LONG")
+        self.assertEqual(strategy.pending_entry.trigger_price, 101)
+        self.assertEqual(strategy.pending_entry.signal.stop_price, 99)
+        self.assertTrue(strategy.pending_exit_at_open)
+        self.assertEqual(strategy.pending_exit_reason, "long_reversal")
 
     def test_paper_execution_honors_configured_latency(self):
         engine = PaperExecutionEngine(latency_ms=15, partial_fill_probability=0)

@@ -158,6 +158,24 @@ class BacktestStyleHTFEngine:
         for bar in bars:
             self.on_htf_bar_closed(bar)
 
+    def reset_instrument(self, instrument: str) -> None:
+        """Clear all HTF state for one instrument.
+
+        Used before startup backfill so DEMA-ATR is recomputed from a fresh
+        authoritative REST series.  Without this, a restored session snapshot
+        would leave dead EMA/ATR history that the overlapping backfill window
+        then double-counts, drifting the line from the backtest value.
+        """
+        for key, state in self._engines.items():
+            if not key.startswith(f"{instrument}:"):
+                continue
+            state.end_times = []
+            state.values = []
+            state.last_value = None
+            state.prev_value = None
+            if state.indicator is not None:
+                state.indicator.reset()
+
     def snapshot(self) -> dict:
         result = {}
         for key, state in self._engines.items():

@@ -16,6 +16,21 @@ def init(engine, event_bus):
     _bus = event_bus
 
 
+def _with_flat_indicators(ind_snap: dict) -> dict:
+    """Flatten the persistence-shaped DEMA/ATR snapshot into the field names the
+    UI reads (dema_value / atr_value) while KEEPING the raw nested snapshot
+    (dema/atr dicts) intact for backward compatibility."""
+    out = dict(ind_snap)
+    dema = ind_snap.get("dema") or {}
+    atr = ind_snap.get("atr") or {}
+    dema_val = None
+    if dema.get("ema1") is not None and dema.get("ema2") is not None:
+        dema_val = 2 * dema["ema1"] - dema["ema2"]
+    out["dema_value"] = dema_val
+    out["atr_value"] = atr.get("atr")
+    return out
+
+
 def _list_strategies_sync(instrument: Optional[str] = None, status: Optional[str] = None):
     if not _engine:
         return {"error": "Engine not initialized"}
@@ -82,7 +97,13 @@ def _get_strategy_sync(strategy_id: str):
         htf_state = htf_snap.get(htf_key, {})
 
         positions = _engine.position_manager.get_positions_by_strategy(strategy_id)
-        pos_list = [p.snapshot() for p in positions if p.is_open]
+        pos_list = []
+        for p in positions:
+            if not p.is_open:
+                continue
+            psnap = p.snapshot()
+            psnap["entry_price"] = psnap.get("average_entry")
+            pos_list.append(psnap)
 
         return {
             "strategy_id": strategy_id,
@@ -95,6 +116,7 @@ def _get_strategy_sync(strategy_id: str):
                 "dema_period": _engine.config.get("indicators.dema_period", 3),
                 "atr_period": _engine.config.get("indicators.atr_period", 6),
                 "atr_factor": _engine.config.get("indicators.atr_factor", 1.0),
+                "starting_capital": _engine.config.get("account.starting_capital", 0),
             },
             "current_state": {
                 "state": snap.get("state"),
@@ -103,7 +125,7 @@ def _get_strategy_sync(strategy_id: str):
                 "pending_entry": snap.get("pending_entry"),
                 "bars_processed": snap.get("bars_processed", 0),
             },
-            "indicators": ind_snap,
+            "indicators": _with_flat_indicators(ind_snap),
             "htf": htf_state,
             "performance": pnl_snap,
             "positions": pos_list,

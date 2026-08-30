@@ -4,6 +4,11 @@ data/*.db-shm
 data/*.db-wal
 data/system_state.json
 data/dhan_token.json
+data/db/*.db
+data/db/*.db-shm
+data/db/*.db-wal
+data/db/system_state.json
+data/db/dhan_token.json
 *.db
 *.db-shm
 *.db-wal

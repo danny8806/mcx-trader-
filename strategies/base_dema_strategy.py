@@ -52,6 +52,18 @@ class BaseDEMAStrategy:
         self.stop_price: Optional[float] = None
         self.pending_entry: Optional[PendingEntry] = None
         self.just_entered: bool = False
+        self.last_exit_reason: Optional[str] = None
+
+        # Deferred reversal exit (fill at the next fast bar's OPEN)
+        self.pending_exit_at_open: bool = False
+        self.pending_exit_reason: Optional[str] = None
+        self.pending_exit_bar_start: Optional[float] = None
+        self.fast_window_seconds: int = self._parse_tf_seconds(fast_timeframe)
+
+        # Same-bar stop: when a pending entry fills AND the SL breaks on the
+        # SAME bar, the backtest exit fills at that bar's CLOSE (reference
+        # goldm_dema_mtf_futures evaluates _check_sl_hit on the entry bar).
+        self.same_bar_stop: Optional[float] = None
 
         # Indicator tracking
         self._prev_fast_close: Optional[float] = None
@@ -64,6 +76,22 @@ class BaseDEMAStrategy:
         # Audit trail
         self._signals: list[Signal] = []
         self._events: list[dict] = []
+
+    @staticmethod
+    def _parse_tf_seconds(tf: str) -> int:
+        """Parse a timeframe string ("5m", "15m", "1h") to seconds."""
+        if not tf:
+            return 300
+        unit = tf[-1].lower()
+        try:
+            n = int(tf[:-1])
+        except ValueError:
+            return 300
+        if unit == "h":
+            return n * 3600
+        if unit == "m":
+            return n * 60
+        return 300
 
     def on_bar(
         self,
@@ -110,6 +138,8 @@ class BaseDEMAStrategy:
         self._prev_fast_high = high
         self._prev_fast_low = low
 
+        self.prev_htf = prev_htf_val
+        self.prev_mid = prev_mid_val
         # Skip if no HTF value available
         if htf_val is None or prev_htf_val is None:
             return None
@@ -131,6 +161,20 @@ class BaseDEMAStrategy:
             signal = self._check_pending_entry(bar)
             if signal is not None:
                 self.just_entered = False
+                # Reference flow (_execute_pending -> _check_sl_hit) also
+                # evaluates the stop ON the entry bar; a same-bar break exits
+                # at this bar's close via a second engine-processed signal.
+                if self.stop_price is not None:
+                    if (self.position_side == "LONG" and bar.low <= self.stop_price) or (
+                            self.position_side == "SHORT" and bar.high >= self.stop_price):
+                        self.same_bar_stop = bar.close
+                        self.last_exit_reason = "stop_loss_hit"
+                        # Reference flow evaluates the signal on the entry bar
+                        # AFTER the same-bar stop exit (position now flat) →
+                        # any same-bar cross re-arms a pending entry.
+                        self._detect_signal(
+                            close, prev_close, htf_val, prev_htf_val, high, low,
+                            bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low)
                 return signal
 
         # 2. Check stop loss (skip if just entered, stop exits don't generate new signals)
@@ -140,10 +184,22 @@ class BaseDEMAStrategy:
             stop_signal = self._check_stop_loss(bar)
             if stop_signal is not None:
                 self.just_entered = False
+                # Reference flow (goldm_dema_mtf_futures.next) runs
+                # _check_signals_for_next_bar AFTER a stop exit on the SAME
+                # bar — the position is flat by then, so a same-bar cross
+                # re-arms a pending entry that fills on a later bar.
+                self._detect_signal(
+                    close, prev_close, htf_val, prev_htf_val, high, low,
+                    bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low)
                 return stop_signal
 
-        # 3. Detect new signals (only if flat or reversal)
-        if self.state == StrategyState.FLAT:
+        # 3. Detect new signals.
+        #    Reference flow (goldm_dema_mtf_futures._check_signals_for_next_bar)
+        #    re-arms a pending on EVERY signal bar while flat: a newer cross
+        #    replaces any still-unfilled pending instead of being blocked by it.
+        #    So detection also runs in PENDING_* states (no position held).
+        if self.state in (StrategyState.FLAT,
+                          StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
             signal = self._detect_signal(
                 close, prev_close, htf_val, prev_htf_val, high, low, bar.start_ts,
                 mid_val, prev_mid_val, prev_high, prev_low,
@@ -211,12 +267,55 @@ class BaseDEMAStrategy:
         prev_high: Optional[float] = None,
         prev_low: Optional[float] = None,
     ) -> Optional[Signal]:
-        """Detect new entry signal."""
+        """Detect new entry signal. Arms a pending breakout entry (no immediate order).
+
+        Mirrors the backtest model: the signal bar's high/low becomes the
+        trigger; the entry fills only when a later bar crosses it (direct
+        market entry at the trigger level). Returns None — the engine places
+        no order now.
+        """
         if self._check_long_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            return self._create_pending_signal("LONG", close, high, low, timestamp, prev_high, prev_low)
+            self._create_pending_signal("LONG", close, high, low, timestamp, prev_high, prev_low)
         elif self._check_short_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            return self._create_pending_signal("SHORT", close, high, low, timestamp, prev_high, prev_low)
+            self._create_pending_signal("SHORT", close, high, low, timestamp, prev_high, prev_low)
         return None
+
+    def _create_entry_signal(
+        self, side: str, close: float, high: float, low: float, timestamp: float,
+        prev_high: Optional[float] = None, prev_low: Optional[float] = None,
+    ) -> Signal:
+        """Create a DIRECT MARKET entry signal at the signal-bar close.
+
+        Execution model: no limit/trigger-breakout gating. When the crossover
+        fires, the engine buys/sells immediately at market (live LTP). The
+        strategy records the new position and its stop without leaving a
+        dangling pending entry, so subsequent reversals / stops stay live.
+        """
+        if side == "LONG":
+            stop = min(low, prev_low if prev_low is not None else low)
+        else:
+            stop = max(high, prev_high if prev_high is not None else high)
+
+        signal = Signal(
+            signal_type=SignalType.LONG if side == "LONG" else SignalType.SHORT,
+            instrument=self.instrument,
+            strategy_id=self.strategy_id,
+            timestamp=timestamp,
+            trigger_price=close,
+            stop_price=stop,
+            quantity=self.quantity,
+            side=side,
+            metadata={"entry_price": close, "executed": True, "market": True},
+        )
+
+        self.position_side = side
+        self.stop_price = stop
+        self.just_entered = True
+        self.state = StrategyState.LONG_POSITION if side == "LONG" else StrategyState.SHORT_POSITION
+        self.pending_entry = None
+
+        self._emit("ENTRY_EXECUTED", side=side, price=close, stop=stop)
+        return signal
 
     def _create_pending_signal(
         self, side: str, close: float, high: float, low: float, timestamp: float,
@@ -258,24 +357,30 @@ class BaseDEMAStrategy:
     def _create_reversal_signal(
         self, side: str, close: float, high: float, low: float, timestamp: float,
         prev_high: Optional[float] = None, prev_low: Optional[float] = None,
-    ) -> Signal:
-        """Create a reversal signal. Closes existing position + creates pending entry."""
+    ) -> Optional[Signal]:
+        """Arm a reversal: exit at the NEXT BAR OPEN, then re-enter the
+        opposite side via breakout trigger.
+
+        Backtest model: the opposite crossover on bar T schedules the current
+        position's exit at bar T+1's OPEN, and arms the new side as a pending
+        breakout at trigger = T's high (LONG) / low (SHORT).  The re-entry
+        fills at the trigger level once a later bar (>= T+1) crosses it —
+        only the entry level differs from the backtest (which fills the same
+        cross at the crossing bar's OPEN).
+
+        Returns None — no order is placed now.  The engine consumes the
+        deferred exit (pending_exit_at_open) at the start of the next fast
+        bar with a fill at that bar's open.
+        """
         if side == "LONG":
             trigger = high
-            sl_high = prev_high if prev_high is not None else high
-            sl_low = prev_low if prev_low is not None else low
-            stop = min(low, sl_low)
+            stop = min(low, prev_low if prev_low is not None else low)
         else:
             trigger = low
-            sl_high = prev_high if prev_high is not None else high
-            sl_low = prev_low if prev_low is not None else low
-            stop = max(high, sl_high)
+            stop = max(high, prev_high if prev_high is not None else high)
 
-        signal = Signal(
-            # A reversal is first an exit of the currently-held position.  The
-            # desired new side stays in metadata/pending_entry and is submitted
-            # only after its own breakout trigger fires.
-            signal_type=SignalType.LONG if self.position_side == "SHORT" else SignalType.SHORT,
+        pending_signal = Signal(
+            signal_type=SignalType.LONG if side == "LONG" else SignalType.SHORT,
             instrument=self.instrument,
             strategy_id=self.strategy_id,
             timestamp=timestamp,
@@ -283,26 +388,28 @@ class BaseDEMAStrategy:
             stop_price=stop,
             quantity=self.quantity,
             side=side,
-            metadata={
-                "exit": True,
-                "exit_reason": f"{side.lower()}_reversal",
-                "reversal_side": side,
-            },
         )
 
-        # Close old position before creating pending entry
-        self._close_position(f"{side.lower()}_reversal", close, timestamp)
-
+        # Arm the opposite-side breakout entry.  Non-immediate: it only
+        # executes when a later bar crosses the trigger.
         self.pending_entry = PendingEntry(
-            signal=signal,
+            signal=pending_signal,
             trigger_price=trigger,
             side=side,
             created_at=time.time(),
         )
-        self.state = StrategyState.PENDING_LONG if side == "LONG" else StrategyState.PENDING_SHORT
+
+        # Schedule the held position's exit at the next fast bar's OPEN.
+        self.pending_exit_at_open = True
+        self.pending_exit_reason = f"{side.lower()}_reversal"
+        self.pending_exit_bar_start = timestamp
+
+        # Mark the exit pending; position/stop stay live for tick-level SL
+        # monitoring until the engine consumes the deferred exit at the open.
+        self._close_position(f"{side.lower()}_reversal", close, timestamp)
 
         self._emit("REVERSAL_SIGNAL", side=side, trigger=trigger, stop=stop)
-        return signal
+        return None
 
     def _check_pending_entry(self, bar: Bar) -> Optional[Signal]:
         """Check if pending entry is triggered by bar."""
@@ -312,22 +419,33 @@ class BaseDEMAStrategy:
         pen = self.pending_entry
         triggered = False
 
-        if pen.side == "LONG" and bar.high > pen.trigger_price:
+        if getattr(pen, "immediate", False):
+            # Direct-market re-entry that survived to the next bar (rare: the
+            # engine normally consumes it in the same bar as the reversal
+            # exit). Fire it immediately instead of waiting for a breakout.
+            triggered = True
+        elif pen.side == "LONG" and bar.high > pen.trigger_price:
             triggered = True
         elif pen.side == "SHORT" and bar.low < pen.trigger_price:
             triggered = True
 
         if triggered:
-            # Execute entry at bar open (next-bar execution model)
+            # Entry fills at the pending TRIGGER LEVEL (direct market entry on
+            # the high/low crossing), matching the live placement model.  The
+            # backtest fills this same cross at the crossing bar's open; only
+            # the entry price level differs.
+            fill_px = pen.trigger_price
             signal = Signal(
                 signal_type=SignalType.LONG if pen.side == "LONG" else SignalType.SHORT,
                 instrument=self.instrument,
                 strategy_id=self.strategy_id,
                 timestamp=bar.start_ts,
-                trigger_price=bar.open,
+                trigger_price=fill_px,
                 stop_price=pen.signal.stop_price,
                 quantity=self.quantity,
-                metadata={"entry_price": bar.open, "executed": True},
+                side=pen.side,
+                metadata={"entry_price": fill_px, "fill_price": fill_px, "executed": True,
+                          "source": "breakout"},
             )
             self.position_side = pen.side
             self.stop_price = pen.signal.stop_price
@@ -335,22 +453,52 @@ class BaseDEMAStrategy:
             self.state = StrategyState.LONG_POSITION if pen.side == "LONG" else StrategyState.SHORT_POSITION
             self.pending_entry = None
 
-            self._emit("ENTRY_EXECUTED", side=pen.side, price=bar.open, stop=self.stop_price)
+            self._emit("ENTRY_EXECUTED", side=pen.side, price=fill_px, stop=self.stop_price)
             return signal
 
         return None
 
     def _check_stop_loss(self, bar: Bar) -> Optional[Signal]:
-        """Check if stop loss is hit. Returns exit Signal if stopped out, else None."""
+        """Check if stop loss is hit. Returns exit Signal if stopped out, else None.
+
+        Exit fills at the BAR CLOSE (backtest model: SL exits are evaluated on
+        the bar that breaks the stop, and the exit fills at that bar's close).
+        """
         if self.position_side == "LONG" and bar.low <= self.stop_price:
-            exit_signal = self._create_exit_signal("stop_loss_hit", self.stop_price, bar.start_ts)
-            self._close_position("stop_loss_hit", self.stop_price, bar.start_ts)
+            exit_signal = self._create_exit_signal("stop_loss_hit", bar.close, bar.start_ts)
+            self._close_position("stop_loss_hit", bar.close, bar.start_ts)
             return exit_signal
         elif self.position_side == "SHORT" and bar.high >= self.stop_price:
-            exit_signal = self._create_exit_signal("stop_loss_hit", self.stop_price, bar.start_ts)
-            self._close_position("stop_loss_hit", self.stop_price, bar.start_ts)
+            exit_signal = self._create_exit_signal("stop_loss_hit", bar.close, bar.start_ts)
+            self._close_position("stop_loss_hit", bar.close, bar.start_ts)
             return exit_signal
         return None
+
+    def _consume_same_bar_stop(self, bar: Bar) -> Optional[Signal]:
+        """Build the exit Signal for a stop broken ON the entry bar (fills at
+        the entry bar's close).  The engine calls this AFTER it booked the
+        entry fill, so the position exists when the stop exits.
+
+        Mirrors the reference backtest: entry at the trigger level and a
+        stop-out at the same candle's close book as a same-bar round-trip.
+        """
+        if self.same_bar_stop is None or self.position_side is None:
+            self.same_bar_stop = None
+            return None
+        px = self.same_bar_stop
+        self.same_bar_stop = None
+        side = SignalType.SHORT if self.position_side == "LONG" else SignalType.LONG
+        return Signal(
+            signal_type=side,
+            instrument=self.instrument,
+            strategy_id=self.strategy_id,
+            timestamp=(bar.start_ts or 0.0) + 0.25,
+            trigger_price=px,
+            stop_price=0.0,
+            quantity=self.quantity,
+            metadata={"exit": True, "exit_reason": "stop_loss_hit",
+                      "source": "same_bar_stop", "fill_price": px},
+        )
 
     def _create_exit_signal(self, reason: str, exit_price: float, timestamp: float) -> Signal:
         """Create an exit signal for stop-loss or other exits."""
@@ -363,7 +511,8 @@ class BaseDEMAStrategy:
             trigger_price=exit_price,
             stop_price=0.0,
             quantity=self.quantity,
-            metadata={"exit_reason": reason, "exit": True, "source": "stop_loss"},
+            metadata={"exit_reason": reason, "exit": True, "source": "stop_loss",
+                      "fill_price": exit_price},
         )
 
     def _close_position(self, reason: str, exit_price: float, timestamp: float) -> None:
@@ -372,6 +521,7 @@ class BaseDEMAStrategy:
         Clearing state here used to orphan a live position whenever execution
         was rejected or market-data/safe-mode gating blocked the exit.
         """
+        self.last_exit_reason = reason
         self._emit("POSITION_CLOSED", reason=reason, exit_price=exit_price)
         self.state = StrategyState.EXIT_ORDER_SUBMITTED
 
@@ -382,6 +532,10 @@ class BaseDEMAStrategy:
         for next bar close. Also checks stop loss on every tick.
         """
         if not self.enabled or self.just_entered:
+            return None
+        # A reversal exit is scheduled at the next bar's open; suppress
+        # tick-level entries/stop-outs until the engine has executed it.
+        if self.pending_exit_at_open:
             return None
 
         if self.position_side is not None and self.stop_price is not None:
@@ -406,15 +560,16 @@ class BaseDEMAStrategy:
             triggered = True
 
         if triggered:
+            fill_px = pen.trigger_price
             signal = Signal(
                 signal_type=SignalType.LONG if pen.side == "LONG" else SignalType.SHORT,
                 instrument=self.instrument,
                 strategy_id=self.strategy_id,
                 timestamp=timestamp,
-                trigger_price=ltp,
+                trigger_price=fill_px,
                 stop_price=pen.signal.stop_price,
                 quantity=self.quantity,
-                metadata={"entry_price": ltp, "executed": True, "source": "tick"},
+                metadata={"entry_price": fill_px, "fill_price": fill_px, "executed": True, "source": "tick"},
             )
             self.position_side = pen.side
             self.stop_price = pen.signal.stop_price
@@ -460,7 +615,12 @@ class BaseDEMAStrategy:
                 "trigger_price": self.pending_entry.trigger_price,
                 "stop_price": self.pending_entry.signal.stop_price if self.pending_entry.signal else 0,
                 "bars_pending": self.pending_entry.bars_pending,
+                "immediate": getattr(self.pending_entry, "immediate", False),
             } if self.pending_entry else None,
+            "last_exit_reason": self.last_exit_reason,
+            "pending_exit_at_open": self.pending_exit_at_open,
+            "pending_exit_reason": self.pending_exit_reason,
+            "pending_exit_bar_start": self.pending_exit_bar_start,
             "prev_fast_close": self._prev_fast_close,
             "prev_fast_high": self._prev_fast_high,
             "prev_fast_low": self._prev_fast_low,
@@ -480,6 +640,10 @@ class BaseDEMAStrategy:
         self._prev_fast_low = data.get("prev_fast_low")
         self._prev_htf_value = data.get("prev_htf_value")
         self._prev_mid_value = data.get("prev_mid_value")
+        self.last_exit_reason = data.get("last_exit_reason")
+        self.pending_exit_at_open = data.get("pending_exit_at_open", False)
+        self.pending_exit_reason = data.get("pending_exit_reason")
+        self.pending_exit_bar_start = data.get("pending_exit_bar_start")
         if data.get("pending_entry"):
             pe = data["pending_entry"]
             self.pending_entry = PendingEntry(
@@ -496,4 +660,5 @@ class BaseDEMAStrategy:
                 side=pe["side"],
                 created_at=time.time(),
                 bars_pending=pe.get("bars_pending", 0),
+                immediate=pe.get("immediate", False),
             )

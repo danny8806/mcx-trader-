@@ -108,21 +108,18 @@ class CandleFetcher:
         """Check if a candle of this timeframe just closed and fetch it."""
         tf_minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
         
-        # Calculate when the last candle should have closed
+        # Session open guard: no candles before the session starts
         hour, minute = map(int, self.session_open.split(":"))
         session_start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        
+
         if now < session_start:
             return  # Market not open yet
 
-        # End-of-session guard: don't fetch candles after session close
         close_h, close_m = map(int, self.session_close.split(":"))
         session_end = now.replace(hour=close_h, minute=close_m, second=0, microsecond=0)
-        if now >= session_end:
-            return  # Market closed, no more candles to fetch
-            
+
         minutes_since_open = (now - session_start).total_seconds() / 60
-        
+
         # Candle timestamps identify the *start* of a candle.  At 09:05 the
         # completed 5m candle started at 09:00, not 09:05 (which is the start
         # of the currently forming candle).
@@ -132,7 +129,16 @@ class CandleFetcher:
         candle_start = session_start + timedelta(
             minutes=(completed_buckets - 1) * tf_minutes
         )
-            
+        candle_end = candle_start + timedelta(minutes=tf_minutes)
+
+        keep_partial = bool(cfg.get("keep_partial", False))
+        # A window is complete once its close time has passed. A window that
+        # extends past session_close (e.g. the 23:00 1H slot after a 23:30 MCX
+        # close) is incomplete; keep_partial still forms it from the partial
+        # data so the live line matches the backtest KEEP-ALL resample.
+        if candle_end > session_end and not keep_partial:
+            return  # window not fully elapsed / after session close
+
         # Create key for dedup
         key = f"{name}:{timeframe}:{candle_start.timestamp()}"
         if key in self._last_fetched:
@@ -189,10 +195,14 @@ class CandleFetcher:
                         window_candles.append(candle)
                         
                 # API ordering is not a contract.  Preserve chronological OHLC
-                # construction and only emit fully completed aggregation windows.
+                # construction and emit fully completed aggregation windows.
+                # keep_partial additionally emits the incomplete end-of-session
+                # window (e.g. the partial 23:00 1H slot) so the live HTF line
+                # matches the backtest KEEP-ALL resample.
                 window_candles.sort(key=lambda candle: candle[0])
                 expected_count = tf_minutes // 5
-                if len(window_candles) == expected_count:
+                keep_partial = bool(cfg.get("keep_partial", False))
+                if len(window_candles) == expected_count or (keep_partial and len(window_candles) > 0):
                     bar = self._aggregate_candles(name, timeframe, window_candles, candle_time, tf_minutes)
                     if bar:
                         self._last_fetched[key] = time.time()

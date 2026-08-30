@@ -6,7 +6,21 @@ import requests
 
 sys.path.insert(0, ".")
 
-with open("data/dhan_token.json") as f:
+from pathlib import Path
+_ROOT = Path(__file__).resolve().parent
+_token_file = _ROOT / "data" / "dhan_token.json"
+try:
+    from config import Config
+    _cfg = Config()
+    _cfg.load()
+    _tf = _cfg.get("dhan.token_file", "").strip()
+    if _tf:
+        _cand = (_ROOT / _tf)
+        if _cand.exists():
+            _token_file = _cand
+except Exception:
+    pass
+with open(_token_file) as f:
     TOKEN = json.load(f)["access_token"]
 
 def api_call(payload):
@@ -69,6 +83,8 @@ for inst_name, sec_id in instruments.items():
         sess_start = pd.to_datetime(dates + " " + session_open)
         mins = ((dt - sess_start).dt.total_seconds() // 60).astype(int)
         d["_bucket"] = sess_start + pd.to_timedelta((mins // tf_minutes) * tf_minutes, unit="m")
+        # only complete windows — matches CandleFetcher._fetch_candle expected_count
+        d = d[d.groupby("_bucket")["datetime"].transform("size") == tf_minutes // 5]
         htf = d.groupby("_bucket", sort=True).agg({
             "open": "first", "high": "max", "low": "min",
             "close": "last", "volume": "sum",
@@ -114,6 +130,7 @@ for inst_name, sec_id in instruments.items():
             sess_start = pd.to_datetime(dates + " " + session_open)
             mins = ((dt - sess_start).dt.total_seconds() // 60).astype(int)
             d["_bucket"] = sess_start + pd.to_timedelta((mins // 15) * 15, unit="m")
+            d = d[d.groupby("_bucket")["datetime"].transform("size") == 15 // 5]
             fast_df = d.groupby("_bucket", sort=True).agg({
                 "open": "first", "high": "max", "low": "min",
                 "close": "last", "volume": "sum",

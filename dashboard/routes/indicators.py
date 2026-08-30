@@ -4,6 +4,7 @@ import asyncio
 import time
 from typing import Optional
 from fastapi import APIRouter
+from dashboard.routes.strategies import _with_flat_indicators
 router = APIRouter()
 _engine = None
 
@@ -17,7 +18,7 @@ def _get_all_indicators_sync():
     try:
         result = {}
         for key, ind in _engine.indicators.items():
-            result[key] = ind.snapshot()
+            result[key] = _with_flat_indicators(ind.snapshot())
         return {"indicators": result, "count": len(result)}
     except Exception as e:
         return {"error": str(e)}
@@ -34,7 +35,7 @@ def _get_instrument_indicators_sync(instrument: str):
         result = {}
         for key, ind in _engine.indicators.items():
             if key.startswith(inst + ":"):
-                result[key] = ind.snapshot()
+                result[key] = _with_flat_indicators(ind.snapshot())
         return {"instrument": inst, "indicators": result}
     except Exception as e:
         return {"error": str(e)}

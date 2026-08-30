@@ -503,6 +503,32 @@ async def get_open_trades():
 # EVENT JOURNAL
 # =====================================================================
 
+def _shape_events(events: list) -> list:
+    """Reshape raw event-store rows into the UI contract {id, type, data,
+    timestamp}, while retaining the raw event_type/payload columns."""
+    import json as _json
+    shaped = []
+    for e in events:
+        payload = e.get("payload")
+        if isinstance(payload, str):
+            try:
+                payload = _json.loads(payload)
+            except Exception:
+                payload = None
+        shaped.append({
+            "id": e.get("event_id") or e.get("id") or e.get("sequence_number"),
+            "type": e.get("event_type"),
+            "timestamp": e.get("timestamp"),
+            "data": payload if isinstance(payload, dict) else ({"message": payload} if payload else {}),
+            "event_type": e.get("event_type"),
+            "payload": e.get("payload"),
+            "trade_id": e.get("trade_id"),
+            "strategy_id": e.get("strategy_id"),
+            "instrument": e.get("instrument"),
+        })
+    return shaped
+
+
 @router.get("/api/analytics/events")
 async def get_events(
     strategy_id: Optional[str] = None,
@@ -521,7 +547,7 @@ async def get_events(
     else:
         events = []
     
-    return {"events": events[:limit], "count": len(events[:limit])}
+    return {"events": _shape_events(events[:limit]), "count": len(events[:limit])}
 
 
 # =====================================================================

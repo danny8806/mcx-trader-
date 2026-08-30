@@ -66,6 +66,7 @@ class PendingEntry:
     status: str = "pending"
     created_at: float = 0.0  # timestamp when pending entry was created
     bars_pending: int = 0    # number of bars since creation
+    immediate: bool = False  # direct-market re-entry: engine flips right after a reversal exit
 
 
 @dataclass

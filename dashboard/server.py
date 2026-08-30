@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import secrets
 import sys
 import time
 import uuid
@@ -12,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add parent to path for engine imports
@@ -288,7 +290,7 @@ app.add_middleware(
 
 # Serve frontend static files (Docker build)
 from starlette.staticfiles import StaticFiles
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, JSONResponse
 
 _frontend_dist = Path(__file__).resolve().parent.parent / "dashboard-ui" / "dist"
 _frontend_available = _frontend_dist.exists()
@@ -303,9 +305,34 @@ if analytics_routes:
     app.include_router(analytics_routes.router)
 
 
+# Optional API-key gate.  Enabled ONLY when DASHBOARD_API_KEY is set.
+# When unset the dashboard stays open (default, matches dev rigs).  When set,
+# every /api/* endpoint (except /api/health) requires `x-api-key` and the
+# /ws websocket requires a `key` query parameter; a wrong key is rejected
+# with 403 / close-1008.  Uses a constant-time compare.
+_api_key = os.environ.get("DASHBOARD_API_KEY", "").strip()
+
+
+@app.middleware("http")
+async def _api_key_gate(request: Request, call_next):
+    if _api_key:
+        path = request.url.path
+        if path.startswith("/api/") and not path.startswith("/api/health"):
+            supplied = request.headers.get("x-api-key", "")
+            if not secrets.compare_digest(supplied, _api_key):
+                return JSONResponse({"error": "Invalid or missing API key"}, status_code=403)
+    return await call_next(request)
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    # Accept connection (auth gate removed - dashboard open)
+    # Accept connection (auth gate removed - dashboard open); optional API key
+    # gate when DASHBOARD_API_KEY is configured.
+    if _api_key:
+        supplied = websocket.query_params.get("key", "")
+        if not secrets.compare_digest(supplied, _api_key):
+            await websocket.close(code=1008)
+            return
     await websocket.accept()
     cid = f"client_{uuid.uuid4().hex[:8]}"
     ws_manager.connect(cid, websocket, ["all"])

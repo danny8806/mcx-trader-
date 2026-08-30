@@ -262,7 +262,7 @@ class DhanDataAdapter:
         if not meta:
             return []
 
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
         from_dt = now - datetime.timedelta(minutes=lookback_minutes + 2)
         to_dt = now + datetime.timedelta(minutes=1)
 

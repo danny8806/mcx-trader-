@@ -14,6 +14,7 @@ interface StrategyDetailData {
     dema_period: number;
     atr_period: number;
     atr_factor: number;
+    starting_capital: number;
   };
   current_state: {
     state: string;
@@ -467,7 +468,7 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
           <StrategyEquityChart
             equityCurve={equityCurve}
             drawdownCurve={drawdownCurve}
-            startingEquity={1000000}
+            startingEquity={cfg.starting_capital || 1000000}
             period={equityPeriod}
             height={130}
           />

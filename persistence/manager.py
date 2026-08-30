@@ -229,6 +229,16 @@ class PersistenceManager:
             ))
             conn.commit()
 
+    def get_fill(self, fill_id: str) -> Optional[dict]:
+        """Fetch a single fill row by fill_id (DB-backed idempotency guard)."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM fills WHERE fill_id = ?", (fill_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def save_trade_and_fill(self, trade: dict, fill: dict) -> None:
         """Persist a closed trade and its exit fill in one transaction."""
         with self._lock:

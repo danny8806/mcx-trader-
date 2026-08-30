@@ -483,11 +483,15 @@ def run_checks(engine, ref, ui):
 
     async def _one_push():
         import websockets
+        import asyncio
         async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws") as ws:
             await ws.send(json.dumps({"action": "subscribe", "channels": ["all"]}))
             deadline = time.time() + 5
             while time.time() < deadline:
-                raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue  # engine_state broadcasts ~1s; keep polling until deadline
                 msg = json.loads(raw)
                 if msg.get("type") == "engine_state":
                     return fe_strategies_from_ws(msg.get("data", {}))

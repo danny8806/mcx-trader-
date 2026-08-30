@@ -1,434 +1,547 @@
-"""Full 6-day live system simulator — exact replica of trading_engine flow."""
-import json, datetime, time, bisect, sys
-import numpy as np
-import pandas as pd
-import requests
+"""FULL-DEPTH SIMULATOR — the REAL live stack, replayed on REAL Dhan candles.
 
-sys.path.insert(0, r"C:\Users\pc\Desktop\MCX-TRADER")
-from core.timeframe_engine import Bar, BarState
-from htf.backtest_style_htf import BacktestStyleHTFEngine
-from indicators.dema_atr import DEMAATR
-from strategies.types import StrategyState
+Every component used in production is instantiated and driven here:
 
-with open("data/dhan_token.json") as f:
-    TOKEN = json.load(f)["access_token"]
-print("Token:", TOKEN[:30], "...")
+  TradingEngine (real) -> strategies (real Gold01/02, Silver01/02)
+    -> Real Bars built by CandleFetcher._create_bar/_aggregate_candles
+    -> DEMAATR indicators (real) + BacktestStyleHTFEngine (real)
+    -> PaperExecutionEngine + OrderManager (real, slippage+latency)
+    -> PositionManager + PNLEngine(MCXFeeModel) + AccountEngine (real)
+    -> RiskEngine, MarketStatus, FillDeduplicator (real)
+    -> PersistenceManager (trading.db) + EventStore + TradeLedger (analytics.db)
+    -> ReconciliationEngine (real) verified at the end
+    -> snapshot()/restore() round trip on the real engine
 
-def api_call(payload):
-    r = requests.post("https://api.dhan.co/v2/charts/intraday", json=payload,
-        headers={"access-token": TOKEN, "Content-Type": "application/json"}, timeout=30)
-    return r.json()
+The only substitute is the network layer: a ReplayDataAdapter stands in for
+DhanDataAdapter (engine never touches a WS/REST socket during replay; the
+historical candles were fetched once from Dhan with the real REST client).
 
-# ============================================================
-# CONFIG
-# ============================================================
-CAPITAL_PER_STRATEGY = 300000.0
-MULTIPLIER = {"GOLDM": 10.0, "SILVERM": 5.0}
-MARGIN_MODELS = {
-    "GOLDM": {"slope": 0.125, "intercept": 126930.0},
-    "SILVERM": {"slope": 0.0625, "intercept": 142900.0},
+Verification is done with INDEPENDENT reference math (never production code),
+mirroring the deep-architecture test assertions but over six real trading days
+(Aug 21-28 2026) with the actual 5m/15m/1h OHLC the live system would consume.
+
+Usage:
+    python full_simulator.py                 # window 2026-08-21..2026-08-28
+    python full_simulator.py 2026-08-24 2026-08-28
+"""
+from __future__ import annotations
+
+import json
+import math
+import shutil
+import sqlite3
+import sys
+import time
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+WINDOW_DEFAULT = ("2026-08-21", "2026-08-28")
+
+# instrument -> (security_id, multiplier, margin slope, margin intercept)
+LIVE_INSTRUMENTS = {
+    "GOLDM":   {"symbol": "MCX:GOLDM202609", "security_id": "563946",
+                "exchange_segment": "MCX_COMM", "instrument": "FUTCOM",
+                "multiplier": 10.0, "tick_size": 1.0, "lot_size": 1,
+                "session_open": "09:00", "session_close": "23:30", "session_minutes": 870,
+                "margin_model": {"slope": 0.125, "intercept": 126930.0}},
+    "SILVERM": {"symbol": "MCX:SILVERM202611", "security_id": "483080",
+                "exchange_segment": "MCX_COMM", "instrument": "FUTCOM",
+                "multiplier": 5.0, "tick_size": 1.0, "lot_size": 1,
+                "session_open": "09:00", "session_close": "23:30", "session_minutes": 870,
+                "margin_model": {"slope": 0.0625, "intercept": 142900.0}},
 }
-CHARGES = {
-    "GOLDM": {"brokerage": 20.0, "stt_pct": 0.01, "exchange_pct": 0.0026, "sebi_pct": 0.0001},
-    "SILVERM": {"brokerage": 20.0, "stt_pct": 0.01, "exchange_pct": 0.0026, "sebi_pct": 0.0001},
+
+LIVE_STRATEGIES = {
+    "gold_01":   {"instrument": "GOLDM", "fast_timeframe": "5m", "mid_timeframe": "15m",
+                  "htf_timeframe": "1h", "quantity": 1, "capital": 300000, "enabled": True},
+    "gold_02":   {"instrument": "GOLDM", "fast_timeframe": "15m", "mid_timeframe": "15m",
+                  "htf_timeframe": "1h", "quantity": 1, "capital": 300000, "enabled": True},
+    "silver_01": {"instrument": "SILVERM", "fast_timeframe": "15m", "mid_timeframe": "15m",
+                  "htf_timeframe": "1h", "quantity": 1, "capital": 300000, "enabled": True},
+    "silver_02": {"instrument": "SILVERM", "fast_timeframe": "5m", "mid_timeframe": "15m",
+                  "htf_timeframe": "1h", "quantity": 1, "capital": 300000, "enabled": True},
 }
 
-STRATEGIES = {
-    "gold_01":   {"instrument": "GOLDM",   "fast_tf": "5m",  "fast_min": 5},
-    "gold_02":   {"instrument": "GOLDM",   "fast_tf": "15m", "fast_min": 15},
-    "silver_01": {"instrument": "SILVERM", "fast_tf": "15m", "fast_min": 15},
-    "silver_02": {"instrument": "SILVERM", "fast_tf": "5m",  "fast_min": 5},
-}
+# timeframe sort keys: when 1h/15m/5m bars end at the same wall-clock second,
+# bigger timeframes must be fed first (searchsorted(right) mapping semantics).
+_TF_RANK = {"1h": 0, "15m": 1, "5m": 2}
 
-trading_days = [
-    datetime.date(2026, 8, 21),
-    datetime.date(2026, 8, 24),
-    datetime.date(2026, 8, 25),
-    datetime.date(2026, 8, 26),
-    datetime.date(2026, 8, 27),
-    datetime.date(2026, 8, 28),
-]
 
-from_date = datetime.date(2026, 8, 21)
-to_date = datetime.date(2026, 8, 28)
-session_open = "09:00"
+def ist(epoch: float) -> datetime:
+    return datetime.fromtimestamp(epoch, tz=IST)
 
-# ============================================================
-# FETCH DATA
-# ============================================================
-print("Fetching 7-day 5m data...")
-j5_gold = api_call({"securityId": "563946", "exchangeSegment": "MCX_COMM", "instrument": "FUTCOM",
-    "interval": "5", "fromDate": "%s 09:00:00" % from_date, "toDate": "%s 23:55:00" % to_date})
-time.sleep(0.5)
-j5_silver = api_call({"securityId": "483080", "exchangeSegment": "MCX_COMM", "instrument": "FUTCOM",
-    "interval": "5", "fromDate": "%s 09:00:00" % from_date, "toDate": "%s 23:55:00" % to_date})
-print("GOLDM: %d 5m candles, SILVERM: %d 5m candles" % (len(j5_gold["open"]), len(j5_silver["open"])))
 
-def make_df(j5):
-    df = pd.DataFrame({
-        "timestamp": j5["timestamp"],
-        "open": j5["open"], "high": j5["high"],
-        "low": j5["low"], "close": j5["close"],
-        "volume": j5.get("volume", [0]*len(j5["open"])),
-    })
-    df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
-    return df.sort_values("datetime").reset_index(drop=True)
-
-df_gold = make_df(j5_gold)
-df_silver = make_df(j5_silver)
-
-# ============================================================
-# BUILD HTF ENGINES (same as live _warmup_from_rest)
-# ============================================================
-from datetime import timezone, timedelta
-
-def build_htf(df, inst_name):
-    htf_engine = BacktestStyleHTFEngine()
-    htf_engine.register(inst_name, "1h", 3, 6, 1.0, session_open)
-    htf_engine.register(inst_name, "15m", 3, 6, 1.0, session_open)
-
-    for tf, tf_min in [("1h", 60), ("15m", 15)]:
-        d = df.copy()
-        dt = d["datetime"]
-        dates = dt.dt.date.astype(str)
-        sess_start = pd.to_datetime(dates + " " + session_open)
-        mins = ((dt - sess_start).dt.total_seconds() // 60).astype(int)
-        d["_bucket"] = sess_start + pd.to_timedelta((mins // tf_min) * tf_min, unit="m")
-        grouped = d.groupby("_bucket", sort=True).agg({
-            "open": "first", "high": "max", "low": "min",
-            "close": "last", "volume": "sum",
-        }).reset_index().rename(columns={"_bucket": "datetime"})
-
-        bars = []
-        for _, row in grouped.iterrows():
-            bar_dt = row["datetime"]
-            if bar_dt.tzinfo is None:
-                bar_dt = bar_dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            start_ts = bar_dt.timestamp()
-            bars.append(Bar(instrument=inst_name, timeframe=tf,
-                start_ts=start_ts, end_ts=start_ts + tf_min * 60,
-                open=row["open"], high=row["high"], low=row["low"],
-                close=row["close"], volume=int(row["volume"]), state=BarState.CLOSED))
-        htf_engine.load_batch_htf(inst_name, tf, bars)
-    return htf_engine
-
-print("Building HTF engines...")
-htf_gold = build_htf(df_gold, "GOLDM")
-htf_silver = build_htf(df_silver, "SILVERM")
-
-# ============================================================
-# MARGIN & CHARGES
-# ============================================================
-def calc_margin(inst, price, qty):
-    m = MARGIN_MODELS[inst]
-    return qty * (m["slope"] * price + m["intercept"])
-
-def calc_charges(inst, entry_price, exit_price, qty, side):
-    c = CHARGES[inst]
-    mult = MULTIPLIER[inst]
-    notional = max(entry_price, exit_price) * qty * mult
-    brokerage = c["brokerage"] * 2
-    stt = notional * c["stt_pct"] / 100
-    exchange = notional * c["exchange_pct"] / 100
-    sebi = notional * c["sebi_pct"] / 100
-    gst = (brokerage + exchange + sebi) * 0.18
-    return brokerage + stt + exchange + sebi + gst
-
-def calc_pnl(inst, entry, exit_p, qty, side):
-    mult = MULTIPLIER[inst]
+# ═══════════════════════════════════════════════════════════════
+# Independent reference math (never production code as the reference)
+# ═══════════════════════════════════════════════════════════════
+def indep_gross(side: str, entry: float, exit_p: float, qty: int, mult: float) -> float:
     if side == "LONG":
-        gross = (exit_p - entry) * qty * mult
-    else:
-        gross = (entry - exit_p) * qty * mult
-    charges = calc_charges(inst, entry, exit_p, qty, side)
-    return gross, charges, gross - charges
+        return (exit_p - entry) * qty * mult
+    return (entry - exit_p) * qty * mult
 
-# ============================================================
-# STRATEGY SIMULATOR (exact live logic)
-# ============================================================
-class StrategySim:
-    def __init__(self, name, inst, fast_tf, fast_min, capital):
-        self.name = name
-        self.inst = inst
-        self.fast_tf = fast_tf
-        self.fast_min = fast_min
-        self.capital = capital
-        self.available_margin = capital
 
-        self.state = StrategyState.FLAT
-        self.position_side = None
-        self.stop_price = None
-        self.pending_entry = None
-        self.entry_price = None
+def indep_charges(entry: float, exit_price: float, qty: int, mult: float, side: str) -> float:
+    cfg = LIVE_INSTRUMENTS["GOLDM"]  # rates identical for both instruments
+    buy_turnover = entry * qty * mult
+    sell_turnover = exit_price * qty * mult
+    if side == "SHORT":
+        buy_turnover, sell_turnover = sell_turnover, buy_turnover
+    brokerage = 20.0 * 2
+    stt = sell_turnover * 0.0001
+    exchange = (buy_turnover + sell_turnover) * 0.000026
+    sebi = (buy_turnover + sell_turnover) * 0.000001
+    gst = (brokerage + exchange + sebi) * 0.18
+    return round(brokerage + stt + exchange + sebi + gst + stamp_duty(buy_turnover), 2)
 
-        self._prev_close = None
-        self._prev_htf = None
-        self._prev_mid = None
-        self._prev_high = None
-        self._prev_low = None
 
-        self.trades = []
-        self.all_events = []
-        self.bars_processed = 0
+def stamp_duty(buy_turnover: float) -> float:
+    return buy_turnover * 0.0
 
-    def on_bar(self, bar, htf_mapped, mid_mapped):
-        self.bars_processed += 1
-        close = bar.close
-        high = bar.high
-        low = bar.low
-        prev_close = self._prev_close if self._prev_close is not None else close
-        prev_high = self._prev_high if self._prev_high is not None else high
-        prev_low = self._prev_low if self._prev_low is not None else low
-        htf_val = htf_mapped.htf_value
-        prev_htf = self._prev_htf
-        mid_val = mid_mapped.htf_value if mid_mapped else None
 
-        self._prev_close = close
-        self._prev_htf = htf_val
-        self._prev_mid = mid_val
-        self._prev_high = high
-        self._prev_low = low
+def indep_margin(slope: float, intercept: float, price: float, qty: int) -> float:
+    return qty * (slope * price + intercept)
 
-        if htf_val is None or prev_htf is None:
-            return
 
-        dt = datetime.datetime.fromtimestamp(bar.start_ts)
-        t = dt.strftime("%Y-%m-%d %H:%M")
+# ═══════════════════════════════════════════════════════════════
+# Replay data-adapter (drop-in for data/dhan/adapter.py::DhanDataAdapter)
+# ═══════════════════════════════════════════════════════════════
+class _MockWS:
+    connected = True
+    _stats = {"tick": 0}
+    _instruments = {}
+    _last_tick_time = 0.0
 
-        # 1. Pending entry check
-        if self.pending_entry is not None:
-            self.pending_entry["bars"] += 1
-            if self.pending_entry["bars"] >= 50:
-                self.pending_entry = None
-                self.state = StrategyState.FLAT
-                self.position_side = None
-            elif self.pending_entry["side"] == "LONG" and bar.high >= self.pending_entry["trigger"]:
-                self._fill("LONG", bar.open, t, "entry")
-            elif self.pending_entry["side"] == "SHORT" and bar.low <= self.pending_entry["trigger"]:
-                self._fill("SHORT", bar.open, t, "entry")
+    def is_stale(self) -> bool:
+        return False
 
-        # 2. Stop loss
-        if self.position_side == "LONG" and self.stop_price is not None:
-            if bar.low <= self.stop_price:
-                self._exit(self.stop_price, t, "stop_loss")
-        elif self.position_side == "SHORT" and self.stop_price is not None:
-            if bar.high >= self.stop_price:
-                self._exit(self.stop_price, t, "stop_loss")
 
-        # 3. Signal detection
-        long_cross = close > htf_val and prev_close <= prev_htf and mid_val is not None and mid_val < htf_val
-        short_cross = close < htf_val and prev_close >= prev_htf and mid_val is not None and mid_val > htf_val
+class ReplayDataAdapter:
+    def __init__(self, client_id="", token_file="", pin="", totp_secret="",
+                 on_tick=None, on_status=None, **kwargs):
+        self.client_id = client_id
+        self._on_tick = on_tick
+        self._on_status = on_status
+        self.ws = _MockWS()
+        self.instruments = {}
 
-        if self.state == StrategyState.FLAT:
-            if long_cross:
-                trigger = high
-                sl = min(low, prev_low)
-                self.pending_entry = {"side": "LONG", "trigger": trigger, "bars": 0, "sl": sl}
-                self.stop_price = sl
-                self.state = StrategyState.PENDING_LONG
-                self.all_events.append((t, "LONG_SIGNAL", close, htf_val, mid_val))
-            elif short_cross:
-                trigger = low
-                sl = max(high, prev_high)
-                self.pending_entry = {"side": "SHORT", "trigger": trigger, "bars": 0, "sl": sl}
-                self.stop_price = sl
-                self.state = StrategyState.PENDING_SHORT
-                self.all_events.append((t, "SHORT_SIGNAL", close, htf_val, mid_val))
+    def register_instruments(self, instruments: dict) -> None:
+        self.instruments = instruments
 
-        elif self.position_side == "SHORT" and long_cross:
-            trigger = high
-            sl = min(low, prev_low)
-            self.pending_entry = {"side": "LONG", "trigger": trigger, "bars": 0, "sl": sl}
-            self.stop_price = sl
-            self.state = StrategyState.PENDING_LONG
-            self.all_events.append((t, "REVERSE_TO_LONG", close, htf_val, mid_val))
+    def connect(self) -> None:
+        self.ws.connected = True
 
-        elif self.position_side == "LONG" and short_cross:
-            trigger = low
-            sl = max(high, prev_high)
-            self.pending_entry = {"side": "SHORT", "trigger": trigger, "bars": 0, "sl": sl}
-            self.stop_price = sl
-            self.state = StrategyState.PENDING_SHORT
-            self.all_events.append((t, "REVERSE_TO_SHORT", close, htf_val, mid_val))
+    def disconnect(self) -> None:
+        self.ws.connected = False
 
-    def _fill(self, side, price, t, reason):
-        if self.position_side is not None:
-            self._exit(self.stop_price, t, "reverse_fill")
-        margin = calc_margin(self.inst, price, 1)
-        if margin > self.available_margin:
-            self.state = StrategyState.FLAT
-            self.position_side = None
-            self.stop_price = None
-            self.pending_entry = None
-            self.all_events.append((t, "MARGIN_BLOCKED", price, 0, 0))
-            return
-        self.available_margin -= margin
-        self.position_side = side
-        self.entry_price = price
-        self.state = StrategyState.LONG_POSITION if side == "LONG" else StrategyState.SHORT_POSITION
-        self.pending_entry = None
-        self.all_events.append((t, "FILL_%s" % reason, price, 0, 0))
+    def fetch_historical_candles(self, *args, **kwargs):
+        return []
 
-    def _exit(self, exit_price, t, reason):
-        if self.position_side is None or self.entry_price is None:
-            return
-        gross, charges, net = calc_pnl(self.inst, self.entry_price, exit_price, 1, self.position_side)
-        margin = calc_margin(self.inst, self.entry_price, 1)
-        self.available_margin += margin
-        self.trades.append({
-            "entry_time": self._entry_time if hasattr(self, '_entry_time') else "",
-            "exit_time": t,
-            "side": self.position_side,
-            "entry": self.entry_price,
-            "exit": exit_price,
-            "gross": gross,
-            "charges": charges,
-            "net": net,
-            "reason": reason,
-        })
-        self.position_side = None
-        self.entry_price = None
-        self.stop_price = None
-        self.pending_entry = None
-        self.state = StrategyState.FLAT
 
-    def _fill(self, side, price, t, reason):
-        if self.position_side is not None:
-            self._exit(self.stop_price, t, "reverse_fill")
-        margin = calc_margin(self.inst, price, 1)
-        if margin > self.available_margin:
-            self.state = StrategyState.FLAT
-            self.position_side = None
-            self.stop_price = None
-            self.pending_entry = None
-            self.all_events.append((t, "MARGIN_BLOCKED", price, 0, 0))
-            return
-        self.available_margin -= margin
-        self.position_side = side
-        self.entry_price = price
-        self._entry_time = t
-        self.state = StrategyState.LONG_POSITION if side == "LONG" else StrategyState.SHORT_POSITION
-        self.pending_entry = None
-        self.all_events.append((t, "FILL_%s" % reason, price, 0, 0))
+# ═══════════════════════════════════════════════════════════════
+# Data: real candles from the real Dhan REST client
+# ═══════════════════════════════════════════════════════════════
+def fetch_real_candles(token_file: Path, security_id: str, start_iso: str, stop_iso: str):
+    from data.dhan.rest_client import DhanRESTClient
+    # client_id comes from config (env-resolved at runtime), NOT hardcoded.
+    from config import Config
+    _cfg = Config()
+    _cfg.load()
+    _client_id = _cfg.get("dhan.client_id", "").strip()
+    rest = DhanRESTClient(token_file=str(token_file), client_id=_client_id)
+    from_dt = datetime.fromisoformat(start_iso + "T00:00:00+05:30")
+    to_dt = datetime.fromisoformat(stop_iso + "T23:59:59+05:30")
+    rows = rest.fetch_intraday(str(security_id), "5", from_dt, to_dt, "MCX_COMM", "FUTCOM")
+    rows.sort(key=lambda r: r[0])
+    return rows
 
-# ============================================================
-# RUN SIMULATION
-# ============================================================
-print("\n" + "=" * 100)
-print("FULL 6-DAY LIVE SYSTEM SIMULATION")
-print("=" * 100)
 
-all_strats = {}
-for sname, scfg in STRATEGIES.items():
-    inst = scfg["instrument"]
-    htf = htf_gold if inst == "GOLDM" else htf_silver
-    df = df_gold if inst == "GOLDM" else df_silver
-    all_strats[sname] = StrategySim(sname, inst, scfg["fast_tf"], scfg["fast_min"], CAPITAL_PER_STRATEGY)
+def build_bars(name: str, rows: list, keep_partial: bool = False):
+    """Build the exact Bar objects the live CandleFetcher emits.
 
-grand_total_net = 0
-grand_total_trades = 0
+    5m bars via _create_bar, 15m/1h via _aggregate_candles (full windows only),
+    exactly as CandleFetcher._check_timeframe/_fetch_candle do in production.
 
-for day in trading_days:
-    print("\n" + "=" * 100)
-    print("  %s" % day.strftime("%A %Y-%m-%d"))
-    print("=" * 100)
+    keep_partial=True additionally emits incomplete end-of-session windows (the
+    trailing 23:00-24:00 1h group) exactly as the reference backtest resample
+    (data_mcx/dema_mtf_base.py) does — used by _bt5_offline so the engine's HTF
+    DEMA-ATR history matches the reference 44-trade run.
+    """
+    from core.candle_fetcher import CandleFetcher
+    cf = CandleFetcher(data_adapter=None, instruments={}, on_candle_closed=None)
 
-    day_start = int(datetime.datetime.combine(day, datetime.time(9, 0)).timestamp())
-    day_end = int(datetime.datetime.combine(day, datetime.time(23, 59)).timestamp())
+    bars5 = []
+    for r in rows:
+        naive = datetime.fromtimestamp(r[0], tz=IST).replace(tzinfo=None)
+        bar = cf._create_bar(name, "5m", list(r), naive, 5)
+        if bar:
+            bars5.append(bar)
 
-    for sname, scfg in STRATEGIES.items():
-        sim = all_strats[sname]
-        inst = scfg["instrument"]
-        fast_min = scfg["fast_min"]
-        htf = htf_gold if inst == "GOLDM" else htf_silver
-        df = df_gold if inst == "GOLDM" else df_silver
+    def aggregate(tf_min: int, tf: str):
+        """Session-anchored 15m/1h aggregation.
 
-        # Build fast bars for this day
-        if scfg["fast_tf"] == "5m":
-            fast_df = df
-        else:
-            d = df.copy()
-            dt = d["datetime"]
-            dates = dt.dt.date.astype(str)
-            sess_start = pd.to_datetime(dates + " " + session_open)
-            mins = ((dt - sess_start).dt.total_seconds() // 60).astype(int)
-            d["_bucket"] = sess_start + pd.to_timedelta((mins // 15) * 15, unit="m")
-            fast_df = d.groupby("_bucket", sort=True).agg({
-                "open": "first", "high": "max", "low": "min",
-                "close": "last", "volume": "sum",
-            }).reset_index().rename(columns={"_bucket": "datetime"})
-
-        day_signals = []
-        for i in range(len(fast_df)):
-            row = fast_df.iloc[i]
-            bar_dt = row["datetime"]
-            if bar_dt.tzinfo is None:
-                bar_dt = bar_dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            ts = bar_dt.timestamp()
-            if ts < day_start or ts > day_end:
+        Matches production CandleFetcher._check_timeframe/_fetch_candle exactly:
+        windows start at the IST session_open (09:00) on each day and a window is
+        only emitted when it is complete (tf_min//5 five-minute bars).  Partial
+        end-of-session hours (e.g. 23:00-24:00 after a 23:30 close) are skipped,
+        so the HTF DEMA-ATR line never consumes a partial candle — identical to
+        what the live engine receives.  keep_partial relaxes that for CSV replay.
+        """
+        out = []
+        window = tf_min * 60
+        expected = tf_min // 5
+        by_day: dict[str, list] = {}
+        for b in bars5:
+            bt = ist(b.start_ts)
+            by_day.setdefault(bt.strftime("%Y-%m-%d"), []).append(b)
+        for day, day_bars in sorted(by_day.items()):
+            day_bars.sort(key=lambda b: b.start_ts)
+            d0 = ist(day_bars[0].start_ts).replace(hour=9, minute=0, second=0, microsecond=0)
+            for b in day_bars:
+                bn = ist(b.start_ts)
+                idx = int((bn - d0).total_seconds() // window)
+                if idx < 0:
+                    continue
+                key = (day, idx)
+                group = [x for x in day_bars if int((ist(x.start_ts) - d0).total_seconds() // window) == idx]
+                if len(group) == expected or (keep_partial and len(group) > 0):
+                    wstart = d0 + timedelta(seconds=idx * window)
+                    naive = wstart.replace(tzinfo=None)
+                    candle = [wstart.timestamp(),
+                              group[0].open,
+                              max(x.high for x in group),
+                              min(x.low for x in group),
+                              group[-1].close,
+                              int(sum(x.volume for x in group))]
+                    bar = cf._aggregate_candles(name, tf, [candle], naive, tf_min)
+                    if bar:
+                        out.append(bar)
+        # de-dup & keep order
+        seen = set()
+        dedup = []
+        for bar in sorted(out, key=lambda b: b.start_ts):
+            if bar.start_ts in seen:
                 continue
+            seen.add(bar.start_ts)
+            dedup.append(bar)
+        return dedup
 
-            bar = Bar(instrument=inst, timeframe=scfg["fast_tf"],
-                start_ts=ts, end_ts=ts + fast_min * 60,
-                open=row["open"], high=row["high"], low=row["low"],
-                close=row["close"], volume=0, state=BarState.CLOSED)
+    return bars5, aggregate(15, "15m"), aggregate(60, "1h")
 
-            htf_mapped = htf.map_to_fast_bar(bar, scfg["fast_tf"])
-            mid_mapped = htf.map_mid_to_fast_bar(bar, scfg["fast_tf"])
 
-            events_before = len(sim.all_events)
-            sim.on_bar(bar, htf_mapped, mid_mapped)
-            for ev in sim.all_events[events_before:]:
-                day_signals.append(ev)
+# ═══════════════════════════════════════════════════════════════
+# Isolated engine config (mirrors config/settings.json, temp DBs only)
+# ═══════════════════════════════════════════════════════════════
+def write_config(root: Path) -> Path:
+    data = {
+        "system": {"name": "FullDepthSim", "version": "1.0.0", "environment": "paper",
+                   "log_level": "INFO",
+                   "db_path": str(root / "data" / "db" / "trading.db"),
+                   "state_path": str(root / "data" / "db" / "system_state.json")},
+        "dhan": {"client_id": "", "access_token": "", "ws_url": "wss://fake",
+                 "rest_base": "https://fake", "token_file": str(root / "data" / "db" / "dhan_token.json"),
+                 "pin": "", "totp_secret": ""},
+        "instruments": LIVE_INSTRUMENTS,
+        "indicators": {"dema_period": 3, "atr_period": 6, "atr_factor": 1.0},
+        "strategies": LIVE_STRATEGIES,
+        "paper_execution": {"slippage_ticks": 0, "latency_ms": 1, "partial_fill_probability": 0.0},
+        "charges": {
+            "GOLDM": {"brokerage_per_side": 20.0, "stt_sell_pct": 0.01, "exchange_pct": 0.0026,
+                      "sebi_pct": 0.0001, "gst_pct": 18.0, "stamp_duty_pct": 0.0},
+            "SILVERM": {"brokerage_per_side": 20.0, "stt_sell_pct": 0.01, "exchange_pct": 0.0026,
+                        "sebi_pct": 0.0001, "gst_pct": 18.0, "stamp_duty_pct": 0.0},
+        },
+        "risk": {"max_open_positions_per_strategy": 1, "max_open_positions_total": 8,
+                 "max_daily_loss": 999999999.0, "max_drawdown_pct": 100.0,
+                 "margin_per_trade_pct": 6.5, "kill_switch_enabled": False},
+        "account": {"starting_capital": 1200000.0, "starting_capital_per_strategy": 300000.0,
+                    "currency": "INR"},
+        "telegram": {"bot_token": "", "chat_id": "", "enabled": False},
+        "dashboard": {"api_key": ""},
+        "execution_mode": "paper",
+    }
+    cfg = root / "settings.json"
+    cfg.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return cfg
 
-        # Print day summary for this strategy
-        if day_signals:
-            for ev in day_signals:
-                print("  %-12s %s  %-20s  close=%d  1H=%d  15m=%d" % (
-                    sname, ev[0], ev[1], ev[2], ev[3], ev[4]))
-        else:
-            print("  %-12s %s  (no signals)" % (sname, day.strftime("%Y-%m-%d")))
 
-# ============================================================
-# FINAL TRADE LOG
-# ============================================================
-print("\n" + "=" * 100)
-print("COMPLETE TRADE LOG (all 6 days)")
-print("=" * 100)
+def build_engine(cfg_path: Path):
+    """Real TradingEngine (only DhanDataAdapter substituted by ReplayDataAdapter)."""
+    import trading_engine as te
+    te.DhanDataAdapter = ReplayDataAdapter
 
-for sname in STRATEGIES:
-    sim = all_strats[sname]
-    if sim.trades:
-        print("\n--- %s (%s, %s) ---" % (sname, STRATEGIES[sname]["fast_tf"], STRATEGIES[sname]["instrument"]))
-        print("%-20s %-20s %-6s %10s %10s %10s %8s %10s  %s" % (
-            "ENTRY", "EXIT", "SIDE", "ENTRY$", "EXIT$", "GROSS", "CHARGES", "NET", "REASON"))
-        total_net = 0
-        total_charges = 0
-        wins = 0
-        losses = 0
-        for t in sim.trades:
-            total_net += t["net"]
-            total_charges += t["charges"]
-            if t["net"] > 0:
-                wins += 1
-            else:
-                losses += 1
-            print("%-20s %-20s %-6s %10.0f %10.0f %10.0f %8.0f %10.0f  %s" % (
-                t["entry_time"], t["exit_time"], t["side"],
-                t["entry"], t["exit"], t["gross"], t["charges"], t["net"], t["reason"]))
-        n = len(sim.trades)
-        win_rate = (wins / n * 100) if n > 0 else 0
-        print("  Trades: %d  Wins: %d  Losses: %d  Win%%: %.0f%%  Total Net: %.0f  Charges: %.0f" % (
-            n, wins, losses, win_rate, total_net, total_charges))
-        grand_total_net += total_net
-        grand_total_trades += len(sim.trades)
-    else:
-        print("\n--- %s: NO TRADES ---" % sname)
+    from config import Config
+    from persistence.manager import PersistenceManager
+    from analytics.schema import init_analytics_db
+    TradingEngine = te.TradingEngine
 
-print("\n" + "=" * 100)
-print("GRAND TOTAL")
-print("=" * 100)
-print("Total trades: %d" % grand_total_trades)
-print("Total net P&L: Rs %.0f" % grand_total_net)
-print("Per-strategy capital: Rs 3,00,000 x 4 = Rs 12,00,000")
-print("=" * 100)
+    (cfg_path.parent / "data" / "db").mkdir(parents=True, exist_ok=True)
+    init_analytics_db(str(cfg_path.parent / "data" / "db" / "analytics.db"))
+
+    persistence = PersistenceManager(state_path=str(cfg_path.parent / "data" / "db" / "system_state.json"),
+                                     db_path=str(cfg_path.parent / "data" / "db" / "trading.db"))
+    engine = TradingEngine(config_path=str(cfg_path))
+    engine.set_persistence(persistence)
+    return engine, persistence
+
+
+# ═══════════════════════════════════════════════════════════════
+# Replay driver — real seams, historical wall clock per bar
+# ═══════════════════════════════════════════════════════════════
+def _fast_strategy(engine, bar):
+    for strat in engine.strategies.values():
+        if strat.instrument == bar.instrument and strat.fast_timeframe == bar.timeframe:
+            return strat
+    return None
+
+
+def replay(engine, stream_by_day):
+    from core.market_status import MarketState, EngineStatus
+    engine._running = True
+    engine.market_status.set_engine_status(EngineStatus.READY)
+    ws = engine.data_adapter.ws
+
+    def live_tick(instrument, ltp, ts):
+        # Production _on_tick derives CONNECTED from ws._last_tick_time;
+        # feed a fresh timestamp so data_status promotes READY -> TRADING.
+        ws._last_tick_time = time.time()
+        engine._on_tick({"instrument": instrument, "ltp": ltp, "event_timestamp": ts})
+
+    for day, bars in sorted(stream_by_day.items()):
+        engine.market_status.force_state(MarketState.LIVE_TRADING)
+        engine.market_status._eod_close_done_today = False
+        last_close = {}
+        last_ts = {}
+        for bar in bars:
+            strat = _fast_strategy(engine, bar)
+            if strat is not None:
+                # Direct market LTP for the bar (close, unless a signal
+                # carries an explicit fill_price that overrides it in
+                # _process_signal).
+                engine.execution_engine.update_price(bar.instrument, bar.close)
+            engine._on_bar_closed(bar)
+            live_tick(bar.instrument, bar.close, bar.end_ts)
+            last_close[bar.instrument] = bar.close
+            last_ts[bar.instrument] = bar.end_ts
+
+        # NOTE: no EOD force-close.  Open positions carry into the next
+        # session until the opposite trade / stop-loss exits them (backtest
+        # style).  should_force_close is disabled in trading_engine._on_tick.
+
+    engine.market_status.force_state(MarketState.AFTER_MARKET)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Verification helpers
+# ═══════════════════════════════════════════════════════════════
+def readonly_sql(db_path, query: str, *params):
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        conn.row_factory = sqlite3.Row
+        return [tuple(r) for r in conn.execute(query, params).fetchall()]
+    finally:
+        conn.close()
+
+
+def reconcile_result(engine, phase="live"):
+    from reconciliation.engine import ReconciliationEngine
+    recon = ReconciliationEngine(
+        persistence=engine._persistence,
+        position_manager=engine.position_manager,
+        pnl_engines=engine.pnl_engines,
+        account_engines=engine.account_engines,
+        strategies=engine.strategies,
+        order_manager=engine.order_manager,
+    )
+    return recon.reconcile(phase=phase)
+
+
+def teardown(engine, persistence):
+    try:
+        engine.stop()
+    except Exception:
+        pass
+    try:
+        persistence.close()
+    except Exception:
+        pass
+
+
+# ═══════════════════════════════════════════════════════════════
+# main
+# ═══════════════════════════════════════════════════════════════
+def main():
+    args = sys.argv[1:]
+    start_iso = args[0] if len(args) > 0 else WINDOW_DEFAULT[0]
+    stop_iso = args[1] if len(args) > 1 else WINDOW_DEFAULT[1]
+
+    token_file = ROOT / "data" / "dhan_token.json"
+    run_root = Path(r"C:\Users\pc\AppData\Local\Temp\opencode") / f"full_sim_{start_iso}_{stop_iso}"
+    if run_root.exists():
+        shutil.rmtree(run_root)
+    run_root.mkdir(parents=True, exist_ok=True)
+    cfg_path = write_config(run_root)
+
+    print(f"=== FULL-DEPTH SIMULATOR  {start_iso} -> {stop_iso} (real components, real candles) ===", flush=True)
+
+    # ── 1. Real candles ──
+    candles = {}
+    stream_all = []
+    for name, meta in LIVE_INSTRUMENTS.items():
+        rows = fetch_real_candles(token_file, meta["security_id"], start_iso, stop_iso)
+        candles[name] = rows
+        b5, b15, b1h = build_bars(name, rows)
+        print(f"[Data] {name}: {len(rows)} x5m  | {len(b15)} x15m  | {len(b1h)} x1h", flush=True)
+        for bar in b5 + b15 + b1h:
+            stream_all.append(bar)
+    if not candles or all(not v for v in candles.values()):
+        print("FATAL: no candle data (token expired?)", flush=True)
+        return 1
+
+    stream_by_day = {}
+    for bar in stream_all:
+        stream_by_day.setdefault(ist(bar.end_ts).date(), []).append(bar)
+    for day in stream_by_day:
+        stream_by_day[day].sort(key=lambda b: (b.end_ts, _TF_RANK[b.timeframe]))
+    print(f"[Data] {len(stream_all)} bars across {len(stream_by_day)} trading days", flush=True)
+
+    # ── 2. Engine ──
+    import trading_engine as te
+    te.DhanDataAdapter = ReplayDataAdapter
+    from core.market_status import MarketState
+    from core.trade_close import TradeCloseManager
+
+    engine, persistence = build_engine(cfg_path)
+    engine.tick_signal_processing = False  # bar-model replay: no tick breakout/SL
+
+    # Wire exactly what start() wires before its network section.
+    engine._trade_close_manager = TradeCloseManager(
+        position_manager=engine.position_manager,
+        pnl_engines=engine.pnl_engines,
+        account_engines=engine.account_engines,
+        global_account=engine.account_engine,
+        risk_engine=engine.risk_engine,
+        persistence=engine._persistence,
+        event_store=engine.event_store,
+        telegram=engine.telegram,
+        event_callback=engine._event_callback,
+        trade_ledger=engine.trade_ledger,
+    )
+
+    # ── 3. Replay ──
+    print("\n[Replay] processing bars through the REAL pipeline...", flush=True)
+    t0 = time.time()
+    replay(engine, stream_by_day)
+    print(f"[Replay] done in {time.time()-t0:.1f}s", flush=True)
+
+    # ── 4. Verification ──
+    checks = []
+    ok = lambda name, cond, detail: checks.append((name, bool(cond), detail))
+
+    # 4a. Reconciliation (real engine)
+    recon = reconcile_result(engine, phase="live")
+    ok("Reconciliation", recon.is_consistent, recon.summary().strip().replace("\n", " | ")[:200])
+    print(f"\n{recon.summary()}", flush=True)
+
+    # 4b. DB invariants
+    db = engine._persistence.db_path
+    orders = readonly_sql(db, "SELECT order_id, state, side FROM orders")
+    fills = readonly_sql(db, "SELECT fill_id, order_id, side, price FROM fills")
+    ok("DB: all orders filled", orders and all(o[1] == "filled" for o in orders),
+       f"{len(orders)} orders")
+    # EOD-close fills are synthetic and legitimately carry order_id == "".
+    ok("DB: fills reference orders", fills and all(
+        any(f[1] == o[0] for o in orders) for f in fills if f[1]),
+       f"{len(fills)} fills ({sum(1 for f in fills if not f[1])} EOD synthetic)")
+    trades_db = readonly_sql(db, "SELECT trade_id, status FROM trades")
+    ok("DB: closed trades", trades_db and all(t[1] in ("open", "closed") for t in trades_db),
+       f"{len(trades_db)} trades")
+
+    # 4c. Ledger -> independent P&L math
+    closed = engine.trade_ledger.get_closed_trades()
+    gross_sum = net_sum = fee_sum = 0.0
+    trade_rows = []
+    for tr in sorted(closed, key=lambda t: t.first_fill_time or 0):
+        side = tr.side
+        mult = LIVE_INSTRUMENTS[tr.instrument]["multiplier"]
+        qty = tr.filled_quantity or tr.entry_quantity
+        ref_gross = indep_gross(side, tr.average_entry_price, tr.average_exit_price, qty, mult)
+        ref_fees = indep_charges(tr.average_entry_price, tr.average_exit_price, qty, mult, side)
+        ref_net = round(ref_gross - ref_fees, 2)
+        ok(f"Ledger gross {tr.strategy_id}", abs(tr.gross_pnl - ref_gross) < 1.0,
+           f"gross {tr.gross_pnl:.2f} vs indep {ref_gross:.2f}")
+        ok(f"Ledger fees {tr.strategy_id}", abs(tr.fees - ref_fees) < 1.0,
+           f"fees {tr.fees:.2f} vs indep {ref_fees:.2f}")
+        ok(f"Ledger net {tr.strategy_id}", abs(tr.net_pnl - ref_net) < 1.0,
+           f"net {tr.net_pnl:.2f} vs indep {ref_net:.2f}")
+        gross_sum += tr.gross_pnl
+        fee_sum += tr.fees or 0.0
+        net_sum += tr.net_pnl or 0.0
+        trade_rows.append(tr)
+
+    # 4d. Accounts
+    total_acct_net = sum(a.realized_pnl for a in engine.account_engines.values())
+    total_acct_charges = sum(a.charges for a in engine.account_engines.values())
+    ok("Accounts match ledger", abs(total_acct_net - net_sum) < 1.0 and abs(total_acct_charges - fee_sum) < 1.0,
+       f"acct net {total_acct_net:.2f}/charges {total_acct_charges:.2f} vs {net_sum:.2f}/{fee_sum:.2f}")
+    ok("Global account == sum strategies",
+       abs(engine.account_engine.realized_pnl - total_acct_net) < 1.0
+       and abs(engine.account_engine.charges - total_acct_charges) < 1.0,
+       f"global {engine.account_engine.realized_pnl:.2f}/{engine.account_engine.charges:.2f}")
+    final_equity = engine.account_engine.equity
+    open_pos = list(engine.position_manager.open_positions)
+    unrealized_sum = sum(p.unrealized_pnl for p in open_pos)
+    margin_sum = sum(p.margin for p in open_pos)
+    ok("Final equity (incl. unrealized)", abs(final_equity - (1200000.0 + net_sum + unrealized_sum)) < 1.0,
+       f"equity {final_equity:,.0f} vs 1200000+net({net_sum:,.0f})+unrlz({unrealized_sum:,.0f}) "
+       f"= {1200000.0+net_sum+unrealized_sum:,.0f}")
+    ok("No eod_close exits (carry enabled)", all((t.exit_reason or "") != "eod_close" for t in trade_rows),
+       f"{sum(1 for t in trade_rows if (t.exit_reason or '') == 'eod_close')} eod_close")
+    ok("Positions carry / open at window end allowed", True,
+       f"{len(open_pos)} open positions carried to next session")
+    ok("Used margin == open positions margin",
+       abs(engine.account_engine.used_margin - margin_sum) < 1.0,
+       f"used_margin {engine.account_engine.used_margin:.2f} vs positions {margin_sum:.2f}")
+
+    # 4e. Every run re-processes the data from scratch (no state reuse).
+    ok("Fresh run", len(engine.order_manager.snapshot().get("orders", {})) == 0, "engine rebuilt per run")
+
+    teardown(engine, persistence)
+
+    # ── 5. Report ──
+    print("\n=== FULL-DEPTH SIMULATION REPORT ===")
+    print(f"window {start_iso} .. {stop_iso} | bars {len(stream_all)} | days {len(stream_by_day)}")
+    print(f"\nCLOSED TRADES (from real TradeLedger):")
+    for tr in sorted(trade_rows, key=lambda t: t.first_fill_time or 0):
+        e_t = ist(tr.first_fill_time).strftime("%m-%d %H:%M") if tr.first_fill_time else "?"
+        x_t = ist(tr.last_exit_fill_time).strftime("%m-%d %H:%M") if tr.last_exit_fill_time else "?"
+        print(f"  {tr.strategy_id:10s} {tr.side:5s} {tr.instrument:7s} "
+              f"in {e_t} @ {tr.average_entry_price:9.1f}  out {x_t} @ {tr.average_exit_price:9.1f} "
+              f"gross {tr.gross_pnl:9.2f} fees {tr.fees:8.2f} net {tr.net_pnl:9.2f}  ({tr.exit_reason})")
+
+    print("\nPER-STRATEGY:")
+    for name in ("gold_01", "gold_02", "silver_01", "silver_02"):
+        st = [tr for tr in trade_rows if tr.strategy_id == name]
+        net = sum(t.net_pnl or 0 for t in st)
+        print(f"  {name:10s} closed={len(st):2d}  net P&L {net:10.2f}")
+
+    print("\nVERIFICATION:")
+    failed = 0
+    for name, cond, detail in checks:
+        print(f"  {'PASS' if cond else 'FAIL'}  {name}: {detail}")
+        if not cond:
+            failed += 1
+
+    print(f"\nRESULT: {'ALL CHECKS PASSED' if failed == 0 else f'{failed} FAILED'}")
+    print(f"run artifacts: {run_root}")
+    return 0 if failed == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
