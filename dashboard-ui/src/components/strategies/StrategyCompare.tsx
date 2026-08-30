@@ -261,7 +261,7 @@ export default function StrategyCompare({
                     {formatINR(m.net_pnl)}
                   </td>
                   <td style={{ padding: "4px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
-                    {(m.win_rate * 100).toFixed(0)}%
+                    {m.win_rate.toFixed(0)}%
                   </td>
                   <td style={{ padding: "4px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
                     {m.profit_factor != null ? m.profit_factor.toFixed(2) : "N/A"}

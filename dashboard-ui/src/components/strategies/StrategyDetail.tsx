@@ -499,7 +499,7 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
               <MetricBox label="Losses" value={String(perf.losses)} />
               <MetricBox
                 label="Win Rate"
-                value={`${(perf.win_rate * 100).toFixed(0)}%`}
+                value={`${perf.win_rate.toFixed(0)}%`}
               />
               <MetricBox
                 label="Profit Factor"
