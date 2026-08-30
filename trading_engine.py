@@ -93,6 +93,13 @@ class TradingEngine:
         self._lock = threading.RLock()
         self._persistence = None
 
+        # Live vs bar-model signal routing.  In LIVE, WebSocket ticks carry the
+        # pending-breakout trigger checks + tick SL (direct market order the
+        # moment price crosses the trigger).  In the OFFLINE/SIM path the bars
+        # are replayed and the per-bar closing tick is only a proxy, so tick
+        # signal processing must be disabled to reproduce the bar-crossing model.
+        self.tick_signal_processing = True
+
     def set_persistence(self, persistence) -> None:
         """Set persistence manager for trade logging."""
         self._persistence = persistence
@@ -649,12 +656,29 @@ class TradingEngine:
             if current_equity is not None:
                 self.risk_engine.update_peak_equity(current_equity)
 
-            # [4] Process pending entry triggers (check if price hit trigger)
-            for strat in self.strategies.values():
-                if strat.instrument == instrument and strat.pending_entry:
-                    tick_signal = strat.on_tick(ltp, timestamp)
-                    if tick_signal:
-                        self._process_signal(tick_signal)
+            # [4] Reversal-deferred exits: when the next fast bar has rolled
+            # over, consume the exit at this tick's LTP (= the bar's OPEN).
+            # Only the first tick STRICTLY after the signal bar's end may fire
+            # it (>= would fire on the signal bar's own closing tick).
+            if self.tick_signal_processing:
+                for strat in self.strategies.values():
+                    if strat.instrument != instrument:
+                        continue
+                    if not getattr(strat, "pending_exit_at_open", False):
+                        continue
+                    if strat.pending_exit_bar_start is not None:
+                        window = getattr(strat, "fast_window_seconds", 300)
+                        if timestamp - strat.pending_exit_bar_start <= window:
+                            continue
+                    self._process_deferred_exit(strat, None, ltp=ltp)
+
+            # [5] Process pending entry triggers (check if price hit trigger)
+            if self.tick_signal_processing:
+                for strat in self.strategies.values():
+                    if strat.instrument == instrument and strat.pending_entry:
+                        tick_signal = strat.on_tick(ltp, timestamp)
+                        if tick_signal:
+                            self._process_signal(tick_signal)
 
     def _on_bar_closed(self, bar: Bar) -> None:
         """Handle closed bar from timeframe engine."""
@@ -694,10 +718,67 @@ class TradingEngine:
                 # Map 15m confirmation line
                 mid_mapped = self.htf_engine.map_mid_to_fast_bar(bar, strat.fast_timeframe)
 
+                # Backtest-placement model: consume a reversal-deferred exit at
+                # this fast bar's OPEN (fills at bar.open), then let on_bar run
+                # the armed opposite-side breakout re-entry for the same bar.
+                self._process_deferred_exit(strat, bar)
+
                 # Process bar with HTF value
                 signal = strat.on_bar(bar, htf_mapped, fast_indicator.value, mid_mapped)
                 if signal:
                     self._process_signal(signal)
+                # Same-bar stop: entry AND stop-loss on one candle book as a
+                # round-trip (reference goldm_dema_mtf_futures checks the SL
+                # on the entry bar and exits at that bar's close).
+                if signal:
+                    stop2 = strat._consume_same_bar_stop(bar)
+                    if stop2 is not None:
+                        self._process_signal(stop2)
+
+    def _process_deferred_exit(self, strat, bar, ltp: Optional[float] = None) -> bool:
+        """Execute a reversal-scheduled exit at the next fast bar's OPEN.
+
+        Consumes strat.pending_exit_at_open (armed by _create_reversal_signal
+        on the crossing bar): submits a market exit for the held position that
+        fills at this bar's open.  The strategy's pending_entry (the opposite
+        breakout) then routes through the normal signal/order/fill path once a
+        bar crosses its trigger — the backtest exit-at-next-open + breakout
+        re-entry model.
+
+        Returns True if a deferred exit was consumed.
+        """
+        if strat is None or not getattr(strat, "pending_exit_at_open", False):
+            return False
+        if strat.position_side is None:
+            # Position already gone (e.g. tick SL/EOD) — drop the deferred
+            # exit but KEEP the armed pending_entry for the opposite breakout.
+            strat.pending_exit_at_open = False
+            strat.pending_exit_reason = None
+            strat.pending_exit_bar_start = None
+            return False
+        exit_price = ltp if ltp is not None else bar.open
+        strat.pending_exit_at_open = False
+        strat.pending_exit_reason = strat.pending_exit_reason or "reversal"
+        strat.pending_exit_bar_start = None
+        if bar is None:
+            sig_ts = time.time()
+        else:
+            # Timestamp offset keeps this signal's dedup key distinct from the
+            # same-bar breakout entry (bar.start_ts).
+            sig_ts = (bar.start_ts or time.time()) + 0.5
+        exit_signal = Signal(
+            signal_type=SignalType.SHORT if strat.position_side == "LONG" else SignalType.LONG,
+            instrument=strat.instrument,
+            strategy_id=strat.strategy_id,
+            timestamp=sig_ts,
+            trigger_price=exit_price,
+            stop_price=0.0,
+            quantity=strat.quantity,
+            metadata={"exit": True, "exit_reason": strat.pending_exit_reason,
+                      "source": "next_open", "fill_price": exit_price},
+        )
+        self._process_signal(exit_signal)
+        return True
 
     def _execute_eod_close(self) -> None:
         """Force-close all open positions at market close (EOD)."""
@@ -788,9 +869,14 @@ class TradingEngine:
         # stale data, risk-limit trips, and the market-close window.
         if not is_exit and self.safe_mode.is_active:
             print(f"[Signal] BLOCKED by safe mode: {signal.strategy_id} {signal.signal_type}", flush=True)
+            # The armed entry never executed — clear the strategy's ghost
+            # position/pending state so a later same-bar-stop exit cannot be
+            # booked as an entry from nothing (and reconciliation stays clean).
+            self._reset_strategy_state(signal.strategy_id)
             return
         if not is_exit and not self.market_status.is_trading_allowed:
             print(f"[Signal] BLOCKED by market state ({self.market_status.state.value}): {signal.strategy_id} {signal.signal_type}", flush=True)
+            self._reset_strategy_state(signal.strategy_id)
             return
         self.health.record_signal()
         # Risk check using per-strategy account
@@ -799,6 +885,7 @@ class TradingEngine:
         strat_account = self.account_engines.get(signal.strategy_id)
         if strat_account is None:
             print(f"[Risk] No account engine for strategy {signal.strategy_id}", flush=True)
+            self._reset_strategy_state(signal.strategy_id)
             return
         if is_exit:
             allowed, reason = True, None
@@ -856,6 +943,13 @@ class TradingEngine:
             return
 
         # Submit order
+        fill_price = metadata.get("fill_price")
+        if fill_price is not None:
+            # Backtest-placement model: fills at the exact model price level
+            # (trigger breakout = trigger level, SL exit = bar close, reversal
+            # exit = next bar open).  Override the broker's LTP for THIS order
+            # only; the next order/bar re-establishes its own LTP.
+            self.execution_engine.update_price(signal.instrument, float(fill_price))
         order = self.order_manager.submit_signal(signal, multiplier=multiplier)
         if order:
             # ── Persist the order row BEFORE dispensing its fills, so the DB
@@ -926,15 +1020,46 @@ class TradingEngine:
             except Exception:
                 pass
 
+    def _reset_strategy_state(self, strategy_id: str, *, clear_same_bar: bool = True) -> None:
+        """Return an armed-but-never-executed strategy to a clean flat state.
+
+        Called when an entry signal is blocked or its order never reaches the
+        exchange.  Without this the strategy would hold a ghost
+        LONG/SHORT_POSITION while the engine has no open position — and a later
+        same-bar-stop "exit" would be booked by _on_fill as a brand-new entry.
+        """
+        strat = self.strategies.get(strategy_id)
+        if not strat:
+            return
+        strat.state = StrategyState.FLAT
+        strat.position_side = None
+        strat.stop_price = None
+        strat.pending_entry = None
+        if clear_same_bar:
+            strat.same_bar_stop = None
+            strat.last_exit_reason = None
+
     def _on_fill(self, fill: Fill) -> None:
         """Handle order fill with dedup and atomic close."""
-        # Fill deduplication
+        # Fill deduplication — in-memory set + DB set fast path.
         if self.fill_dedup.is_duplicate(fill.fill_id):
             print(f"[Fill] DUPLICATE ignored: {fill.fill_id}", flush=True)
             return
-        if not self.fill_dedup.mark_processed(fill.fill_id):
-            print(f"[Fill] DUPLICATE ignored during atomic mark: {fill.fill_id}", flush=True)
-            return
+        # DB-backed idempotency: if a prior process persisted this fill but
+        # crashed before the durable mark at the end of this method, replay it
+        # WITHOUT re-applying the financial effects (the fill row already
+        # exists in the DB, so the trade/position rows were written too).
+        if self._persistence:
+            try:
+                if self._persistence.get_fill(fill.fill_id) is not None:
+                    print(f"[Fill] DB replay detected, skipping re-apply: {fill.fill_id}", flush=True)
+                    self.fill_dedup.mark_processed(fill.fill_id)
+                    return
+            except Exception:
+                pass
+        # In-process dedup lock: protects against a single fill being delivered
+        # twice inside this process before the durable DB mark at method end.
+        self.fill_dedup.note_processed(fill.fill_id)
 
         self.health.record_fill()
         instrument_config = self.config.instrument(fill.instrument)
@@ -956,6 +1081,7 @@ class TradingEngine:
                     # Global account margin failed — rollback per-strategy
                     strat_account.release_margin(margin)
                     print(f"[Fill] GLOBAL MARGIN BLOCKED: {fill.strategy_id} - rolling back", flush=True)
+                    self.fill_dedup.mark_processed(fill.fill_id)
                     strat = self.strategies.get(fill.strategy_id)
                     if strat:
                         strat.state = StrategyState.FLAT
@@ -992,7 +1118,7 @@ class TradingEngine:
                         strat.state = StrategyState.FLAT
                         strat.position_side = None
                         strat.stop_price = None
-                        strat.pending_entry = None
+                    self.fill_dedup.mark_processed(fill.fill_id)
                     return
                 print(f"[Position] Opened: {position.side.value} {fill.instrument} @ {fill.price} (strategy={fill.strategy_id})", flush=True)
                 if self.event_store:
@@ -1083,10 +1209,13 @@ strat_snap, strat_acct_snap,
             position = open_pos[0]
             strategy_id = fill.strategy_id
             strat_account = self.account_engines.get(strategy_id)
+            strat = self.strategies.get(strategy_id)
+            exit_reason = getattr(strat, "last_exit_reason", None) or "signal_exit"
             if self._trade_close_manager:
                 success = self._trade_close_manager.close_position(
                     fill=fill, position=position,
                     strategy_id=strategy_id, multiplier=multiplier,
+                    exit_reason=exit_reason,
                 )
                 if not success:
                     print(f"[TradeClose] CRITICAL: Atomic close failed for {position.position_id}", flush=True)
@@ -1099,11 +1228,40 @@ strat_snap, strat_acct_snap,
                     except Exception:
                         pass
                 else:
+                    if strat is not None:
+                        strat.last_exit_reason = None
                     # Stops and strategy state are cleared only after the exit
                     # is durably recorded and the in-memory position is closed.
-                    strat = self.strategies.get(strategy_id)
                     if strat:
-                        if strat.pending_entry is not None:
+                        if strat.pending_entry is not None and getattr(strat.pending_entry, "immediate", False):
+                            # Direct-market reversal: the opposite trade is
+                            # placed immediately after the exit — buy/sell the
+                            # new side at market, in the same bar.
+                            pen = strat.pending_entry
+                            strat.pending_entry = None
+                            strat.position_side = pen.side
+                            strat.stop_price = pen.signal.stop_price
+                            strat.just_entered = True
+                            strat.state = (StrategyState.LONG_POSITION if pen.side == "LONG"
+                                           else StrategyState.SHORT_POSITION)
+                            reentry = Signal(
+                                signal_type=SignalType.LONG if pen.side == "LONG" else SignalType.SHORT,
+                                instrument=fill.instrument,
+                                strategy_id=strategy_id,
+                                timestamp=fill.timestamp,
+                                trigger_price=fill.price,
+                                stop_price=pen.signal.stop_price,
+                                quantity=pen.signal.quantity,
+                                side=pen.side,
+                                metadata={
+                                    "entry_price": fill.price,
+                                    "executed": True,
+                                    "market": True,
+                                    "reversal_reentry": True,
+                                },
+                            )
+                            self._process_signal(reentry)
+                        elif strat.pending_entry is not None:
                             strat.state = (StrategyState.PENDING_LONG
                                            if strat.pending_entry.side == "LONG"
                                            else StrategyState.PENDING_SHORT)
@@ -1135,7 +1293,7 @@ strat_snap, strat_acct_snap,
                     gross_pnl, charges, net_pnl = 0.0, 0.0, 0.0
                 self.position_manager.close_position(
                     position_id=position.position_id, fill=fill,
-                    reason=position.exit_reason or "signal_exit",
+                    reason=position.exit_reason or exit_reason,
                 )
                 if strat_account:
                     strat_account.update_realized_pnl(net_pnl, charges)
@@ -1157,7 +1315,7 @@ strat_snap, strat_acct_snap,
                         "entry_price": position.average_entry,
                         "exit_price": fill.price,
                         "net_pnl": net_pnl,
-                        "exit_reason": position.exit_reason or "signal_exit",
+                        "exit_reason": position.exit_reason or exit_reason,
                         "duration": duration_str,
                     })
                 except Exception:
@@ -1167,42 +1325,125 @@ strat_snap, strat_acct_snap,
             # through the ordinary signal/order/fill path only when their
             # breakout trigger is reached, preserving a complete audit trail.
 
+            # Durable dedup mark AFTER all financial effects are applied —
+            # SQLite is the single written-to-DB source of truth, so a crash
+            # between save_fill / save_trade_and_fill and this mark is
+            # recovered by the get_fill() idempotency guard above.
+            self.fill_dedup.mark_processed(fill.fill_id)
+
     def _on_status(self, status: str) -> None:
         """Handle data adapter status change."""
         print(f"[Data] Status: {status}", flush=True)
+
+    def _fetch_history_with_session_guarantee(self, name, from_date, to_date, last_days, max_fetch_days, extend_step_days):
+        """Fetch a FRESH 5m REST series, extending the window backward until the
+        configured number of actual trading sessions is guaranteed.
+
+        Gap closed by Phase-1 remediation (Part 2): a fixed 14-calendar-day
+        window is not guaranteed to contain 5 real MCX sessions — weekend +
+        multi-day holiday clusters can leave fewer trading dates, which the old
+        code silently trimmed down to.  The window is extended in
+        extend_step_days backward steps up to max_fetch_days calendar days until
+        the fetched data contains >= last_days distinct trading dates.
+
+        Returns (candles, final_from_date, extension_count).  Candles are always
+        fresh Dhan REST data — never a cache (SOURCE=DHAN_REST).
+        """
+        import datetime as _dt
+        import pandas as _pd
+
+        def _trading_dates(rows):
+            if not rows:
+                return []
+            d = _pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            d["datetime"] = _pd.to_datetime(d["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
+            return d["datetime"].dt.date.unique().tolist()
+
+        current_from = from_date
+        candles = self.data_adapter.fetch_historical_candles(name, "5", current_from, to_date)
+        extensions = 0
+
+        if last_days > 0:
+            dates = sorted(_trading_dates(candles))
+            span = (to_date - current_from).days
+            while len(dates) < last_days and span < max_fetch_days:
+                extensions += 1
+                current_from = to_date - _dt.timedelta(days=min(span + extend_step_days, max_fetch_days))
+                span = (to_date - current_from).days
+                candles = self.data_adapter.fetch_historical_candles(name, "5", current_from, to_date)
+                dates = sorted(_trading_dates(candles))
+            if candles and len(dates) < last_days:
+                print(f"[Backfill] {name}: WARNING max_fetch_days cap ({max_fetch_days}) reached — "
+                      f"only {len(dates)} trading dates (< {last_days}); using all available", flush=True)
+
+        return candles, current_from, extensions
 
     def _warmup_from_rest(self) -> None:
         """Startup backfill: fetch 5m candles via REST, resample to 1H/15m, pre-populate HTF engine AND indicators.
 
         Every startup fetches previous day+ data to warm up indicators.
         Eliminates the cold-start penalty — indicators ready from first live tick.
+        The fetch window is guaranteed to contain at least `last_trading_days`
+        actual trading sessions (see _fetch_history_with_session_guarantee).
         """
         import datetime as _dt
         print("[Engine] Starting backfill from REST API...", flush=True)
 
-        now = _dt.datetime.now()
-        # Fetch 7 days back to match backtest data range.
-        # DEMA-ATR needs 6+ bars to initialize; 3 days was insufficient,
-        # causing live 15m DEMA-ATR to drift above 1H DEMA-ATR and block signals.
-        from_date = (now - _dt.timedelta(days=7)).date()
+        warmup_cfg = self.config.get("warmup", {})
+        # Backtest-aligned warmup (option 2):
+        #   last_trading_days  0 = no date filter (use the raw fetch window);
+        #                      N = seed from the last N distinct trading dates
+        #                          (identical to the backtest LAST5 window).
+        #   keep_partial       True = keep KEEP-ALL buckets incl. the partial
+        #                      23:00 1H slot, so the warm line matches the
+        #                      backtest 1H resample exactly (D2 off).
+        #   max_fetch_calendar_days / fetch_extend_step_days bound the window
+        #   extension used to guarantee `last_trading_days` sessions exist.
+        # DEMA-ATR needs 6+ bars to initialize; the fetch margin below must
+        # always cover last_trading_days trading dates across weekends/holidays.
+        last_days = int(warmup_cfg.get("last_trading_days", 0))
+        keep_partial = bool(warmup_cfg.get("keep_partial", False))
+        fetch_days = int(warmup_cfg.get("fetch_calendar_days", 7))
+        max_fetch_days = int(warmup_cfg.get("max_fetch_calendar_days", 62))
+        extend_step_days = int(warmup_cfg.get("fetch_extend_step_days", 7))
+
+        now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=5, minutes=30)))
+        base_from_date = (now - _dt.timedelta(days=fetch_days)).date()
         to_date = now.date()
 
         instruments = self.config.get("instruments", {})
         for name, cfg in instruments.items():
             try:
-                # Fetch 5m candles via REST
-                candles = self.data_adapter.fetch_historical_candles(
-                    name, "5", from_date, to_date,
+                # Fetch 5m candles via REST, guaranteeing the session count
+                candles, fetch_from, extensions = self._fetch_history_with_session_guarantee(
+                    name, base_from_date, to_date, last_days, max_fetch_days, extend_step_days,
                 )
                 if not candles:
-                    print(f"[Backfill] {name}: no REST data, skipping", flush=True)
+                    print(f"[Backfill] {name}: no REST data in {fetch_from}..{to_date}, skipping", flush=True)
                     continue
+                print(f"[Backfill] {name}: SOURCE=DHAN_REST range {fetch_from}..{to_date} "
+                      f"({'extended x'+str(extensions) if extensions else 'clean window'})", flush=True)
+
+                # Single authoritative source for candle-derived state: this fresh REST
+                # series.  Indicator/HTF state is never restored from the session
+                # DB (see restore()); resetting here also guards against a
+                # re-warm (double feed) if start() is invoked twice.
+                for key in (f"{name}:5m", f"{name}:15m", f"{name}:1h"):
+                    ind = self.indicators.get(key)
+                    if ind is not None:
+                        ind.reset()
+                self.htf_engine.reset_instrument(name)
 
                 # Convert to DataFrame for resampling
                 import pandas as pd
                 df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
                 df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
                 df = df.sort_values("datetime").reset_index(drop=True)
+                if last_days > 0:
+                    dates_sorted = sorted(df["datetime"].dt.date.unique())
+                    keep_dates = set(dates_sorted[-last_days:])
+                    df = df[df["datetime"].dt.date.isin(keep_dates)].reset_index(drop=True)
+                    print(f"[Backfill] {name}: trimmed to last {last_days} trading dates {sorted(keep_dates)}", flush=True)
                 print(f"[Backfill] {name}: {len(df)} 5m candles fetched ({df['datetime'].iloc[0]} to {df['datetime'].iloc[-1]})", flush=True)
 
                 session_open = cfg.get("session_open", "09:00")
@@ -1227,6 +1468,18 @@ strat_snap, strat_acct_snap,
                     session_start = pd.to_datetime(dates + f" {session_open}")
                     mins = ((dt - session_start).dt.total_seconds() // 60).astype(int)
                     d["_bucket"] = session_start + pd.to_timedelta((mins // tf_minutes) * tf_minutes, unit="m")
+                    # Phase-1 hardening (Parts 7/30): rows before the session
+                    # anchor (mins < 0, e.g. a 00:10 next-day print against a
+                    # 09:00 anchor) must never form buckets.  A calendar-date
+                    # change must not create a new session nor merge across one.
+                    d = d[mins >= 0]
+                    if not keep_partial:
+                        # ONLY complete aggregation windows — identical to
+                        # CandleFetcher._fetch_candle (expected_count = tf_minutes//5).
+                        # Partial end-of-session buckets (e.g. the 23:00 1H slot after
+                        # a 23:30 MCX close) must NOT enter the HTF engine, else the
+                        # backfilled DEMA-ATR line diverges from the backtest/live rule.
+                        d = d[d.groupby("_bucket")["datetime"].transform("size") == tf_minutes // 5]
                     htf = d.groupby("_bucket", sort=True).agg({
                         "open": "first", "high": "max", "low": "min",
                         "close": "last", "volume": "sum",
@@ -1262,6 +1515,27 @@ strat_snap, strat_acct_snap,
 
                     print(f"[Backfill] {name} {tf}: {len(bars)} bars loaded", flush=True)
 
+                # --- Phase-1 diagnostics: session + readiness summary (Part 41/42) ---
+                _sessions = sorted(set(df["datetime"].dt.date)) if len(df) else []
+                _line = f"[Backfill] {name}: SESSIONS={len(_sessions)} " + \
+                        (f"({_sessions[0]}..{_sessions[-1]}) " if _sessions else "") + \
+                        f"LTF_5M={len(df)}"
+                for _tf in ("15m", "1h"):
+                    _eng = self.htf_engine._engines.get(f"{name}:{_tf}")
+                    _cnt = len(_eng.end_times) if _eng else 0
+                    _ind = self.indicators.get(f"{name}:{_tf}")
+                    _dema = bool(_ind and _ind.dema_value is not None)
+                    _atr = bool(_ind and _ind.atr_value is not None)
+                    _line += f" | {_tf.upper()}={_cnt} DEMA={'Y' if _dema else 'N'} ATR={'Y' if _atr else 'N'}"
+                _mapping_ready = all(
+                    bool(self.htf_engine._engines.get(f"{name}:{_tf}"))
+                    for _tf in ("15m", "1h")
+                )
+                _line += f" | MAPPING={'READY' if _mapping_ready else 'NOT_READY'}"
+                _line += f" | STRATEGIES={sum(1 for s in self.strategies.values() if s.instrument == name)}"
+                _line += " | SOURCE=DHAN_REST"
+                print(_line, flush=True)
+
             except Exception as e:
                 print(f"[Backfill] {name}: error - {e}", flush=True)
 
@@ -1294,11 +1568,9 @@ strat_snap, strat_acct_snap,
                 },
                 "risk": self.risk_engine.snapshot(),
                 "execution": self.execution_engine.snapshot(),
-                "indicators": {
-                    key: ind.snapshot()
-                    for key, ind in self.indicators.items()
-                },
-                "htf": self.htf_engine.snapshot(),
+                # NOTE: indicator & HTF (candle-derived) state is intentionally
+                # NOT persisted — it is always recomputed from a fresh Dhan REST
+                # series at startup (_warmup_from_rest).
                 "health": self.health.snapshot(),
                 # Historical state reference (authoritative source is trades DB)
                 "historical_source": "trading.db",
@@ -1307,8 +1579,10 @@ strat_snap, strat_acct_snap,
     def restore(self, state: dict) -> None:
         """Restore system state from persistence.
 
-        Restore order: market status → strategies → positions → accounts → PnL → risk → execution → indicators → HTF
+        Restore order: market status → strategies → positions → accounts → PnL → risk → execution
         NOTE: starting_capital is NOT restored from saved state - it always comes from config.
+        NOTE: indicator/HTF (candle) state is NEVER restored from persistence —
+        it is recomputed from a fresh Dhan REST series at startup (_warmup_from_rest).
         """
         with self._lock:
             self.market_status.restore(state.get("market_status", {}))
@@ -1330,13 +1604,6 @@ strat_snap, strat_acct_snap,
                     self.pnl_engines[name].restore(pnl_state)
             self.risk_engine.restore(state.get("risk", {}))
             self.execution_engine.restore(state.get("execution", {}))
-            # Restore indicator state (DEMA-ATR values)
-            for key, ind_state in state.get("indicators", {}).items():
-                if key in self.indicators:
-                    self.indicators[key].restore(ind_state)
-            # Restore HTF engine state
-            if "htf" in state:
-                self.htf_engine.restore(state["htf"])
             # Recalculate global account starting_capital from per-strategy accounts
             total = sum(a.starting_capital for a in self.account_engines.values())
             self.account_engine.starting_capital = total

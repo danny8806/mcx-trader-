@@ -16,6 +16,13 @@
     "pin": "${TRADING_PIN}",
     "totp_secret": "${TOTP_SECRET}"
   },
+  "warmup": {
+    "last_trading_days": 5,
+    "fetch_calendar_days": 14,
+    "max_fetch_calendar_days": 62,
+    "fetch_extend_step_days": 7,
+    "keep_partial": true
+  },
   "instruments": {
     "GOLDM": {
       "symbol": "MCX:GOLDM202609",
@@ -28,6 +35,7 @@
       "session_open": "09:00",
       "session_close": "23:30",
       "session_minutes": 870,
+      "keep_partial": true,
       "margin_model": {
         "slope": 0.125,
         "intercept": 126930.0,
@@ -45,6 +53,7 @@
       "session_open": "09:00",
       "session_close": "23:30",
       "session_minutes": 870,
+      "keep_partial": true,
       "margin_model": {
         "slope": 0.0625,
         "intercept": 142900.0,
