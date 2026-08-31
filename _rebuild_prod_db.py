@@ -59,8 +59,15 @@ def fetch_rows(name, start, stop, online):
 
 
 def replay_instrument(name, rows, root):
-    import full_simulator as FS
+    """Drive the real engine bar-by-bar exactly like audit_signal_candles.run_capture
+    (engine._on_bar_closed per bar + replay clock), NOT full_simulator.replay (which
+    additionally feeds live _on_tick and diverges from the validated ledger).
+
+    This reproduces the audit's authoritative behaviour: gold SHORTs stay OPEN at
+    window end, and silver SHORTs are long_reversal-closed on 2026-08-31.
+    """
     from core.market_status import DataStatus, EngineStatus, MarketState
+    from audit_signal_candles import STRAT_FAST, _TF_RANK   # reuse fast-mapping/tf-rank
     cfg = L.write_config(root, warmup={"last_trading_days": 0, "keep_partial": True})
     engine, persistence = L.build_engine(cfg, adapter_cls=L.CSVFeedAdapter)
     L.wire_trade_close(engine)
@@ -69,17 +76,19 @@ def replay_instrument(name, rows, root):
     ms._engine_status = EngineStatus.TRADING
     ms._data_status = DataStatus.CONNECTED
     ms.force_state(MarketState.LIVE_TRADING)
+    engine.execution_engine.update_price(name, 150000.0)
+
+    clock_holder = {"ts": 0.0}
+    engine.execution_engine._clock = lambda: clock_holder["ts"]
 
     bars5, bars15, bars1h = build_bars(name, rows, keep_partial=True)
-    stream_all = sorted(bars5 + bars15 + bars1h,
-                        key=lambda b: (b.start_ts, _TF_RANK.get(b.timeframe, 3)))
-    stream_by_day = {}
-    for bar in stream_all:
-        stream_by_day.setdefault(ist(bar.end_ts).date(), []).append(bar)
-    for day in stream_by_day:
-        stream_by_day[day].sort(key=lambda b: (b.end_ts, _TF_RANK.get(b.timeframe, 3)))
+    all_bars = sorted(bars5 + bars15 + bars1h,
+                      key=lambda b: (b.start_ts, _TF_RANK.get(b.timeframe, 3)))
+    for bar in all_bars:
+        clock_holder["ts"] = bar.end_ts
+        engine._on_bar_closed(bar)
 
-    snap = FS.replay(engine, stream_by_day)
+    snap = engine.snapshot()
     persistence.save_state(snap)
     L.teardown(engine, persistence)
     return snap
@@ -104,10 +113,19 @@ def write_rows(con, table, cols, rows):
     if not rows:
         return 0
     ph = ",".join("?" * len(cols))
+    auto_id = "id" in cols
+    start = 1
     n = 0
     for r in rows:
+        vals = [r.get(c) for c in cols]
+        if auto_id:
+            # Reassign the autoincrement id so per-instrument replays (each with
+            # ids starting at 1) don't collide/overwrite each other in the
+            # combined production DB.
+            vals[cols.index("id")] = start
+            start += 1
         con.execute(f"INSERT OR REPLACE INTO {table} ({','.join(cols)}) VALUES ({ph})",
-                    [r.get(c) for c in cols])
+                    vals)
         n += 1
     return n
 
@@ -216,6 +234,7 @@ def main():
     # ---- 2. replay both instruments into temp roots ----
     run_id = int(time.time())
     merged_trades_cols = merged_trades = None
+    merged_order_cols = merged_fill_cols = merged_event_cols = None
     merged_orders, merged_fills, merged_events, merged_snaps = [], [], [], []
     merged_analytic = {"trades_analytics": None, "trade_legs": None, "trade_events": None}
     for name in ("GOLDM", "SILVERM"):
@@ -238,10 +257,13 @@ def main():
                 merged_trades_cols = cols
                 merged_trades = (merged_trades or []) + data
             elif table == "orders":
+                merged_order_cols = cols
                 merged_orders += data
             elif table == "fills":
+                merged_fill_cols = cols
                 merged_fills += data
             elif table == "events":
+                merged_event_cols = cols
                 merged_events += data
 
         adb = root / "data" / "db" / "analytics.db"
@@ -266,6 +288,13 @@ def main():
         ensure_schema(con)
         n_t = write_rows(con, "trades", merged_trades_cols or [], merged_trades or [])
         print(f"\n[DB] wrote {n_t} trades -> {db_path}", flush=True)
+        # also persist the accompanying order/fill/event rows (completeness)
+        if merged_orders:
+            write_rows(con, "orders", merged_order_cols, merged_orders)
+        if merged_fills:
+            write_rows(con, "fills", merged_fill_cols, merged_fills)
+        if merged_events:
+            write_rows(con, "events", merged_event_cols, merged_events)
         con.commit()
     finally:
         con.close()
