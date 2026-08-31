@@ -7,7 +7,21 @@ import time
 from collections import defaultdict
 from typing import Optional, Any
 from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
 import random
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _ist_format(fmt: str, ts: float) -> str:
+    """Format an epoch timestamp in IST (the MCX trading session calendar).
+
+    time.localtime() uses the container OS timezone (commonly UTC), which
+    bucketed session trades onto the wrong hour/local date.
+    """
+    if not ts:
+        ts = 0.0
+    return datetime.fromtimestamp(ts, IST).strftime(fmt)
 
 
 @dataclass
@@ -217,8 +231,13 @@ class PerformanceEngine:
             perf.profit_factor = None
 
         perf.average_trade = perf.net_pnl / perf.trade_count if perf.trade_count > 0 else 0
-        perf.average_win = perf.gross_profit / perf.winning_trades if perf.winning_trades > 0 else 0
-        perf.average_loss = perf.gross_loss / perf.losing_trades if perf.losing_trades > 0 else 0
+        # Averages share the SAME basis as the win/loss counts (net P&L).
+        # Using gross_profit/gross_loss here mixed gross money with net counts,
+        # inflating average_win/loss whenever a trade had fees.
+        net_win_pnls = [p for p in net_pnls if p > 0]
+        net_loss_pnls = [p for p in net_pnls if p < 0]
+        perf.average_win = (sum(net_win_pnls) / len(net_win_pnls)) if net_win_pnls else 0
+        perf.average_loss = (sum(net_loss_pnls) / len(net_loss_pnls)) if net_loss_pnls else 0
         perf.median_trade = statistics.median(net_pnls) if net_pnls else 0
 
         if perf.trade_count > 0:
@@ -233,7 +252,16 @@ class PerformanceEngine:
         perf.max_consecutive_wins = self._max_consecutive(net_pnls, positive=True)
         perf.max_consecutive_losses = self._max_consecutive(net_pnls, positive=False)
 
-        dd, dd_duration = self._calculate_drawdown(net_pnls)
+        # Build a cumulative equity curve from per-trade net P&L before
+        # measuring drawdown — _calculate_drawdown expects a running equity
+        # series, not raw per-trade returns (feeding it raw P&L grossly
+        # overstates drawdown when a big win precedes a loss).
+        cumulative_equity: list[float] = []
+        running = 0.0
+        for p in net_pnls:
+            running += p
+            cumulative_equity.append(running)
+        dd, dd_duration = self._calculate_drawdown(cumulative_equity)
         perf.max_drawdown = dd
         perf.max_drawdown_duration = dd_duration
 
@@ -242,10 +270,19 @@ class PerformanceEngine:
             perf.sortino = self._calculate_sortino(net_pnls)
 
         if perf.max_drawdown > 0:
-            perf.calmar = perf.net_pnl / perf.max_drawdown
-
-        if perf.max_drawdown > 0:
             perf.recovery_factor = perf.net_pnl / perf.max_drawdown
+            # Calmar = annualized net profit per unit of max drawdown.
+            # Recovery factor is the non-annualized total; the two separate
+            # once the trade history spans more/less than one year.
+            times = [t.get("closed_at") or 0 for t in trades]
+            times = [ts for ts in times if ts]
+            years = 1.0
+            if len(times) >= 2:
+                span = max(times) - min(times)
+                years = span / (365.25 * 86400.0) if span > 0 else 1.0
+            if years <= 0:
+                years = 1.0
+            perf.calmar = (perf.net_pnl / years) / perf.max_drawdown
 
         mfe_values = [t.get("mfe") or 0 for t in trades]
         mae_values = [t.get("mae") or 0 for t in trades]
@@ -335,7 +372,7 @@ class PerformanceEngine:
         for trade in trades:
             closed_at = trade.get("closed_at") or 0
             if closed_at:
-                date_str = time.strftime("%Y-%m-%d", time.localtime(closed_at))
+                date_str = _ist_format("%Y-%m-%d", closed_at)
             else:
                 date_str = "unknown"
 
@@ -377,7 +414,7 @@ class PerformanceEngine:
         for trade in trades:
             closed_at = trade.get("closed_at") or 0
             if closed_at:
-                month_str = time.strftime("%Y-%m", time.localtime(closed_at))
+                month_str = _ist_format("%Y-%m", closed_at)
             else:
                 month_str = "unknown"
 
@@ -388,6 +425,8 @@ class PerformanceEngine:
                     "trades": 0,
                     "wins": 0,
                     "losses": 0,
+                    "gross_profit": 0.0,
+                    "gross_loss": 0.0,
                     "gross_pnl": 0.0,
                     "fees": 0.0,
                     "net_pnl": 0.0,
@@ -396,8 +435,11 @@ class PerformanceEngine:
             m = monthly[month_str]
             m["trades"] += 1
             net_pnl = trade.get("net_pnl") or 0
+            gross_pnl = trade.get("gross_pnl") or 0
             m["net_pnl"] += net_pnl
-            m["gross_pnl"] += trade.get("gross_pnl") or 0
+            m["gross_pnl"] += gross_pnl
+            m["gross_profit"] += gross_pnl if gross_pnl > 0 else 0
+            m["gross_loss"] += gross_pnl if gross_pnl < 0 else 0
             m["fees"] += trade.get("fees") or 0
             if net_pnl > 0:
                 m["wins"] += 1
@@ -407,8 +449,10 @@ class PerformanceEngine:
         result = list(monthly.values())
         for m in result:
             m["win_rate"] = (m["wins"] / m["trades"] * 100) if m["trades"] > 0 else 0
-            gp = m["gross_pnl"]
-            m["profit_factor"] = None
+            m["profit_factor"] = (
+                (m["gross_profit"] / abs(m["gross_loss"]))
+                if m["gross_loss"] != 0 else None
+            )
 
         return sorted(result, key=lambda x: x["month"])
 
@@ -420,7 +464,7 @@ class PerformanceEngine:
         for trade in trades:
             entry_time = trade.get("first_fill_time") or 0
             if entry_time:
-                hour = int(time.strftime("%H", time.localtime(entry_time)))
+                hour = int(_ist_format("%H", entry_time))
                 bucket = f"{hour:02d}:00-{hour + 1:02d}:00"
             else:
                 bucket = "unknown"
@@ -464,7 +508,7 @@ class PerformanceEngine:
         for trade in trades:
             entry_time = trade.get("first_fill_time") or 0
             if entry_time:
-                dow = int(time.strftime("%w", time.localtime(entry_time)))
+                dow = int(_ist_format("%w", entry_time))
                 day_name = day_names[dow]
             else:
                 day_name = "unknown"
@@ -555,7 +599,7 @@ class PerformanceEngine:
             for trade in trades:
                 closed_at = trade.get("closed_at") or 0
                 if closed_at:
-                    date_str = time.strftime("%Y-%m-%d", time.localtime(closed_at))
+                    date_str = _ist_format("%Y-%m-%d", closed_at)
                     daily_returns[sid][date_str] = daily_returns[sid].get(date_str, 0) + (trade.get("net_pnl") or 0)
 
         all_dates = set()

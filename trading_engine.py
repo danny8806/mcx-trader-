@@ -672,13 +672,19 @@ class TradingEngine:
                             continue
                     self._process_deferred_exit(strat, None, ltp=ltp)
 
-            # [5] Process pending entry triggers (check if price hit trigger)
+            # [5] Process tick-level entry triggers AND stop-loss monitoring.
+            # Previously this loop only called on_tick for strategies with
+            # pending_entry, leaving seated stops unchecked until bar close.
             if self.tick_signal_processing:
                 for strat in self.strategies.values():
-                    if strat.instrument == instrument and strat.pending_entry:
-                        tick_signal = strat.on_tick(ltp, timestamp)
-                        if tick_signal:
-                            self._process_signal(tick_signal)
+                    if strat.instrument != instrument:
+                        continue
+                    if not (strat.pending_entry is not None
+                            or strat.position_side is not None):
+                        continue
+                    tick_signal = strat.on_tick(ltp, timestamp)
+                    if tick_signal:
+                        self._process_signal(tick_signal)
 
     def _on_bar_closed(self, bar: Bar) -> None:
         """Handle closed bar from timeframe engine."""
@@ -1089,19 +1095,13 @@ class TradingEngine:
                         strat.stop_price = None
                         strat.pending_entry = None
                     return
-                # ── Persist the fill BEFORE opening any position referencing it,
-                # so position restore on restart never references a fill missing
-                # from the DB (that would put the engine into safe mode). ──
-                if self._persistence:
-                    try:
-                        self._persistence.save_fill({
-                            "fill_id": fill.fill_id, "order_id": fill.order_id,
-                            "strategy_id": fill.strategy_id, "instrument": fill.instrument,
-                            "side": fill.side, "quantity": fill.quantity, "price": fill.price,
-                            "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
-                        })
-                    except Exception:
-                        pass
+                # ── Open position FIRST, then persist the fill.  If save_fill
+                # fails or a crash lands between the two, the failure is LOUD:
+                # the restored position references a fill_id missing from the DB,
+                # which reconciliation catches and enters safe mode.  The old
+                # order (save_fill → open_position) left the SAME window but
+                # made it SILENT: an orphan fill in DB with no position,
+                # skipping future re-applies while consuming blocked margin. ──
                 try:
                     position = self.position_manager.open_position(
                         fill=fill, multiplier=multiplier, margin=margin,
@@ -1120,6 +1120,34 @@ class TradingEngine:
                         strat.stop_price = None
                     self.fill_dedup.mark_processed(fill.fill_id)
                     return
+                if self._persistence:
+                    try:
+                        self._persistence.save_fill({
+                            "fill_id": fill.fill_id, "order_id": fill.order_id,
+                            "strategy_id": fill.strategy_id, "instrument": fill.instrument,
+                            "side": fill.side, "quantity": fill.quantity, "price": fill.price,
+                            "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
+                        })
+                    except Exception as exc:
+                        # Fill persist failed — the in-memory position now
+                        # references a fill_id absent from the DB.  This is
+                        # LOUD (reconciliation error on next restart) rather
+                        # than silent orphan.  Release margin so at least the
+                        # account is not permanently locked.
+                        print(f"[Fill] WARNING: fill persist failed ({exc}), margin released; position will be caught by reconciliation on next restart", flush=True)
+                        self.position_manager.close_position(
+                            position.position_id, fill,
+                            reason="fill_persist_failed",
+                        )
+                        strat_account.release_margin(margin)
+                        self.account_engine.release_margin(margin)
+                        strat = self.strategies.get(fill.strategy_id)
+                        if strat:
+                            strat.state = StrategyState.FLAT
+                            strat.position_side = None
+                            strat.stop_price = None
+                        self.fill_dedup.mark_processed(fill.fill_id)
+                        return
                 print(f"[Position] Opened: {position.side.value} {fill.instrument} @ {fill.price} (strategy={fill.strategy_id})", flush=True)
                 if self.event_store:
                     try:
@@ -1607,3 +1635,14 @@ strat_snap, strat_acct_snap,
             # Recalculate global account starting_capital from per-strategy accounts
             total = sum(a.starting_capital for a in self.account_engines.values())
             self.account_engine.starting_capital = total
+            # Restore cash: match AccountEngine.restore() semantics.  Cash
+            # follows starting_capital + cumulative realised P&L (the value
+            # persisted in the state file; if missing, recompute).
+            acct_cash = acct_state.get("cash")
+            if acct_cash is not None:
+                self.account_engine.cash = acct_cash
+            else:
+                self.account_engine.cash = (
+                    self.account_engine.starting_capital
+                    + self.account_engine.realized_pnl
+                )

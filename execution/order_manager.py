@@ -79,6 +79,12 @@ class OrderManager:
                 self._active_orders.pop(order.order_id, None)
                 return None
 
+            # Prune entries for terminal orders (FILLED / CANCELED) to
+            # avoid unbounded memory growth over a long session.
+            if order.state in (OrderState.FILLED, OrderState.CANCELED):
+                self._pending_signals.pop(key, None)
+                self._active_orders.pop(order.order_id, None)
+
             self._fills_to_notify = fills_to_notify
 
         return order

@@ -216,6 +216,7 @@ class MarketStatus:
             current_state = self._force_state_override or self._market_state
             return {
                 "market_state": current_state.value,
+                "force_state_override": self._force_state_override.value if self._force_state_override else None,
                 "engine_status": self._engine_status.value,
                 "data_status": self._data_status.value,
                 "last_transition": self._last_transition.isoformat() if self._last_transition else None,
@@ -248,6 +249,15 @@ class MarketStatus:
                 ds = data.get("data_status")
                 if ds:
                     self._data_status = DataStatus(ds)
+                # Restore the explicit force-override (e.g. SAFE_MODE) so the
+                # same safety guard survives a same-day restart; otherwise
+                # state() falls back to the time-based transition and the
+                # override is silently lost.
+                fso = data.get("force_state_override")
+                if fso:
+                    self._force_state_override = MarketState(fso)
+                else:
+                    self._force_state_override = None
             self._session_date = data.get("session_date")
 
     def force_state(self, state: MarketState) -> None:

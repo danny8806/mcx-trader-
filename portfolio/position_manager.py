@@ -227,12 +227,18 @@ class PositionManager:
                     pid: pos.snapshot()
                     for pid, pos in self._positions.items()
                 },
-                "closed_count": len(self._closed_positions),
+                "closed_positions": [pos.snapshot() for pos in self._closed_positions],
             }
 
     def restore(self, data: dict) -> None:
         """Restore position manager state from persistence."""
         with self._lock:
+            # Clear existing state before restoring — prevents phantom
+            # positions accumulating on double-restore (A12).
+            self._positions.clear()
+            self._closed_positions.clear()
+
+            # Restore open positions
             for pid, pos_data in data.get("open_positions", {}).items():
                 exit_fills = []
                 for f_data in pos_data.get("exit_fills", []):
@@ -267,3 +273,41 @@ class PositionManager:
                     multiplier=pos_data.get("multiplier", 1.0),
                 )
                 self._positions[pid] = pos
+
+            # Restore closed positions (A11) — ensures reconciliation has
+            # exit-fill linkage after restart, eliminating the spurious
+            # "N fill(s) in DB not linked" warning.
+            for cp_data in data.get("closed_positions", []):
+                exit_fills = []
+                for f_data in cp_data.get("exit_fills", []):
+                    exit_fills.append(Fill(
+                        fill_id=f_data["fill_id"],
+                        order_id=f_data.get("order_id", ""),
+                        instrument=f_data["instrument"],
+                        side=f_data["side"],
+                        quantity=f_data["quantity"],
+                        price=f_data["price"],
+                        timestamp=f_data["timestamp"],
+                        strategy_id=f_data.get("strategy_id", ""),
+                        multiplier=f_data.get("multiplier", 1.0),
+                    ))
+                pos = Position(
+                    position_id=cp_data["position_id"],
+                    strategy_id=cp_data["strategy_id"],
+                    instrument=cp_data["instrument"],
+                    side=PositionSide(cp_data["side"]),
+                    quantity=cp_data["quantity"],
+                    average_entry=cp_data["average_entry"],
+                    entry_timestamp=cp_data["entry_timestamp"],
+                    entry_fill_ids=cp_data.get("entry_fill_ids", []),
+                    stop_price=cp_data.get("stop_price"),
+                    current_mark=cp_data.get("current_mark"),
+                    realized_pnl=cp_data.get("realized_pnl", 0.0),
+                    unrealized_pnl=cp_data.get("unrealized_pnl", 0.0),
+                    margin=cp_data.get("margin", 0.0),
+                    exit_reason=cp_data.get("exit_reason"),
+                    exit_fills=exit_fills,
+                    status=PositionStatus(cp_data.get("status", "closed")),
+                    multiplier=cp_data.get("multiplier", 1.0),
+                )
+                self._closed_positions.append(pos)
