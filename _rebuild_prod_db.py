@@ -318,10 +318,13 @@ def main():
     finally:
         acon.close()
 
-    # ---- 4. merge system state ----
+    # ---- 4. merge system state (BUILD FRESH from replay snapshots) ----
+    # The state file is rebuilt entirely from the replayed engine snapshots so
+    # nothing stale from the previously-frozen system_state.json survives.
     open_positions = {}
     acct = None
     merged_ts = None
+    strat_by_snap = {}   # instrument -> snapshot strategies dict
     for name, snap in merged_snaps:
         if not snap:
             continue
@@ -329,25 +332,55 @@ def main():
         for k, v in ops.items():
             if v.get("instrument") == name:
                 open_positions[k] = v
+        if snap.get("strategies"):
+            strat_by_snap[name] = snap["strategies"]
         if acct is None and snap.get("account"):
             acct = snap["account"]
         if merged_ts is None and snap.get("timestamp"):
             merged_ts = snap["timestamp"]
-    old_state = {}
-    if state_path.exists():
-        try:
-            with open(state_path, encoding="utf-8") as f:
-                old_state = json.load(f)
-        except Exception:
-            old_state = {}
-    new_state = dict(old_state)
-    new_state["positions"] = {"open_positions": open_positions}
+
+    new_state = {}
     if acct is not None:
         new_state["account"] = acct
     if merged_ts is not None:
         new_state["timestamp"] = merged_ts
+    new_state["positions"] = {"open_positions": open_positions}
+
+    # Build the strategies section wholesale from each replayed snapshot (correct
+    # by construction), then force-sync position_side/state/stop_price against the
+    # authoritative merged open_positions so strategy objects always match
+    # position_manager on restart (no desync / no resurrected silver SHORTs).
+    strategy_state = {}
+    strat_by_pos = {
+        (pos.get("instrument"), pos.get("strategy_id")): pos
+        for pos in open_positions.values()
+    }
+    for strat_id, strat_cfg in LIVE_STRATEGIES.items():
+        sid = strat_cfg.get("instrument")
+        snapped = (strat_by_snap.get(sid) or {}).get(strat_id) or {}
+        pos = strat_by_pos.get((sid, strat_id))
+        if pos is not None:
+            side = pos.get("side")
+            state_val = "long_position" if side == "LONG" else "short_position"
+            strategy_state[strat_id] = {
+                **snapped,
+                "state": state_val,
+                "position_side": side,
+                "stop_price": pos.get("stop_price"),
+                "pending_entry": None,
+            }
+        else:
+            strategy_state[strat_id] = {
+                **snapped,
+                "state": "flat",
+                "position_side": None,
+                "stop_price": None,
+                "pending_entry": None,
+            }
+    new_state["strategies"] = strategy_state
     state_path.write_text(json.dumps(new_state, indent=2), encoding="utf-8")
-    print(f"[State] wrote {len(open_positions)} open positions -> {state_path}", flush=True)
+    n_open = len(open_positions)
+    print(f"[State] wrote {n_open} open positions (fresh from replay, {len(strategy_state)} strategies synced) -> {state_path}", flush=True)
 
     # ---- summary ----
     print("\n===== REBUILD SUMMARY =====", flush=True)
