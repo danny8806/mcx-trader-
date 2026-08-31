@@ -1,6 +1,6 @@
 # DOCKER REQUIREMENTS — MCX-TRADER (build contract; audit produced NO docker artifacts by design)
 
-Generated 2026-08-30 09:34 UTC. To be executed only after the operator flips to deploy mode.
+Generated 2026-08-31 05:28 UTC. To be executed only after the operator flips to deploy mode.
 
 ## Image
 - Base: python:3.14-slim (runtime must match local 3.14; no native deps known).

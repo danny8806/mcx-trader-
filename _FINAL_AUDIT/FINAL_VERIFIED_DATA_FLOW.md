@@ -1,6 +1,6 @@
 # FINAL_VERIFIED_DATA_FLOW — MCX-TRADER
 
-Generated 2026-08-30 09:34 UTC — PASS 1 + PASS 2 agreement on the current tree.
+Generated 2026-08-31 05:28 UTC — PASS 1 + PASS 2 agreement on the current tree.
 
 ## Data path (verified end-to-end)
 1. Dhan REST candles -> fetch_real_candles (client_id from Config/env, no hardcode)

@@ -1,11 +1,11 @@
 # FINAL_VERIFIED_ARCHITECTURE — MCX-TRADER (CENTRAL PARK repo)
 
 Audit legs: PASS 1 (5 static-discovery agents) + PASS 2 (independent _audit_pass2.py AST scan + full rig re-run).
-Window: 2 passes agree only on the CURRENT working tree. Generated 2026-08-30 09:34 UTC
+Window: 2 passes agree only on the CURRENT working tree. Generated 2026-08-31 05:28 UTC
 
 ## System shape (PASS-2 independent recount)
-- 80 production Python modules / 15436 non-test source lines
-- 74 classes, 621 functions/methods, 56 router/app route decorators, 1 WS endpoint
+- 103 production Python modules / 21251 non-test source lines
+- 80 classes, 785 functions/methods, 56 router/app route decorators, 1 WS endpoint
 - 160 non-test source files total (py/tsx/ts/json/css/html) — see AUDIT_FILE_INVENTORY.csv
 
 ## Layers (verified present and wired)

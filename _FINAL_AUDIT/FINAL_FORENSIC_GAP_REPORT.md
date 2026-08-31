@@ -1,6 +1,6 @@
 # FINAL_FORENSIC_GAP_REPORT — post-fix residual gaps (work from earlier forensic rounds)
 
-Generated 2026-08-30 09:34 UTC. This is the final consolidated gap statement for the current tree.
+Generated 2026-08-31 05:28 UTC. This is the final consolidated gap statement for the current tree.
 
 ## Closed defects (all 12 PASS-1 fixes VERIFIED in PASS-2 B-leg and re-tested green)
 1-3. Fill-dedup crash window (get_fill guard + note_processed + durable mark order).
