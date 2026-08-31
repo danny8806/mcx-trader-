@@ -166,6 +166,11 @@ def run_reference(cfg_path: Path, inst_cfg: dict, token_path: Path, start: str, 
     print(f"[Ref] {sum(len(v) for v in stream_by_day.values())} bars across {len(stream_by_day)} days", flush=True)
     replay(engine, stream_by_day)
 
+    # Persist the engine's in-memory open positions BEFORE reading the state file,
+    # mirroring seed_replay / main.py which call save_state after replay. Without this,
+    # open positions carried at end of window would report as 0 (a false divergence).
+    persistence.save_state(engine.snapshot())
+
     # Reference closed trades from the throwaway trading.db trades table
     ref_db = str(Path(json.loads(cfg_path.read_text(encoding="utf-8"))["system"]["db_path"]).resolve())
     ref_state = str(Path(json.loads(cfg_path.read_text(encoding="utf-8"))["system"]["state_path"]).resolve())
