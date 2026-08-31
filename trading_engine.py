@@ -1657,7 +1657,6 @@ strat_snap, strat_acct_snap,
                         for _, row in htf.iterrows():
                             bar_dt = row["datetime"]
                             if bar_dt.tzinfo is None:
-                                from datetime import timezone, timedelta
                                 bar_dt = bar_dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
                             start_ts = bar_dt.timestamp()
                             bar = Bar(
