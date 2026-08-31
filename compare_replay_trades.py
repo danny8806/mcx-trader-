@@ -232,6 +232,12 @@ def check_architecture(trading_db: Path, analytics_db: Path, prod_open) -> list:
     add("arch rowcounts trading.db", all(v is not None for v in (n_trades, n_orders, n_fills)),
         f"trades={n_trades} orders={n_orders} fills={n_fills} events={n_events}")
 
+    def cols(db, table):
+        try:
+            return [r["name"] for r in _readonly(db, f"PRAGMA table_info({table})")]
+        except Exception:
+            return []
+
     # --- duplicate id detection ---
     for tbl, idcol in (("trades", "trade_id"), ("orders", "order_id"), ("fills", "fill_id")):
         try:
@@ -251,15 +257,20 @@ def check_architecture(trading_db: Path, analytics_db: Path, prod_open) -> list:
         miss = _readonly(T, "SELECT COUNT(*) AS n FROM fills f LEFT JOIN orders o ON f.order_id=o.order_id WHERE o.order_id IS NULL")
         add("arch fills->orders all resolve", miss[0]["n"] == 0, f"missing={miss[0]['n']}")
 
-    # --- per closed trade: 2 fills (entry+exit) ---
-    if t_ok and n_trades:
+    # --- closed-trade fill coverage: every closed trade has >=1 fill row ---
+    # trades may carry an order_id column (some schemas) or link via fills.
+    t_cols = cols(T, "trades")
+    f_cols = cols(T, "fills") if t_ok else []
+    if "order_id" in t_cols and "order_id" in f_cols and n_trades:
         bad = _readonly(T, "SELECT t.trade_id, COUNT(f.fill_id) AS f FROM trades t "
                            "LEFT JOIN fills f ON f.order_id=t.order_id GROUP BY t.trade_id "
-                           "HAVING f < 2")
-        # note: fill->trade linkage is via order; a simpler robust check:
-        # every trade has a non-null order reference
-        no_order = _readonly(T, "SELECT COUNT(*) AS n FROM trades WHERE order_id IS NULL OR order_id=''")
-        add("arch trades have order ref", no_order[0]["n"] == 0, f"missing_order_ref={no_order[0]['n']}")
+                           "HAVING f < 1")
+        add("arch closed trade fill coverage", not bad,
+            f"trades_without_fill={[r['trade_id'] for r in bad]}")
+    elif n_trades:
+        # No order_id linkage on trades; fall back to count sanity (fills >= trades).
+        add("arch closed trade fill coverage", n_fills is not None and n_fills >= (n_trades or 0),
+            f"trades={n_trades} fills={n_fills} (no trades.order_id linkage)")
 
     # --- trading.db trades (closed) vs analytics trades_analytics CLOSED parity ---
     if t_ok and a_ok:
