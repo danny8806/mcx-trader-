@@ -174,7 +174,8 @@ class BaseDEMAStrategy:
                         # any same-bar cross re-arms a pending entry.
                         self._detect_signal(
                             close, prev_close, htf_val, prev_htf_val, high, low,
-                            bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low)
+                            bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low,
+                            fast_dema_atr)
                 return signal
 
         # 2. Check stop loss (skip if just entered, stop exits don't generate new signals)
@@ -190,7 +191,8 @@ class BaseDEMAStrategy:
                 # re-arms a pending entry that fills on a later bar.
                 self._detect_signal(
                     close, prev_close, htf_val, prev_htf_val, high, low,
-                    bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low)
+                    bar.start_ts, mid_val, prev_mid_val, prev_high, prev_low,
+                    fast_dema_atr)
                 return stop_signal
 
         # 3. Detect new signals.
@@ -202,12 +204,14 @@ class BaseDEMAStrategy:
                           StrategyState.PENDING_LONG, StrategyState.PENDING_SHORT):
             signal = self._detect_signal(
                 close, prev_close, htf_val, prev_htf_val, high, low, bar.start_ts,
-                mid_val, prev_mid_val, prev_high, prev_low,
+                mid_val, prev_mid_val, prev_high, prev_low, fast_dema_atr,
             )
         elif self.position_side == "SHORT" and self._check_long_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            signal = self._create_reversal_signal("LONG", close, high, low, bar.start_ts, prev_high, prev_low)
+            signal = self._create_reversal_signal("LONG", close, high, low, bar.start_ts, prev_high, prev_low,
+                                                  htf_val=htf_val, mid_val=mid_val, fast_dema_atr=fast_dema_atr)
         elif self.position_side == "LONG" and self._check_short_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            signal = self._create_reversal_signal("SHORT", close, high, low, bar.start_ts, prev_high, prev_low)
+            signal = self._create_reversal_signal("SHORT", close, high, low, bar.start_ts, prev_high, prev_low,
+                                                  htf_val=htf_val, mid_val=mid_val, fast_dema_atr=fast_dema_atr)
 
         self.just_entered = False
         return signal
@@ -266,6 +270,7 @@ class BaseDEMAStrategy:
         prev_mid_val: Optional[float] = None,
         prev_high: Optional[float] = None,
         prev_low: Optional[float] = None,
+        fast_dema_atr: Optional[float] = None,
     ) -> Optional[Signal]:
         """Detect new entry signal. Arms a pending breakout entry (no immediate order).
 
@@ -275,9 +280,13 @@ class BaseDEMAStrategy:
         no order now.
         """
         if self._check_long_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            self._create_pending_signal("LONG", close, high, low, timestamp, prev_high, prev_low)
+            self._create_pending_signal("LONG", close, high, low, timestamp, prev_high, prev_low,
+                                        htf_val=htf_val, mid_val=mid_val, fast_dema_atr=fast_dema_atr,
+                                        candle_open=None, candle_close=close, candle_high=high, candle_low=low)
         elif self._check_short_cross(close, prev_close, htf_val, prev_htf_val, mid_val, prev_mid_val):
-            self._create_pending_signal("SHORT", close, high, low, timestamp, prev_high, prev_low)
+            self._create_pending_signal("SHORT", close, high, low, timestamp, prev_high, prev_low,
+                                        htf_val=htf_val, mid_val=mid_val, fast_dema_atr=fast_dema_atr,
+                                        candle_open=None, candle_close=close, candle_high=high, candle_low=low)
         return None
 
     def _create_entry_signal(
@@ -320,6 +329,10 @@ class BaseDEMAStrategy:
     def _create_pending_signal(
         self, side: str, close: float, high: float, low: float, timestamp: float,
         prev_high: Optional[float] = None, prev_low: Optional[float] = None,
+        htf_val: Optional[float] = None, mid_val: Optional[float] = None,
+        fast_dema_atr: Optional[float] = None,
+        candle_open: Optional[float] = None, candle_close: Optional[float] = None,
+        candle_high: Optional[float] = None, candle_low: Optional[float] = None,
     ) -> Signal:
         """Create a pending entry signal."""
         if side == "LONG":
@@ -342,6 +355,17 @@ class BaseDEMAStrategy:
             stop_price=stop,
             quantity=self.quantity,
         )
+        signal.metadata = {
+            "signal_candle_start": timestamp,
+            "signal_candle_open": candle_open,
+            "signal_candle_high": candle_high if candle_high is not None else high,
+            "signal_candle_low": candle_low if candle_low is not None else low,
+            "signal_candle_close": candle_close if candle_close is not None else close,
+            "signal_htf_dema_atr": htf_val,
+            "signal_mid_dema_atr": mid_val,
+            "signal_fast_dema_atr": fast_dema_atr,
+            "signal_side": side,
+        }
 
         self.pending_entry = PendingEntry(
             signal=signal,
@@ -357,6 +381,8 @@ class BaseDEMAStrategy:
     def _create_reversal_signal(
         self, side: str, close: float, high: float, low: float, timestamp: float,
         prev_high: Optional[float] = None, prev_low: Optional[float] = None,
+        htf_val: Optional[float] = None, mid_val: Optional[float] = None,
+        fast_dema_atr: Optional[float] = None,
     ) -> Optional[Signal]:
         """Arm a reversal: exit at the NEXT BAR OPEN, then re-enter the
         opposite side via breakout trigger.
@@ -389,6 +415,17 @@ class BaseDEMAStrategy:
             quantity=self.quantity,
             side=side,
         )
+        pending_signal.metadata = {
+            "signal_candle_start": timestamp,
+            "signal_candle_open": None,
+            "signal_candle_high": high,
+            "signal_candle_low": low,
+            "signal_candle_close": close,
+            "signal_htf_dema_atr": htf_val,
+            "signal_mid_dema_atr": mid_val,
+            "signal_fast_dema_atr": fast_dema_atr,
+            "signal_side": side,
+        }
 
         # Arm the opposite-side breakout entry.  Non-immediate: it only
         # executes when a later bar crosses the trigger.
@@ -435,6 +472,13 @@ class BaseDEMAStrategy:
             # backtest fills this same cross at the crossing bar's open; only
             # the entry price level differs.
             fill_px = pen.trigger_price
+            base_md = dict(pen.signal.metadata or {})
+            entry_md = dict(base_md)
+            entry_md.update({
+                "entry_price": fill_px, "fill_price": fill_px, "executed": True,
+                "source": "breakout",
+                "placement_candle_start": bar.start_ts,
+            })
             signal = Signal(
                 signal_type=SignalType.LONG if pen.side == "LONG" else SignalType.SHORT,
                 instrument=self.instrument,
@@ -444,8 +488,7 @@ class BaseDEMAStrategy:
                 stop_price=pen.signal.stop_price,
                 quantity=self.quantity,
                 side=pen.side,
-                metadata={"entry_price": fill_px, "fill_price": fill_px, "executed": True,
-                          "source": "breakout"},
+                metadata=entry_md,
             )
             self.position_side = pen.side
             self.stop_price = pen.signal.stop_price
@@ -561,6 +604,12 @@ class BaseDEMAStrategy:
 
         if triggered:
             fill_px = pen.trigger_price
+            base_md = dict(pen.signal.metadata or {})
+            entry_md = dict(base_md)
+            entry_md.update({
+                "entry_price": fill_px, "fill_price": fill_px, "executed": True, "source": "tick",
+                "placement_candle_start": timestamp,
+            })
             signal = Signal(
                 signal_type=SignalType.LONG if pen.side == "LONG" else SignalType.SHORT,
                 instrument=self.instrument,
@@ -569,7 +618,7 @@ class BaseDEMAStrategy:
                 trigger_price=fill_px,
                 stop_price=pen.signal.stop_price,
                 quantity=self.quantity,
-                metadata={"entry_price": fill_px, "fill_price": fill_px, "executed": True, "source": "tick"},
+                metadata=entry_md,
             )
             self.position_side = pen.side
             self.stop_price = pen.signal.stop_price

@@ -53,6 +53,65 @@ def format_new_trade(fill: dict, strategy: dict, account: dict) -> str:
     )
 
 
+def format_signal_alert(signal_data: dict) -> str:
+    """Signal-candle alert: the candle that produced the cross AND the candle
+    the trade was actually placed on (may be a later bar / tick)."""
+    direction = signal_data.get("side", "LONG")
+    emoji = "\U0001f4c8" if direction == "LONG" else "\U0001f4c9"
+    instrument = signal_data.get("instrument", "?")
+    strategy_id = signal_data.get("strategy_id", "?")
+
+    def _fmt(field: str) -> Optional[str]:
+        val = signal_data.get(field)
+        if val is None:
+            return None
+        return f"{float(val):,.0f}"
+
+    sig_time = signal_data.get("signal_candle_time")
+    sig_close = _fmt("signal_candle_close")
+    sig_high = _fmt("signal_candle_high")
+    sig_low = _fmt("signal_candle_low")
+    sig_htf = _fmt("signal_htf_dema_atr")
+    sig_mid = _fmt("signal_mid_dema_atr")
+    sig_fast = _fmt("signal_fast_dema_atr")
+    sig_trigger = _fmt("signal_trigger_price")
+
+    place_time = signal_data.get("placement_candle_time")
+    place_fill = _fmt("fill_price")
+
+    lines = [
+        f"{emoji} <b>SIGNAL CANDLE ALERT</b>\n",
+        f"<b>Instrument:</b> {instrument}",
+        f"<b>Strategy:</b> {strategy_id}",
+        f"<b>Signal:</b> {direction}\n",
+        f"<b>— Signal Candle —</b>",
+        f"<b>Time:</b> {sig_time or '?'}",
+    ]
+    if sig_close is not None:
+        lines.append(f"<b>Close:</b> {sig_close}")
+    if sig_high is not None:
+        lines.append(f"<b>High:</b> {sig_high}")
+    if sig_low is not None:
+        lines.append(f"<b>Low:</b> {sig_low}")
+    if sig_trigger is not None:
+        lines.append(f"<b>Trigger Level:</b> {sig_trigger}")
+    if sig_fast is not None:
+        lines.append(f"<b>Fast DEMA-ATR:</b> {sig_fast}")
+    if sig_htf is not None:
+        lines.append(f"<b>1H DEMA-ATR:</b> {sig_htf}")
+    if sig_mid is not None:
+        lines.append(f"<b>15m DEMA-ATR:</b> {sig_mid}")
+
+    lines.append("")
+    lines.append(f"<b>— Trade Placement —</b>")
+    lines.append(f"<b>Time:</b> {place_time or '?'}")
+    if place_fill is not None:
+        lines.append(f"<b>Entry Fill:</b> {place_fill}")
+    lines.append(f"<b>Timestamp:</b> {_ist()}")
+
+    return "\n".join(lines)
+
+
 def format_trade_exit(close_data: dict) -> str:
     instrument = close_data.get("instrument", "?")
     strategy_id = close_data.get("strategy_id", "?")

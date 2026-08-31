@@ -992,6 +992,7 @@ class TradingEngine:
             for fill in self.order_manager.drain_fills():
                 self._on_fill(fill)
             print(f"[Order] Submitted: {order.order_id} {order.side} {order.instrument}", flush=True)
+            self._notify_signal_alert(signal, order, metadata)
             if self.event_store:
                 try:
                     self.event_store.record(
@@ -1032,6 +1033,38 @@ class TradingEngine:
                 })
             except Exception:
                 pass
+
+    def _notify_signal_alert(self, signal: Signal, order, metadata: dict) -> None:
+        """Send a Telegram SIGNAL CANDLE ALERT for entry signals: the candle
+        that produced the cross plus the candle the trade was placed on."""
+        try:
+            if bool(metadata.get("exit")):
+                return
+            sig_md = metadata
+            if not sig_md.get("signal_candle_start"):
+                return
+            ist = timezone(timedelta(hours=5, minutes=30))
+            sig_candle = sig_md.get("signal_candle_start")
+            place_candle = sig_md.get("placement_candle_start")
+            fill_px = order.average_fill_price if order.average_fill_price else sig_md.get("fill_price")
+            self.telegram.on_signal({
+                "instrument": signal.instrument,
+                "strategy_id": signal.strategy_id,
+                "side": sig_md.get("signal_side") or (signal.side or signal.signal_type.value),
+                "signal_candle_time": datetime.fromtimestamp(sig_candle, tz=ist).strftime("%Y-%m-%d %H:%M IST") if sig_candle else None,
+                "signal_candle_open": sig_md.get("signal_candle_open"),
+                "signal_candle_high": sig_md.get("signal_candle_high"),
+                "signal_candle_low": sig_md.get("signal_candle_low"),
+                "signal_candle_close": sig_md.get("signal_candle_close"),
+                "signal_htf_dema_atr": sig_md.get("signal_htf_dema_atr"),
+                "signal_mid_dema_atr": sig_md.get("signal_mid_dema_atr"),
+                "signal_fast_dema_atr": sig_md.get("signal_fast_dema_atr"),
+                "signal_trigger_price": signal.trigger_price,
+                "placement_candle_time": datetime.fromtimestamp(place_candle, tz=ist).strftime("%Y-%m-%d %H:%M IST") if place_candle else None,
+                "fill_price": fill_px,
+            })
+        except Exception:
+            pass
 
     def _reset_strategy_state(self, strategy_id: str, *, clear_same_bar: bool = True) -> None:
         """Return an armed-but-never-executed strategy to a clean flat state.
@@ -1306,10 +1339,12 @@ strat_snap, strat_acct_snap,
                                 quantity=pen.signal.quantity,
                                 side=pen.side,
                                 metadata={
+                                    **dict(pen.signal.metadata or {}),
                                     "entry_price": fill.price,
                                     "executed": True,
                                     "market": True,
                                     "reversal_reentry": True,
+                                    "placement_candle_start": fill.timestamp,
                                 },
                             )
                             self._process_signal(reentry)

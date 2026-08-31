@@ -7,6 +7,7 @@ from typing import Any, Optional
 from notifications.telegram_client import TelegramClient
 from notifications.telegram_formatter import (
     format_new_trade, format_trade_exit, format_risk_alert, format_error_alert, format_daily_summary,
+    format_signal_alert,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,14 @@ class TelegramRouter:
         if not self._enabled:
             return
         text = format_new_trade(fill, strategy, account)
+        self.client.send(text)
+
+    def on_signal(self, signal_data: dict) -> None:
+        """Send a signal-candle alert naming the signal candle and the candle
+        the trade was placed on, as a separate message from the fill alert."""
+        if not self._enabled:
+            return
+        text = format_signal_alert(signal_data)
         self.client.send(text)
 
     def on_trade_close(self, close_data: dict) -> None:

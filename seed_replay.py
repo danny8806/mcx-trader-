@@ -21,6 +21,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -118,6 +119,53 @@ def _count(db_path: str, table: str) -> int:
         return -1
 
 
+def wipe_trade_dbs(cfg_path: Path, prod_db: Optional[str] = None) -> None:
+    """Delete ALL previously recorded trade data from the production DBs.
+
+    Removes every row the replay regenerates (trades/orders/fills/snapshots/
+    events in trading.db, and the analytics ledger/legs/events/snapshots plus
+    derived performance tables in analytics.db).  This is the "delete all
+    trades" step that precedes a full fresh replay to the last state.
+
+    prod_db may be passed explicitly (tests); otherwise it is resolved from the
+    production config.
+    """
+    if prod_db is None:
+        from config import Config
+        _cfg = Config()
+        _cfg.load()
+        prod_db = _cfg.get("system.db_path", "data/db/trading.db")
+
+    tables_trading = ["trades", "orders", "fills", "account_snapshots", "events"]
+    tables_analytics = [
+        "trade_events", "trades_analytics", "trade_legs", "trade_snapshots",
+        "strategy_daily_performance", "strategy_monthly_performance",
+        "strategy_performance_snapshots", "strategy_parameter_results",
+    ]
+
+    trading_db = str(Path(prod_db).resolve())
+    analytics_db = str(Path(trading_db).parent / "analytics.db")
+
+    for db_path, tables in [(trading_db, tables_trading), (analytics_db, tables_analytics)]:
+        if not Path(db_path).exists():
+            print(f"[Wipe] skip (absent): {db_path}", flush=True)
+            continue
+        con = sqlite3.connect(db_path)
+        try:
+            con.execute("PRAGMA journal_mode=WAL")
+            for t in tables:
+                try:
+                    n = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                    con.execute(f"DELETE FROM {t}")
+                    print(f"[Wipe] {Path(db_path).name}::{t} cleared ({n} rows)", flush=True)
+                except sqlite3.OperationalError:
+                    pass  # table does not exist
+            con.commit()
+        finally:
+            con.close()
+    print("[Wipe] all trade/analytics rows deleted", flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("start")
@@ -125,6 +173,9 @@ def main() -> int:
     ap.add_argument("--root", default=None)
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--wipe", action="store_true",
+                    help="DELETE all existing trade/analytics rows before replay, "
+                         "then replay from scratch and persist the last state (incl. open trades).")
     args = ap.parse_args()
 
     src_settings = ROOT / "config" / "settings.json"
@@ -147,10 +198,12 @@ def main() -> int:
     cfg.load()
     prod_db = cfg.get("system.db_path", "data/db/trading.db")
     db_path = str(Path(prod_db).resolve())
-    if not args.root and not args.force and Path(db_path).exists():
+    if args.wipe and not args.root:
+        wipe_trade_dbs(cfg_path)
+    elif not args.root and not args.force and Path(db_path).exists():
         n = _count(db_path, "trades")
         if n > 0:
-            print(f"[Seed] ABORT: {db_path} already has {n} trades (use --force to overwrite)", flush=True)
+            print(f"[Seed] ABORT: {db_path} already has {n} trades (use --force to overwrite or --wipe to clear)", flush=True)
             return 2
 
     inst_cfg = cfg.get("instruments", {})

@@ -31,6 +31,7 @@ from notifications.telegram_router import TelegramRouter
 from monitoring.health import HealthMonitor
 from notifications.telegram_formatter import (
     format_new_trade, format_trade_exit, format_risk_alert,
+    format_signal_alert,
 )
 
 
@@ -720,6 +721,25 @@ class TestTelegram:
         assert router is not None
         assert router._enabled is True
 
+    def test_telegram_router_on_signal(self):
+        sent = []
+        class _FakeClient:
+            def start(self): pass
+            def stop(self): pass
+            def send(self, text, **kw): sent.append(text)
+            def send_sync(self, text, **kw): sent.append(text); return True
+            def get_stats(self): return {}
+        router = TelegramRouter(client=_FakeClient())
+        router._enabled = True
+        router.on_signal({
+            "instrument": "GOLDM", "strategy_id": "gold_01", "side": "LONG",
+            "signal_candle_time": "2026-08-24 10:15 IST",
+            "placement_candle_time": "2026-08-24 10:20 IST", "fill_price": 52150.0,
+        })
+        assert len(sent) == 1
+        assert "SIGNAL CANDLE ALERT" in sent[0]
+        assert router._enabled is True
+
     def test_telegram_router_format(self):
         fill = {
             "side": "BUY", "instrument": "GOLDM",
@@ -753,6 +773,27 @@ class TestTelegram:
         text = format_risk_alert(alert)
         assert "RISK ALERT" in text
         assert "order_rejected" in text
+
+    def test_telegram_signal_alert_format(self):
+        sig = {
+            "instrument": "GOLDM", "strategy_id": "gold_01", "side": "LONG",
+            "signal_candle_time": "2026-08-24 10:15 IST",
+            "signal_candle_high": 52150.0, "signal_candle_low": 52000.0,
+            "signal_candle_close": 52100.0, "signal_trigger_price": 52150.0,
+            "signal_htf_dema_atr": 52080.0, "signal_mid_dema_atr": 52050.0,
+            "signal_fast_dema_atr": 52090.0,
+            "placement_candle_time": "2026-08-24 10:20 IST", "fill_price": 52150.0,
+        }
+        text = format_signal_alert(sig)
+        assert "SIGNAL CANDLE ALERT" in text
+        assert "GOLDM" in text
+        assert "gold_01" in text
+        assert "Signal Candle" in text
+        assert "Trade Placement" in text
+        assert "52,100" in text
+        assert "52,150" in text
+        assert "10:15" in text
+        assert "10:20" in text
 
 
 # ═══════════════════════════════════════════════════════════════════════
