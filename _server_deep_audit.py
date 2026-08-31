@@ -96,23 +96,30 @@ def main() -> int:
     a.close()
 
     # ---------------- reconciliation trading.db vs analytics ----------------
-    print("\n=== reconciliation: trading.db(closed) vs trades_analytics ===")
+    # trading.db `trades` stores every trade as closed (open positions live in
+    # system_state.json). trades_analytics stores 27 CLOSED + 2 OPEN = 29.
+    # So compare CLOSED-to-CLOSED, then open-analytics vs state open_positions.
+    print("\n=== reconciliation: trading.db(closed) vs analytics(CLOSED) ===")
     c = sqlite3.connect(TD)
     a = sqlite3.connect(AD)
     persp = {r[0]: r[1] for r in c.execute(
         "select strategy_id,count(*) from trades group by strategy_id")}
-    anap = {r[0]: r[1] for r in a.execute(
-        "select strategy_id,count(*) from trades_analytics group by strategy_id")}
-    print("  trading.db by strat:", persp)
-    print("  analytics   by strat:", anap)
+    anap_closed = {r[0]: r[1] for r in a.execute(
+        "select strategy_id,count(*) from trades_analytics where status='CLOSED' group by strategy_id")}
+    anap_open = {r[0]: r[1] for r in a.execute(
+        "select strategy_id,count(*) from trades_analytics where status='OPEN' group by strategy_id")}
+    print("  trading.db(b) by strat:", persp)
+    print("  analytics   CLOSED by strat:", anap_closed)
+    print("  analytics   OPEN   by strat:", anap_open)
     allok = True
-    for sid in sorted(set(persp) | set(anap)):
-        p, q = persp.get(sid, 0), anap.get(sid, 0)
+    for sid in sorted(set(persp) | set(anap_closed)):
+        p, q = persp.get(sid, 0), anap_closed.get(sid, 0)
         ok = p == q
         allok = allok and ok
-        print(f"    {sid}: trading.db={p} analytics={q} -> {'MATCH' if ok else 'MISMATCH'}")
-    _check(allok, "trades vs trades_analytics counts match")
+        print(f"    {sid}: trading.db={p} analytics_CLOSED={q} -> {'MATCH' if ok else 'MISMATCH'}")
+    _check(allok, "trading.db(closed) vs analytics(CLOSED) match")
     c.close(); a.close()
+
 
     # ---------------- system_state.json ----------------
     print("\n=== system_state.json ===")
@@ -138,6 +145,14 @@ def main() -> int:
     print("  strategy in-position from state:", inpos)
     _check(set(inpos) == set(open_by), "strategies section matches open_positions (desync check)",
            f"state-inpos={inpos} open={set(open_by)}")
+
+    print("\n=== reconciliation: analytics(OPEN) vs state open_positions ===")
+    _check(sum(anap_open.values()) == len(ops),
+           "analytics OPEN count == state open_positions count",
+           f"analytics_open={sum(anap_open.values())} state_open={len(ops)}")
+    _check(set(anap_open.keys()) == set(open_by),
+           "analytics OPEN strategies == state open strategies",
+           f"analytics_open={sorted(anap_open)} state_open={sorted(open_by)}")
 
     print("\n===== DEEP AUDIT SUMMARY =====")
     print("RESULT:", "FAIL (fix needed)" if hard_fail else "ALL CHECKS PASSED")
