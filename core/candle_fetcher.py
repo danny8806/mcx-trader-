@@ -107,7 +107,17 @@ class CandleFetcher:
     def _check_timeframe(self, name: str, cfg: dict, timeframe: str, now: datetime):
         """Check if a candle of this timeframe just closed and fetch it."""
         tf_minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
-        
+
+        # 5m stays clock-aligned. 15m/1H use NATIVE candles from Dhan, which
+        # carry their own real exchange start offset (e.g. MCX 15m bars at
+        # :01/:15/:30/:45, anchored to the session open) — they are NOT
+        # clock-aligned, so we fetch the native series and emit the most recent
+        # candle whose end time has elapsed, deduped by its actual native start.
+        if timeframe in ("15m", "1h"):
+            self._check_native_timeframe(name, cfg, timeframe, now)
+            return
+
+        # --- 5m clock-aligned scheduling ---
         # Session open guard: no candles before the session starts
         hour, minute = map(int, self.session_open.split(":"))
         session_start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
@@ -143,72 +153,119 @@ class CandleFetcher:
         key = f"{name}:{timeframe}:{candle_start.timestamp()}"
         if key in self._last_fetched:
             return  # Already fetched this candle
-            
+
         # Don't fetch candles older than 2 candles (avoid re-fetching old data)
         if (now - candle_start).total_seconds() > tf_minutes * 60 * 3:
             return
-            
+
         # Fetch the candle from REST API
         self._fetch_candle(name, cfg, timeframe, candle_start, key)
-        
-    def _fetch_candle(self, name: str, cfg: dict, timeframe: str, candle_time: datetime, key: str):
-        """Fetch a single candle from REST API."""
+
+    def _check_native_timeframe(self, name: str, cfg: dict, timeframe: str, now: datetime):
+        """Emit the most recent CLOSED native HTF candle (offset-aware)."""
+        tf_minutes = TIMEFRAME_MINUTES.get(timeframe, 15)
+
+        # Session open guard
+        hour, minute = map(int, self.session_open.split(":"))
+        session_start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if now < session_start:
+            return
+
+        # Fetch native candles for today (interval "15"/"60").
+        native_interval = {"15m": "15", "1h": "60"}[timeframe]
         try:
-            # Calculate from_date and to_date (same day)
+            candles = self.data_adapter.fetch_historical_candles(name, native_interval, now.date(), now.date())
+        except Exception as e:
+            print(f"[CandleFetcher] Error fetching native {name} {timeframe}: {e}", flush=True)
+            return
+        if not candles:
+            return
+
+        now_epoch = int(now.timestamp())
+        # Most recent native candle whose END has elapsed (closed).
+        closed = [c for c in candles
+                  if c[0] + tf_minutes * 60 <= now_epoch]
+        if not closed:
+            return
+        closed.sort(key=lambda c: c[0])
+        pick = closed[-1]
+
+        key = f"{name}:{timeframe}:{pick[0]}"
+        if key in self._last_fetched:
+            return
+
+        bar = self._create_bar(name, timeframe, pick,
+                               datetime.fromtimestamp(pick[0], IST), tf_minutes)
+        if bar:
+            self._last_fetched[key] = time.time()
+            self.on_candle_closed(bar)
+            print(f"[CandleFetcher] {name} {timeframe} native closed: "
+                  f"{datetime.fromtimestamp(pick[0], IST).strftime('%H:%M')} "
+                  f"O={bar.open:.0f} H={bar.high:.0f} L={bar.low:.0f} C={bar.close:.0f}", flush=True)
+
+    def _fetch_candle(self, name: str, cfg: dict, timeframe: str, candle_time: datetime, key: str):
+        """Fetch a single candle from REST API.
+
+        For 5m the native 5m candle is fetched directly.  For 15m/1H the NATIVE
+        higher-timeframe candle is fetched directly from Dhan (interval "15"/"60")
+        — no 5m aggregation, matching the backtest native method.  Falls back to
+        aggregating 5m candles only if the native HTF fetch returns nothing.
+        """
+        try:
             from_date = candle_time.date()
             to_date = candle_time.date()
-            
-            # Fetch candles from REST
-            candles = self.data_adapter.fetch_historical_candles(
-                name, "5", from_date, to_date,
-            )
-            
-            if not candles:
-                return
-                
-            # Find the candle that matches our time
             target_ts = int(candle_time.timestamp())
             tf_minutes = TIMEFRAME_MINUTES[timeframe]
-            
-            # For 5m, find the candle whose start timestamp matches exactly.
+
+            # Fetch native candles. 5m -> "5", 15m -> "15", 1h -> "60".
+            native_interval = {"5m": "5", "15m": "15", "1h": "60"}.get(timeframe, "5")
+            candles = self.data_adapter.fetch_historical_candles(
+                name, native_interval, from_date, to_date,
+            )
+
             if timeframe == "5m":
                 for candle in candles:
-                    candle_ts = candle[0]
-                    if candle_ts == target_ts:
+                    if candle[0] == target_ts:
                         bar = self._create_bar(name, timeframe, candle, candle_time, tf_minutes)
                         if bar:
                             self._last_fetched[key] = time.time()
                             self.on_candle_closed(bar)
                             print(f"[CandleFetcher] {name} {timeframe} closed: {candle_time.strftime('%H:%M')} O={bar.open:.0f} H={bar.high:.0f} L={bar.low:.0f} C={bar.close:.0f}", flush=True)
                         return
-                        
-            # For 15m/1H, we need to aggregate multiple 5m candles
             else:
-                # Find all 5m candles in this timeframe window
-                window_start = candle_time.timestamp()
-                window_end = window_start + tf_minutes * 60
-                
-                window_candles = []
-                for candle in candles:
-                    candle_ts = candle[0]
-                    if window_start <= candle_ts < window_end:
-                        window_candles.append(candle)
-                        
-                # API ordering is not a contract.  Preserve chronological OHLC
-                # construction and emit fully completed aggregation windows.
-                # keep_partial additionally emits the incomplete end-of-session
-                # window (e.g. the partial 23:00 1H slot) so the live HTF line
-                # matches the backtest KEEP-ALL resample.
+                # Native HTF candle (real exchange bar at its own start offset,
+                # e.g. 15m bars at :01/:15/:30/:45 for MCX).  It is NOT clock
+                # aligned, so we emit the most recent native candle whose start
+                # is >= the target window's start and whose end has elapsed.
+                native = [c for c in candles if c[0] >= target_ts]
+                if native:
+                    # Most recent already-closed native candle (start <= now).
+                    native.sort(key=lambda c: c[0])
+                    pick = native[0]
+                    if pick[0] + tf_minutes * 60 <= int(time.time()):
+                        self._last_fetched[key] = time.time()
+                        bar = self._create_bar(name, timeframe, pick, candle_time, tf_minutes)
+                        if bar:
+                            self.on_candle_closed(bar)
+                            print(f"[CandleFetcher] {name} {timeframe} native closed: {candle_time.strftime('%H:%M')} O={bar.open:.0f} H={bar.high:.0f} L={bar.low:.0f} C={bar.close:.0f}", flush=True)
+                    return
+
+                # Fallback: aggregate the 5m candles in this window (matches the
+                # former resample behaviour when native HTF data is unavailable).
+                candles5 = self.data_adapter.fetch_historical_candles(name, "5", from_date, to_date)
+                window_start = target_ts
+                window_end = target_ts + tf_minutes * 60
+                window_candles = [c for c in candles5 if window_start <= c[0] < window_end]
                 window_candles.sort(key=lambda candle: candle[0])
-                expected_count = tf_minutes // 5
                 keep_partial = bool(cfg.get("keep_partial", False))
+                expected_count = tf_minutes // 5
                 if len(window_candles) == expected_count or (keep_partial and len(window_candles) > 0):
                     bar = self._aggregate_candles(name, timeframe, window_candles, candle_time, tf_minutes)
                     if bar:
                         self._last_fetched[key] = time.time()
                         self.on_candle_closed(bar)
-                        print(f"[CandleFetcher] {name} {timeframe} closed: {candle_time.strftime('%H:%M')} O={bar.open:.0f} H={bar.high:.0f} L={bar.low:.0f} C={bar.close:.0f}", flush=True)
-                        
+                        print(f"[CandleFetcher] {name} {timeframe} closed (5m-agg fallback): {candle_time.strftime('%H:%M')} O={bar.open:.0f} H={bar.high:.0f} L={bar.low:.0f} C={bar.close:.0f}", flush=True)
+
         except Exception as e:
             print(f"[CandleFetcher] Error fetching {name} {timeframe}: {e}", flush=True)
             

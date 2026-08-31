@@ -1430,6 +1430,52 @@ strat_snap, strat_acct_snap,
 
         return candles, current_from, extensions
 
+    def _fetch_native_htf_bars(self, name: str, timeframe: str, from_date, to_date):
+        """Fetch NATIVE higher-TF candles directly from Dhan (no resampling).
+
+        Mirrors the backtest native path (fetch_native_htf.py): Dhan returns
+        native 15m/60m candles at their real exchange interval.  Candle
+        timestamps are epoch seconds (absolute instant, timezone-independent),
+        so each bar's start_ts is used directly and end_ts = start + tf*60 —
+        exactly how the backtest's native_map_htf consumes native bars.
+
+        Returns a list of CLOSED Bar objects (native 15m/60m), or [] on error.
+        """
+        from core.timeframe_engine import BarState
+        try:
+            candles = self.data_adapter.fetch_historical_candles(
+                name, timeframe, from_date, to_date,
+            )
+        except Exception as e:
+            print(f"[Backfill] {name} native {timeframe}: fetch error - {e}", flush=True)
+            return []
+        if not candles:
+            return []
+
+        tf_minutes = {"15m": 15, "1h": 60}.get(timeframe, int(timeframe))
+        bars = []
+        dropped = 0
+        for candle in candles:
+            try:
+                ts, open_p, high, low, close, volume = candle
+                start_ts = float(ts)
+                if start_ts <= 0:
+                    dropped += 1
+                    continue
+                bars.append(Bar(
+                    instrument=name, timeframe="1h" if tf_minutes == 60 else "15m",
+                    start_ts=start_ts, end_ts=start_ts + tf_minutes * 60,
+                    open=float(open_p), high=float(high), low=float(low),
+                    close=float(close), volume=int(volume or 0),
+                    state=BarState.CLOSED,
+                ))
+            except Exception:
+                dropped += 1
+        bars.sort(key=lambda b: b.start_ts)
+        if dropped:
+            print(f"[Backfill] {name} native {timeframe}: dropped {dropped} malformed rows", flush=True)
+        return bars
+
     def _warmup_from_rest(self) -> None:
         """Startup backfill: fetch 5m candles via REST, resample to 1H/15m, pre-populate HTF engine AND indicators.
 
@@ -1511,61 +1557,95 @@ strat_snap, strat_acct_snap,
                         )
                     print(f"[Backfill] {name} 5m indicator: {ind_5m._count} bars, initialized={ind_5m.initialized}", flush=True)
 
-                # --- Resample to 1H and 15m ---
-                from core.timeframe_engine import Bar, BarState
-                for tf, tf_minutes in [("1h", 60), ("15m", 15)]:
-                    d = df.copy()
-                    dt = d["datetime"]
-                    dates = dt.dt.date.astype(str)
-                    session_start = pd.to_datetime(dates + f" {session_open}")
-                    mins = ((dt - session_start).dt.total_seconds() // 60).astype(int)
-                    d["_bucket"] = session_start + pd.to_timedelta((mins // tf_minutes) * tf_minutes, unit="m")
-                    # Phase-1 hardening (Parts 7/30): rows before the session
-                    # anchor (mins < 0, e.g. a 00:10 next-day print against a
-                    # 09:00 anchor) must never form buckets.  A calendar-date
-                    # change must not create a new session nor merge across one.
-                    d = d[mins >= 0]
-                    if not keep_partial:
-                        # ONLY complete aggregation windows — identical to
-                        # CandleFetcher._fetch_candle (expected_count = tf_minutes//5).
-                        # Partial end-of-session buckets (e.g. the 23:00 1H slot after
-                        # a 23:30 MCX close) must NOT enter the HTF engine, else the
-                        # backfilled DEMA-ATR line diverges from the backtest/live rule.
-                        d = d[d.groupby("_bucket")["datetime"].transform("size") == tf_minutes // 5]
-                    htf = d.groupby("_bucket", sort=True).agg({
-                        "open": "first", "high": "max", "low": "min",
-                        "close": "last", "volume": "sum",
-                    }).reset_index().rename(columns={"_bucket": "datetime"})
+                # --- Native higher-timeframe warmup (no resampling) ---
+                # Fetch native 15m/60m candles directly from Dhan and compute
+                # DEMA-ATR on those bars, mapping onto the 5m base exactly like
+                # the backtest (dema_mtf.native_htf_dema_lines). This is the
+                # primary path; the 5m->HTF resample below is the fallback when
+                # native HTF candles are unavailable (e.g. offline replay).
+                native_bars: dict[str, list] = {}
+                for tf_id, tf_name in [("60", "1h"), ("15", "15m")]:
+                    nb = self._fetch_native_htf_bars(name, tf_id, fetch_from, to_date)
+                    if nb:
+                        native_bars[tf_name] = nb
+                        print(f"[Backfill] {name} native {tf_name}: {len(nb)} bars "
+                              f"({datetime.fromtimestamp(nb[0].start_ts, timezone(timedelta(hours=5, minutes=30))):%Y-%m-%d %H:%M} "
+                              f"-> {datetime.fromtimestamp(nb[-1].start_ts, timezone(timedelta(hours=5, minutes=30))):%Y-%m-%d %H:%M})",
+                              flush=True)
+                    else:
+                        print(f"[Backfill] {name} native {tf_name}: none fetched, will resample from 5m", flush=True)
 
-                    # Convert to Bar objects and feed to HTF engine
-                    bars = []
-                    for _, row in htf.iterrows():
-                        bar_dt = row["datetime"]
-                        if bar_dt.tzinfo is None:
-                            from datetime import timezone, timedelta
-                            bar_dt = bar_dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-                        start_ts = bar_dt.timestamp()
-                        bar = Bar(
-                            instrument=name, timeframe=tf,
-                            start_ts=start_ts, end_ts=start_ts + tf_minutes * 60,
-                            open=row["open"], high=row["high"], low=row["low"],
-                            close=row["close"], volume=int(row["volume"]),
-                            state=BarState.CLOSED,
-                        )
-                        bars.append(bar)
+                use_native = bool(native_bars.get("1h") and native_bars.get("15m"))
 
-                    # Load HTF engine from backfill bars
-                    self.htf_engine.load_batch_htf(name, tf, bars)
+                if use_native:
+                    # Feed native HTF bars to the HTF engine + indicators.
+                    # DEMA-ATR warms on native bars identically to the backtest.
+                    for tf_name in ("15m", "1h"):
+                        bars = native_bars[tf_name]
+                        self.htf_engine.load_batch_htf(name, tf_name, bars)
+                        key_tf = f"{name}:{tf_name}"
+                        ind_tf = self.indicators.get(key_tf)
+                        if ind_tf is not None:
+                            for bar in bars:
+                                ind_tf.update(bar.open, bar.high, bar.low, bar.close)
+                            print(f"[Backfill] {name} native {tf_name} indicator: "
+                                  f"{ind_tf._count} bars, initialized={ind_tf.initialized}", flush=True)
+                else:
+                    # --- Resample 5m to 1H and 15m (fallback) ---
+                    from core.timeframe_engine import Bar, BarState
+                    for tf, tf_minutes in [("1h", 60), ("15m", 15)]:
+                        d = df.copy()
+                        dt = d["datetime"]
+                        dates = dt.dt.date.astype(str)
+                        session_start = pd.to_datetime(dates + f" {session_open}")
+                        mins = ((dt - session_start).dt.total_seconds() // 60).astype(int)
+                        d["_bucket"] = session_start + pd.to_timedelta((mins // tf_minutes) * tf_minutes, unit="m")
+                        # Phase-1 hardening (Parts 7/30): rows before the session
+                        # anchor (mins < 0, e.g. a 00:10 next-day print against a
+                        # 09:00 anchor) must never form buckets.  A calendar-date
+                        # change must not create a new session nor merge across one.
+                        d = d[mins >= 0]
+                        if not keep_partial:
+                            # ONLY complete aggregation windows — identical to
+                            # CandleFetcher._fetch_candle (expected_count = tf_minutes//5).
+                            # Partial end-of-session buckets (e.g. the 23:00 1H slot after
+                            # a 23:30 MCX close) must NOT enter the HTF engine, else the
+                            # backfilled DEMA-ATR line diverges from the backtest/live rule.
+                            d = d[d.groupby("_bucket")["datetime"].transform("size") == tf_minutes // 5]
+                        htf = d.groupby("_bucket", sort=True).agg({
+                            "open": "first", "high": "max", "low": "min",
+                            "close": "last", "volume": "sum",
+                        }).reset_index().rename(columns={"_bucket": "datetime"})
 
-                    # --- Warm up indicator for this timeframe ---
-                    key_tf = f"{name}:{tf}"
-                    if key_tf in self.indicators:
-                        ind_tf = self.indicators[key_tf]
-                        for bar in bars:
-                            ind_tf.update(bar.open, bar.high, bar.low, bar.close)
-                        print(f"[Backfill] {name} {tf} indicator: {ind_tf._count} bars, initialized={ind_tf.initialized}", flush=True)
+                        # Convert to Bar objects and feed to HTF engine
+                        bars = []
+                        for _, row in htf.iterrows():
+                            bar_dt = row["datetime"]
+                            if bar_dt.tzinfo is None:
+                                from datetime import timezone, timedelta
+                                bar_dt = bar_dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+                            start_ts = bar_dt.timestamp()
+                            bar = Bar(
+                                instrument=name, timeframe=tf,
+                                start_ts=start_ts, end_ts=start_ts + tf_minutes * 60,
+                                open=row["open"], high=row["high"], low=row["low"],
+                                close=row["close"], volume=int(row["volume"]),
+                                state=BarState.CLOSED,
+                            )
+                            bars.append(bar)
 
-                    print(f"[Backfill] {name} {tf}: {len(bars)} bars loaded", flush=True)
+                        # Load HTF engine from backfill bars
+                        self.htf_engine.load_batch_htf(name, tf, bars)
+
+                        # --- Warm up indicator for this timeframe ---
+                        key_tf = f"{name}:{tf}"
+                        if key_tf in self.indicators:
+                            ind_tf = self.indicators[key_tf]
+                            for bar in bars:
+                                ind_tf.update(bar.open, bar.high, bar.low, bar.close)
+                            print(f"[Backfill] {name} {tf} indicator: {ind_tf._count} bars, initialized={ind_tf.initialized}", flush=True)
+
+                        print(f"[Backfill] {name} {tf}: {len(bars)} bars loaded", flush=True)
 
                 # --- Phase-1 diagnostics: session + readiness summary (Part 41/42) ---
                 _sessions = sorted(set(df["datetime"].dt.date)) if len(df) else []
@@ -1585,7 +1665,7 @@ strat_snap, strat_acct_snap,
                 )
                 _line += f" | MAPPING={'READY' if _mapping_ready else 'NOT_READY'}"
                 _line += f" | STRATEGIES={sum(1 for s in self.strategies.values() if s.instrument == name)}"
-                _line += " | SOURCE=DHAN_REST"
+                _line += f" | SOURCE={'DHAN_NATIVE' if use_native else 'DHAN_REST_RESAMPLED'}"
                 print(_line, flush=True)
 
             except Exception as e:

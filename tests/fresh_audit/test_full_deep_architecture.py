@@ -527,7 +527,7 @@ class TestFinancialInvariants:
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestCandleFetcherDeep:
-    def test_15m_aggregation_matches_independent_and_dedups(self):
+    def test_15m_native_candle_emitted_as_is_and_dedups(self):
         collected = []
 
         class _CountingAdapter:
@@ -539,12 +539,10 @@ class TestCandleFetcherDeep:
                 self.calls += 1
                 return self.candles
 
-        t0 = int(datetime(2026, 8, 28, 9, 0, tzinfo=IST).timestamp())
-        raw = [
-            [t0, 100.0, 105.0, 99.0, 102.0, 10],
-            [t0 + 300, 102.0, 108.0, 101.0, 104.0, 15],
-            [t0 + 600, 104.0, 107.0, 103.0, 106.0, 20],
-        ]
+        # A NATIVE 15m candle (start at :01, real exchange offset — NOT a
+        # resampled 5m group). Emitted as-is, no 5m aggregation.
+        t0 = int(datetime(2026, 8, 28, 9, 1, tzinfo=IST).timestamp())
+        raw = [[t0, 100.0, 105.0, 99.0, 102.0, 30]]
         adapter = _CountingAdapter(raw)
         fetcher = CandleFetcher(
             data_adapter=adapter,
@@ -553,23 +551,22 @@ class TestCandleFetcherDeep:
             session_open="09:00",
             session_close="23:30",
         )
-        candle_time = datetime(2026, 8, 28, 9, 0, tzinfo=IST)
-        fetcher._fetch_candle("GOLDM", {}, "15m", candle_time, "once")
-        assert len(collected) == 1
+        # At 09:20 the native 15m candle (09:01-09:16) has already closed.
+        now = datetime(2026, 8, 28, 9, 20, tzinfo=IST)
+        fetcher._check_timeframe("GOLDM", {}, "15m", now)
+        assert len(collected) == 1, f"expected 1 native bar, got {len(collected)}"
         bar = collected[0]
-        assert bar.open == 100.0 and bar.high == 108.0 and bar.low == 99.0 and bar.close == 106.0
-        assert bar.volume == 45
+        assert bar.open == 100.0 and bar.high == 105.0 and bar.low == 99.0 and bar.close == 102.0
+        assert bar.volume == 30
         assert bar.start_ts == t0 and bar.end_ts == t0 + 900
         assert bar.timeframe == "15m"
 
-        # Guard-level dedup: second attempt with the same completed bucket skips
-        dedup_key = f"GOLDM:15m:{datetime(2026, 8, 28, 9, 0, tzinfo=IST).timestamp()}"
-        fetcher._last_fetched[dedup_key] = time.time()
-        now = datetime(2026, 8, 28, 9, 20, tzinfo=IST)
+        # Dedup: a second check on the same (already-fetched) candle must not
+        # emit again.
         fetcher._check_timeframe("GOLDM", {}, "15m", now)
-        assert adapter.calls == 1, "completed 15m bucket must not be fetched twice"
+        assert len(collected) == 1, "already-fetched native candle must not re-emit"
 
-    def test_partial_15m_window_is_not_emitted(self):
+    def test_15m_native_not_emitted_while_still_forming(self):
         collected = []
 
         class _A:
@@ -581,14 +578,16 @@ class TestCandleFetcherDeep:
                 self.calls += 1
                 return self.candles
 
-        t0 = int(datetime(2026, 8, 28, 9, 0, tzinfo=IST).timestamp())
-        # Only 2 of 3 required 5m candles present -> window incomplete
-        raw = [[t0, 100.0, 103.0, 99.0, 102.0, 10], [t0 + 300, 102.0, 104.0, 101.0, 103.0, 12]]
+        # Native 15m candle (09:01-09:16) checked at 09:10 -> end NOT elapsed,
+        # still forming, must not be emitted as closed.
+        t0 = int(datetime(2026, 8, 28, 9, 1, tzinfo=IST).timestamp())
+        raw = [[t0, 100.0, 103.0, 99.0, 102.0, 10]]
         adapter = _A(raw)
         fetcher = CandleFetcher(adapter, {"GOLDM": {}}, collected.append,
                                 session_open="09:00", session_close="23:30")
-        fetcher._fetch_candle("GOLDM", {}, "15m", datetime(2026, 8, 28, 9, 0, tzinfo=IST), "k")
-        assert len(collected) == 0, "partial aggregation window must never be emitted"
+        now = datetime(2026, 8, 28, 9, 10, tzinfo=IST)
+        fetcher._check_timeframe("GOLDM", {}, "15m", now)
+        assert len(collected) == 0, "forming native candle must not be emitted"
 
 
 class TestMarginAndFeesDeep:
