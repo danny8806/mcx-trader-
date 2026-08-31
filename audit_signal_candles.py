@@ -206,6 +206,12 @@ def run_capture(name, rows, cfg):
     ms.force_state(MarketState.LIVE_TRADING)
     engine.execution_engine.update_price(name, 150000.0)
 
+    # Replay clock: stamp orders/fills with the candle's historical end_ts so
+    # persisted trades carry real trading-day times (like full_simulator.replay),
+    # not the wall-clock moment the replay runs.
+    clock_holder = {"ts": 0.0}
+    engine.execution_engine._clock = lambda: clock_holder["ts"]
+
     captured = defaultdict(list)
     orig_on_bar = {}
     for sid, strat in engine.strategies.items():
@@ -271,6 +277,7 @@ def run_capture(name, rows, cfg):
                       key=lambda b: (b.start_ts, _TF_RANK.get(b.timeframe, 3)))
 
     for bar in all_bars:
+        clock_holder["ts"] = bar.end_ts
         k = f"{name}:{bar.timeframe}"
         xtk_inds[k].update(bar.open, bar.high, bar.low, bar.close)
         if bar.timeframe in ("1h", "15m"):
