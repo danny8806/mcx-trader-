@@ -639,6 +639,13 @@ class TradingEngine:
             for pos in open_positions:
                 if pos.is_open:
                     pos.update_mark(ltp)
+                    # Track MFE/MAE in the analytics trade ledger so
+                    # max-favorable/adverse excursion is captured live.
+                    if self.trade_ledger is not None:
+                        try:
+                            self.trade_ledger.update_mfe_mae(pos.position_id, ltp)
+                        except Exception:
+                            pass
             # Update per-strategy accounts — sum ALL open positions (not just current instrument)
             for strat_id in self.account_engines:
                 strat_positions = self.position_manager.get_positions_by_strategy(strat_id)
@@ -1170,6 +1177,19 @@ class TradingEngine:
                     try:
                         strat = self.strategies.get(fill.strategy_id)
                         stop_price = strat.stop_price if strat and hasattr(strat, 'stop_price') else None
+                        # Capture entry-time indicator snapshot from the live
+                        # DEMA-ATR engines so analytics records the context the
+                        # signal fired under (entry_dema/atr/dema_atr/htf).
+                        entry_dema = entry_atr = entry_dema_atr = None
+                        entry_htf = None
+                        if strat is not None:
+                            fast_key = f"{fill.instrument}:{getattr(strat, 'fast_timeframe', '5m')}"
+                            ind = self.indicators.get(fast_key)
+                            if ind is not None:
+                                entry_dema = ind.dema_value
+                                entry_atr = ind.atr_value
+                                entry_dema_atr = ind.value
+                            entry_htf = getattr(strat, '_prev_htf_value', None)
                         self.trade_ledger.create_trade(
                             strategy_id=fill.strategy_id,
                             instrument=fill.instrument,
@@ -1181,6 +1201,10 @@ class TradingEngine:
                             multiplier=multiplier,
                             trade_id=position.position_id,
                             position_id=position.position_id,
+                            entry_dema=entry_dema,
+                            entry_atr=entry_atr,
+                            entry_dema_atr=entry_dema_atr,
+                            entry_htf_value=entry_htf,
                         )
                         self.trade_ledger.record_fill(
                             trade_id=position.position_id,

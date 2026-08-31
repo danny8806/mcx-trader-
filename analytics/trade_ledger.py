@@ -314,16 +314,22 @@ class TradeLedger:
                 favorable = trade.average_entry_price - current_price
                 adverse = current_price - trade.average_entry_price
 
+            changed = False
             if trade.mfe is None or favorable > trade.mfe:
                 trade.mfe = favorable
                 trade.max_favorable_price = current_price
+                changed = True
 
             if trade.mae is None or adverse > trade.mae:
                 trade.mae = adverse
                 trade.max_adverse_price = current_price
+                changed = True
 
-            trade.updated_at = time.time()
-            self._save_trade(trade)
+            # Only persist when MFE/MAE actually moved — avoids a DB write (and
+            # commit) on every tick for every open position.
+            if changed:
+                trade.updated_at = time.time()
+                self._save_trade(trade)
 
     def get_trade(self, trade_id: str) -> Optional[TradeRecord]:
         """Get a trade by ID."""
