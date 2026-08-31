@@ -157,6 +157,29 @@ def load_production(db_path: Path, state_path: Path):
     return closed, open_pos
 
 
+def _dump_replay_db(db_path: str):
+    """Print every trade the replay engine itself generated in its throwaway DB.
+
+    Independent of the stored production DB: shows the model's true behaviour
+    over the full fetched window, including any 08-29..09-01 reversal closes
+    that production (which froze earlier) never recorded.
+    """
+    if not Path(db_path).exists():
+        print(f"  (no replay DB at {db_path})", flush=True)
+        return
+    rows = _readonly(db_path, "SELECT * FROM trades ORDER BY entry_timestamp")
+    if not rows:
+        print("  (replay DB had 0 trades)", flush=True)
+        return
+    for t in rows:
+        en = t.get("entry_timestamp")
+        ex = t.get("exit_timestamp")
+        en_ist = isod(_iso_to_epoch(en)).strftime("%Y-%m-%d %H:%M:%S") if en is not None else "?"
+        ex_ist = isod(_iso_to_epoch(ex)).strftime("%Y-%m-%d %H:%M:%S") if ex else "OPEN"
+        print(f"  {str(t.get('strategy_id')):10s} {str(t.get('side')):5s} "
+              f"en {en_ist}  ex {ex_ist}  {t.get('exit_reason')}", flush=True)
+
+
 def fetch_rows(name, start, stop, online):
     if online:
         from full_simulator import fetch_real_candles
@@ -460,6 +483,10 @@ def main() -> int:
     ap.add_argument("--db-path", default=None)
     ap.add_argument("--state-path", default=None)
     ap.add_argument("--root", default=None)
+    ap.add_argument("--dump-replay-trades", action="store_true",
+                    help="print every trade the engine replay itself generated over the "
+                         "full fetched window (independent of the stored production DB), "
+                         "with entry/exit IST times + exit reason, per instrument.")
     args = ap.parse_args()
 
     from config import Config
@@ -492,6 +519,7 @@ def main() -> int:
     checks = []
     per_trade = []
     cross_rows = []
+    replay_dbs = {}
 
     for name in ("GOLDM", "SILVERM"):
         print(f"===== {name} =====", flush=True)
@@ -500,8 +528,14 @@ def main() -> int:
         base = root if root else L.fresh_run_root(name)
         base.mkdir(parents=True, exist_ok=True)
         eng_cfg = L.write_config(base, warmup={"last_trading_days": 0, "keep_partial": True})
+        replay_dbs[name] = json.loads(eng_cfg.read_text(encoding="utf-8"))["system"]["db_path"]
         captured, xtrack, ref = run_capture(name, rows, eng_cfg)
         analyze(name, rows, captured, xtrack, ref, prod_trades, checks, per_trade, cross_rows)
+
+    if args.dump_replay_trades:
+        for name in ("GOLDM", "SILVERM"):
+            print(f"\n===== REPLAY-GENERATED TRADES: {name} (full window) =====", flush=True)
+            _dump_replay_db(replay_dbs[name])
 
     all_pass = all(ok for _, ok, _ in checks)
     links_ok = all(r["link_ok"] for r in per_trade)
