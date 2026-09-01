@@ -325,9 +325,11 @@ def main():
     acct = None
     merged_ts = None
     strat_by_snap = {}   # instrument -> snapshot strategies dict
+    snap_by_inst = {}    # instrument -> full snapshot (for pnl/account per strategy)
     for name, snap in merged_snaps:
         if not snap:
             continue
+        snap_by_inst[name] = snap
         ops = snap.get("positions", {}).get("open_positions", {})
         for k, v in ops.items():
             if v.get("instrument") == name:
@@ -378,9 +380,43 @@ def main():
                 "pending_entry": None,
             }
     new_state["strategies"] = strategy_state
+
+    # Merge the restorable runtime sections per-strategy by instrument.
+    # Each replay snapshot runs the full engine but only ONE instrument's bars,
+    # so a strategy only realizes P&L / holds margin in the snapshot whose
+    # instrument matches ITS instrument. Take each strategy's pnl + per-strategy
+    # account from the matching instrument's snapshot (identical pattern to
+    # strategy_state above).  Omitting these (as before) restored P&L/accounts
+    # to zero at startup -> reconciliation "critical errors" -> SAFE MODE
+    # halting all trading.
+    pnl_state = {}
+    accounts_by_strategy = {}
+    for strat_id, strat_cfg in LIVE_STRATEGIES.items():
+        sid = strat_cfg.get("instrument")
+        snap = snap_by_inst.get(sid) or {}
+        pnl = (snap.get("pnl") or {}).get(strat_id)
+        if pnl is not None:
+            pnl_state[strat_id] = pnl
+        acct_s = (snap.get("accounts_by_strategy") or {}).get(strat_id)
+        if acct_s is not None:
+            accounts_by_strategy[strat_id] = acct_s
+    if pnl_state:
+        new_state["pnl"] = pnl_state
+    if accounts_by_strategy:
+        new_state["accounts_by_strategy"] = accounts_by_strategy
+
+    # Representative runtime sections (best-effort from the first non-empty snapshot).
+    for key in ("market_status", "risk", "execution"):
+        if key in new_state:
+            continue
+        for _, snap in merged_snaps:
+            if snap and snap.get(key):
+                new_state[key] = snap[key]
+                break
+
     state_path.write_text(json.dumps(new_state, indent=2), encoding="utf-8")
     n_open = len(open_positions)
-    print(f"[State] wrote {n_open} open positions (fresh from replay, {len(strategy_state)} strategies synced) -> {state_path}", flush=True)
+    print(f"[State] wrote {n_open} open positions (fresh from replay, {len(strategy_state)} strategies synced, pnl={len(pnl_state)}, accounts={len(accounts_by_strategy)}) -> {state_path}", flush=True)
 
     # ---- summary ----
     print("\n===== REBUILD SUMMARY =====", flush=True)
