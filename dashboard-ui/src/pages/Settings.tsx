@@ -1,7 +1,7 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 
 export default function Settings() {
-  const { settings } = useData();
+  const settings = useDataSelector<any>((s) => s.settings);
   if (!settings || Object.keys(settings).length === 0) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const sections = [

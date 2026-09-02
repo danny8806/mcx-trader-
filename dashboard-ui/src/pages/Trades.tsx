@@ -1,8 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatDT, formatINR, pnlColor, safeNum } from "../lib/utils";
 
 export default function Trades() {
-  const { trades } = useData();
+  const trades = useDataSelector<any[]>((s) => s.trades);
   if (!trades) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   return (

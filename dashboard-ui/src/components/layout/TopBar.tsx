@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useData } from "../../store/DataProvider";
+import { PanelLeftClose } from "lucide-react";
+import { useDataSelector } from "../../store/DataProvider";
 import { safeINR } from "../../lib/utils";
 
 function isMarketOpen(now: Date): boolean {
@@ -17,21 +18,28 @@ function StatusPill({ label, status, color }: { label: string; status: string; c
     amber: { bg: "var(--amber-muted)", text: "var(--amber)", dot: "var(--amber)" },
   };
   const c = colors[color];
+  const live = status === "LIVE" || status === "OPEN" || status === "RUNNING";
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "6px",
       padding: "3px 8px", borderRadius: "4px",
       background: c.bg, fontSize: "10px", fontWeight: 500,
     }}>
-      <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: c.dot }} />
+      <span
+        className={live ? "animate-pulse-dot" : ""}
+        style={{ width: "5px", height: "5px", borderRadius: "50%", background: c.dot, ["--dot" as any]: c.dot }}
+      />
       <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{label}</span>
       <span style={{ color: c.text }}>{status}</span>
     </div>
   );
 }
 
-export default function TopBar() {
-  const { connected, goldOverview, silverOverview, overallHealth } = useData();
+export default function TopBar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
+  const connected = useDataSelector<boolean>((s) => s.connected);
+  const overallHealth = useDataSelector<string>((s) => s.overallHealth);
+  const goldOverview = useDataSelector<any>((s) => s.goldOverview);
+  const silverOverview = useDataSelector<any>((s) => s.silverOverview);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -40,6 +48,7 @@ export default function TopBar() {
   }, []);
 
   const ist = time.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+  const istDate = time.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "2-digit", month: "short" });
   const marketOpen = isMarketOpen(time);
 
   const goldLtp = goldOverview?.ltp ?? 0;
@@ -61,6 +70,19 @@ export default function TopBar() {
 
   return (
     <header style={headerStyle}>
+      <button
+        onClick={onToggleSidebar}
+        aria-label="Toggle sidebar"
+        title="Toggle sidebar"
+        style={{
+          background: "transparent", border: "none", color: "var(--text-muted)",
+          cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
+          justifyContent: "center", marginRight: "4px",
+        }}
+      >
+        <PanelLeftClose style={{ width: "16px", height: "16px" }} />
+      </button>
+
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "4px" }}>
         <div style={{
           width: "22px", height: "22px", borderRadius: "4px",
@@ -113,9 +135,15 @@ export default function TopBar() {
 
       {divider}
 
-      <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums", fontWeight: 500, fontSize: "11px" }}>
-        {ist}
-      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums", fontWeight: 500, fontSize: "10px" }}>
+          {istDate}
+        </span>
+        <span style={{ color: "var(--text-muted)" }}>•</span>
+        <span className="tabular-nums" style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "11px" }}>
+          {ist}
+        </span>
+      </div>
     </header>
   );
 }

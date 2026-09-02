@@ -1,10 +1,10 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatINR, pnlColor, statusDot } from "../lib/utils";
 
 const panelStyle: React.CSSProperties = { background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" };
 
 export default function Strategies() {
-  const { strategies } = useData();
+  const strategies = useDataSelector<any[]>((s) => s.strategies);
   if (!strategies) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   return (

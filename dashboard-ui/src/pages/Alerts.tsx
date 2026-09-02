@@ -1,8 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatTimestamp } from "../lib/utils";
 
 export default function Alerts() {
-  const { alerts } = useData();
+  const alerts = useDataSelector<any[]>((s) => s.alerts);
   if (!alerts) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   return (

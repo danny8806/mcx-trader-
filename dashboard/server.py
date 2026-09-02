@@ -144,7 +144,7 @@ async def _push_updates():
             if snap:
                 snap = await loop.run_in_executor(_push_executor, _enrich_strategies, snap)
                 await ws_manager.broadcast("engine_state", snap)
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"Push update error: {e}")
             await asyncio.sleep(2.0)

@@ -1,8 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { safeINR } from "../lib/utils";
 
 export default function MarketData() {
-  const { marketData } = useData();
+  const marketData = useDataSelector<any>((s) => s.marketData);
   if (!marketData) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const instruments = marketData.instruments ?? {};

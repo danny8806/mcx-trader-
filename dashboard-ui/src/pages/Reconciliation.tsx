@@ -1,7 +1,7 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 
 export default function Reconciliation() {
-  const { reconciliation } = useData();
+  const reconciliation = useDataSelector<any>((s) => s.reconciliation);
   if (!reconciliation || Object.keys(reconciliation).length === 0) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const stats: Record<string, any> = reconciliation.stats || {};

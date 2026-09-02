@@ -1,4 +1,7 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext, useContext, useEffect, useRef, useState, useCallback,
+  useSyncExternalStore, useMemo, type ReactNode,
+} from "react";
 import { api } from "../lib/api";
 
 export type DataState = "loading" | "live" | "stale" | "empty" | "error";
@@ -32,7 +35,38 @@ interface DataContextType {
   lastError: string | null;
 }
 
+/**
+ * Minimally invasive re-render isolation.  Components that want to re-render
+ * only when a specific slice changes can subscribe via `useDataSelector`.  The
+ * store mirrors the provider's context value; `useDataSelector` compares the
+ * *selected* value with `Object.is` so subscribers only re-render when their
+ * slice actually changes (not on every WS push / poll).  `useData()` remains
+ * unchanged for existing consumers.
+ */
+type Selector<T> = (state: DataContextType) => T;
+
+const selectorStore: {
+  state: DataContextType;
+  listeners: Set<() => void>;
+} = {
+  state: {} as DataContextType,
+  listeners: new Set<() => void>(),
+};
+
+function useDataSelector<T>(selector: Selector<T>): T {
+  const subscribe = useCallback((listener: () => void) => {
+    selectorStore.listeners.add(listener);
+    return () => { selectorStore.listeners.delete(listener); };
+  }, []);
+
+  const getSnapshot = useCallback((): T => selector(selectorStore.state), [selector]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
 const DataContext = createContext<DataContextType>({} as DataContextType);
+// eslint-disable-next-line react-refresh/only-export-components
+export { useDataSelector };
 
 function sv<T>(setter: (v: T) => void, mounted: React.MutableRefObject<boolean>) {
   return (data: T) => { if (mounted.current) setter(data); };
@@ -351,13 +385,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { clearTimeout(reconnectTimer); wsRef.current?.close(); };
   }, [safe]);
 
+  const contextValue = useMemo<DataContextType>(() => ({
+    connected, overview, goldOverview, silverOverview, strategies, positions,
+    orders, fills, trades, pnl, pnlByInstrument, risk, indicators, htf,
+    healthComponents, overallHealth, reconciliation, settings, audit,
+    alerts, equityCurve, marketData, wsEvents, wsState, refresh, lastError,
+  }), [
+    connected, overview, goldOverview, silverOverview, strategies, positions,
+    orders, fills, trades, pnl, pnlByInstrument, risk, indicators, htf,
+    healthComponents, overallHealth, reconciliation, settings, audit,
+    alerts, equityCurve, marketData, wsEvents, wsState, refresh, lastError,
+  ]);
+
+  // Keep the selector store in sync after each commit so useDataSelector
+  // subscribers get notified when their slice changes.
+  useEffect(() => {
+    selectorStore.state = contextValue;
+    selectorStore.listeners.forEach(l => l());
+  }, [contextValue]);
+
   return (
-    <DataContext.Provider value={{
-      connected, overview, goldOverview, silverOverview, strategies, positions,
-      orders, fills, trades, pnl, pnlByInstrument, risk, indicators, htf,
-      healthComponents, overallHealth, reconciliation, settings, audit,
-      alerts, equityCurve, marketData, wsEvents, wsState, refresh, lastError,
-    }}>
+    <DataContext.Provider value={contextValue}>
       {children}
     </DataContext.Provider>
   );

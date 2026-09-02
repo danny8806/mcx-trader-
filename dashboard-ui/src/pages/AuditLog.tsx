@@ -1,8 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatTimestamp } from "../lib/utils";
 
 export default function AuditLog() {
-  const { audit } = useData();
+  const audit = useDataSelector<any[]>((s) => s.audit);
   if (!audit) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   return (

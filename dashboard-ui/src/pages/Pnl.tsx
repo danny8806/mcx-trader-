@@ -1,9 +1,11 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatINR, pnlColor } from "../lib/utils";
 import EquityCurveChart from "../components/EquityCurveChart";
 
 export default function Pnl() {
-  const { pnl, pnlByInstrument, equityCurve } = useData();
+  const pnl = useDataSelector<any>((s) => s.pnl);
+  const pnlByInstrument = useDataSelector<Record<string, any>>((s) => s.pnlByInstrument);
+  const equityCurve = useDataSelector<any[]>((s) => s.equityCurve);
   if (!pnl) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const instruments = Object.entries(pnlByInstrument);

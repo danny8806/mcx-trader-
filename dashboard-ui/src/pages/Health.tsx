@@ -1,7 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 
 export default function Health() {
-  const { healthComponents, overallHealth } = useData();
+  const healthComponents = useDataSelector<any[]>((s) => s.healthComponents);
+  const overallHealth = useDataSelector<string>((s) => s.overallHealth);
   if (!healthComponents) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   function formatName(name: string): string {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo } from "react";
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 import { formatINR, pnlColor, statusDot } from "../lib/utils";
 import StrategyDetail from "../components/strategies/StrategyDetail";
 import StrategyCompare from "../components/strategies/StrategyCompare";
@@ -193,7 +193,8 @@ const MemoRow = memo(StrategyRow, (prev, next) => {
 });
 
 export default function StrategyMatrix() {
-  const { strategies, marketData } = useData();
+  const strategies = useDataSelector<any[]>((s) => s.strategies);
+  const marketData = useDataSelector<any>((s) => s.marketData);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [instrumentFilter, setInstrumentFilter] = useState<InstrumentFilter>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");

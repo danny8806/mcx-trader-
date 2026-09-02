@@ -1,7 +1,8 @@
-import { useData } from "../store/DataProvider";
+import { useDataSelector } from "../store/DataProvider";
 
 export default function Indicators() {
-  const { indicators, htf } = useData();
+  const indicators = useDataSelector<any>((s) => s.indicators);
+  const htf = useDataSelector<any>((s) => s.htf);
   if (!indicators) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
 
   const entries = Object.entries(indicators);
