@@ -297,6 +297,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 realized_pnl: s.account.realized_pnl ?? prev.realized_pnl,
                 unrealized_pnl: s.account.unrealized_pnl ?? prev.unrealized_pnl,
                 margin_used: s.account.used_margin ?? prev.margin_used,
+                available_margin: s.account.available_margin ?? prev.available_margin,
+                total_net_pnl: (s.account.equity !== undefined && s.account.equity !== null
+                        && s.account.starting_capital !== undefined && s.account.starting_capital !== null)
+                  ? s.account.equity - s.account.starting_capital
+                  : prev.total_net_pnl,
+              } : prev);
+            }
+            if (s?.risk && s.risk.daily_pnl !== undefined) {
+              setOverview((prev: any) => prev ? { ...prev, today_pnl: s.risk.daily_pnl } : prev);
+            }
+            if (s?.positions?.open_positions) {
+              setOverview((prev: any) => prev ? {
+                ...prev,
+                open_positions_count: Object.keys(s.positions.open_positions).length,
               } : prev);
             }
             if (s?.strategies) {
