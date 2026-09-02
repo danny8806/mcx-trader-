@@ -45,11 +45,25 @@ interface DataContextType {
  */
 type Selector<T> = (state: DataContextType) => T;
 
+/** Defaults mirroring the provider's initial state, so selectors never read
+ *  an `undefined` slice on the very first render (before the sync effect runs). */
+const DEFAULT_STATE: DataContextType = {
+  connected: false,
+  overview: null, goldOverview: null, silverOverview: null,
+  strategies: [], positions: [], orders: [], fills: [], trades: [],
+  pnl: null, pnlByInstrument: {},
+  risk: null, indicators: {}, htf: {},
+  healthComponents: [], overallHealth: "unknown",
+  reconciliation: null, settings: null, audit: [], alerts: [],
+  equityCurve: [], marketData: null, wsEvents: [], wsState: null,
+  refresh: () => {}, lastError: null,
+};
+
 const selectorStore: {
   state: DataContextType;
   listeners: Set<() => void>;
 } = {
-  state: {} as DataContextType,
+  state: DEFAULT_STATE,
   listeners: new Set<() => void>(),
 };
 

@@ -100,7 +100,7 @@ export default function TopBar({ onToggleSidebar }: { onToggleSidebar: () => voi
 
       <StatusPill label="MARKET" status={marketOpen ? "OPEN" : "CLOSED"} color={marketOpen ? "green" : "amber"} />
       <StatusPill label="WS" status={connected ? "LIVE" : "DOWN"} color={connected ? "green" : "red"} />
-      <StatusPill label="ENGINE" status={overallHealth === "healthy" ? "RUNNING" : overallHealth.toUpperCase()} color={overallHealth === "healthy" ? "green" : "amber"} />
+      <StatusPill label="ENGINE" status={overallHealth === "healthy" ? "RUNNING" : (overallHealth ?? "unknown").toUpperCase()} color={overallHealth === "healthy" ? "green" : "amber"} />
 
       <div style={{
         display: "flex", alignItems: "center", gap: "4px",

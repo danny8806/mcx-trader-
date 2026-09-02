@@ -17,7 +17,7 @@ export default function Health() {
       }}>
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: overallHealth === "healthy" ? "var(--green)" : overallHealth === "degraded" ? "var(--amber)" : "var(--red)" }} />
         <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-          System Status: {overallHealth.toUpperCase()}
+          System Status: {(overallHealth ?? "unknown").toUpperCase()}
         </span>
       </div>
 
