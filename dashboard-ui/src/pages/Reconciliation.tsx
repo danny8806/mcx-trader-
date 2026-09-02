@@ -2,7 +2,13 @@ import { useDataSelector } from "../store/DataProvider";
 
 export default function Reconciliation() {
   const reconciliation = useDataSelector<any>((s) => s.reconciliation);
-  if (!reconciliation || Object.keys(reconciliation).length === 0) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
+  if (!reconciliation || Object.keys(reconciliation).length === 0) return (
+    <div style={{ padding: "20px", color: "var(--text-muted)" }}>
+      <div className="skeleton" style={{ width: "350px", height: "48px", marginBottom: "12px" }} />
+      <div className="skeleton" style={{ width: "100%", height: "80px" }} />
+      <div style={{ fontSize: "11px", marginTop: "8px" }}>Loading reconciliation data...</div>
+    </div>
+  );
 
   const stats: Record<string, any> = reconciliation.stats || {};
   const errors: string[] = reconciliation.errors || [];
@@ -11,7 +17,7 @@ export default function Reconciliation() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", padding: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
             Reconciliation — {(reconciliation.phase || "live").toUpperCase()}
@@ -21,7 +27,10 @@ export default function Reconciliation() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: isConsistent ? "var(--green)" : "var(--red)" }} />
+          <span
+            className={isConsistent ? "animate-pulse-dot" : ""}
+            style={{ width: "8px", height: "8px", borderRadius: "50%", background: isConsistent ? "var(--green)" : "var(--red)", ["--dot" as any]: isConsistent ? "var(--green)" : "var(--red)" }}
+          />
           <span style={{ fontSize: "10px", fontWeight: 600, color: isConsistent ? "var(--green)" : "var(--red)" }}>
             {isConsistent ? "CONSISTENT" : "INCONSISTENT"}
           </span>
@@ -31,18 +40,18 @@ export default function Reconciliation() {
       {Object.keys(stats).length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "8px" }}>
           {Object.entries(stats).map(([k, v]) => (
-            <div key={k} style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px 12px" }}>
+            <div key={k} className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px" }}>
               <div style={{ fontSize: "9px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{k.replace(/_/g, " ")}</div>
-              <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{String(v)}</div>
+              <div className="tabular-nums" style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)" }}>{String(v)}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", padding: "12px" }}>
+      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
         <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>Errors ({errors.length})</div>
         {errors.length === 0 ? (
-          <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>No errors</div>
+          <div className="animate-fade-in-up" style={{ fontSize: "10px", color: "var(--text-muted)" }}>No errors</div>
         ) : (
           errors.map((e: string, i: number) => (
             <div key={i} style={{ fontSize: "10px", color: "var(--red)", marginBottom: "4px" }}>• {e}</div>
@@ -50,10 +59,10 @@ export default function Reconciliation() {
         )}
       </div>
 
-      <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", padding: "12px" }}>
+      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
         <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>Warnings ({warnings.length})</div>
         {warnings.length === 0 ? (
-          <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>No warnings</div>
+          <div className="animate-fade-in-up" style={{ fontSize: "10px", color: "var(--text-muted)" }}>No warnings</div>
         ) : (
           warnings.map((w: string, i: number) => (
             <div key={i} style={{ fontSize: "10px", color: "var(--amber)", marginBottom: "4px" }}>• {w}</div>

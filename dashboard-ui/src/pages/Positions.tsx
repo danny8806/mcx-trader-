@@ -47,7 +47,13 @@ export default function Positions() {
     return () => window.clearInterval(timer);
   }, [view]);
 
-  if (!list) return <div style={{ padding: "20px", color: "var(--text-muted)" }}>Loading...</div>;
+  if (!list) return (
+    <div style={{ padding: "20px", color: "var(--text-muted)" }}>
+      <div className="skeleton" style={{ width: "220px", height: "36px", marginBottom: "12px" }} />
+      <div className="skeleton" style={{ width: "100%", height: "180px" }} />
+      <div style={{ fontSize: "11px", marginTop: "8px" }}>Loading positions...</div>
+    </div>
+  );
 
   const tabs: { key: View; label: string }[] = [
     { key: "open", label: `Open (${counts.open})` },
@@ -56,7 +62,7 @@ export default function Positions() {
   ];
 
   return (
-    <div style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+    <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden" }}>
       <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
           POSITIONS ({list.length})
@@ -68,9 +74,10 @@ export default function Positions() {
               onClick={() => setView(t.key)}
               style={{
                 padding: "3px 10px", fontSize: "9px", borderRadius: "4px", cursor: "pointer",
-                background: view === t.key ? "var(--accent)" : "transparent",
+                background: view === t.key ? "var(--blue)" : "transparent",
                 color: view === t.key ? "#fff" : "var(--text-muted)",
                 border: "1px solid var(--border)", fontWeight: 600,
+                transition: "background 0.12s ease, color 0.12s ease",
               }}
             >
               {t.label}
@@ -79,12 +86,12 @@ export default function Positions() {
         </div>
       </div>
       {list.length === 0 ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: "10px" }}>
+        <div className="animate-fade-in-up" style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: "10px" }}>
           {view === "open" ? "No open positions — all flat" : "No positions in this view"}
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "70px 110px 50px 40px 80px 80px 55px 70px 60px 90px", gap: "8px", padding: "5px 12px", fontSize: "9px", color: "var(--text-disabled)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-table-header)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "70px 110px 50px 40px 80px 80px 55px 70px 60px 90px", gap: "8px", padding: "5px 12px", fontSize: "9px", color: "var(--text-disabled)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-table-header)", position: "sticky", top: 0, zIndex: 1 }}>
             <span>Instrument</span><span>Strategy</span><span>Side</span><span>Qty</span><span>Entry</span><span>LTP/Exit</span><span>SL</span><span>Margin</span><span>Status</span><span style={{ textAlign: "right" }}>P&L</span>
           </div>
           {list.map((p: any) => {
@@ -93,17 +100,17 @@ export default function Positions() {
             const mark = closed ? lastExit : p.current_mark;
             const pnl = closed ? p.realized_pnl : p.unrealized_pnl;
             return (
-              <div key={p.position_id} style={{ display: "grid", gridTemplateColumns: "70px 110px 50px 40px 80px 80px 55px 70px 60px 90px", gap: "8px", padding: "5px 12px", fontSize: "10px", borderBottom: "1px solid var(--border-subtle)", alignItems: "center" }}>
+              <div key={p.position_id} className="hover-row" style={{ display: "grid", gridTemplateColumns: "70px 110px 50px 40px 80px 80px 55px 70px 60px 90px", gap: "8px", padding: "5px 12px", fontSize: "10px", borderBottom: "1px solid var(--border-subtle)", alignItems: "center" }}>
                 <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{p.instrument}</span>
                 <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.strategy_id}</span>
                 <span style={{ color: p.side === "LONG" ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{p.side}</span>
-                <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</span>
-                <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{safeINR(p.average_entry)}</span>
-                <span style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{mark ? safeINR(mark) : "—"}</span>
-                <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>
-                <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{formatINR(p.margin, false)}</span>
+                <span className="tabular-nums" style={{ color: "var(--text-secondary)" }}>{p.quantity}</span>
+                <span className="tabular-nums" style={{ color: "var(--text-secondary)" }}>{safeINR(p.average_entry)}</span>
+                <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>{mark ? safeINR(mark) : "—"}</span>
+                <span className="tabular-nums" style={{ color: "var(--text-muted)" }}>{p.stop_price ? safeINR(p.stop_price) : "—"}</span>
+                <span className="tabular-nums" style={{ color: "var(--text-muted)" }}>{formatINR(p.margin, false)}</span>
                 <span style={{ color: closed ? "var(--text-muted)" : "var(--amber)", fontFamily: "monospace", fontSize: "9px" }}>{closed ? (p.exit_reason || "closed") : "open"}</span>
-                <span style={{ color: pnlColor(pnl), fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
+                <span className="tabular-nums" style={{ color: pnlColor(pnl), fontWeight: 600, textAlign: "right" }}>
                   {pnl >= 0 ? "+" : ""}₹{safeNum(pnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </span>
               </div>
