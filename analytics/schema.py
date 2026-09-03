@@ -225,6 +225,10 @@ CREATE_INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_trades_analytics_signal_time ON trades_analytics(signal_time)",
     "CREATE INDEX IF NOT EXISTS idx_trades_analytics_closed_at ON trades_analytics(closed_at)",
     "CREATE INDEX IF NOT EXISTS idx_trade_legs_trade_id ON trade_legs(trade_id)",
+    # One fill must map to exactly ONE leg anywhere in the ledger.  Enforce at
+    # the schema level so a duplicated/replayed fill can never multiply a leg
+    # (defense-in-depth behind the engine's fill_dedup/get_fill guards).
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_trade_legs_fill_id ON trade_legs(fill_id)",
     "CREATE INDEX IF NOT EXISTS idx_trade_snapshots_trade_id ON trade_snapshots(trade_id)",
     "CREATE INDEX IF NOT EXISTS idx_strategy_daily_strategy ON strategy_daily_performance(strategy_id)",
     "CREATE INDEX IF NOT EXISTS idx_strategy_monthly_strategy ON strategy_monthly_performance(strategy_id)",

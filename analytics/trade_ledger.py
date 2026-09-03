@@ -187,23 +187,32 @@ class TradeLedger:
                     side: str, quantity: int, price: float, timestamp: float,
                     is_entry: bool = True, slippage: float = 0.0,
                     spread: float = 0.0) -> TradeLeg:
-        """Record an individual fill leg."""
-        leg_id = str(uuid.uuid4())
-        leg = TradeLeg(
-            leg_id=leg_id,
-            trade_id=trade_id,
-            fill_id=fill_id,
-            order_id=order_id,
-            side=side,
-            quantity=quantity,
-            price=price,
-            timestamp=timestamp,
-            slippage=slippage,
-            spread=spread,
-            is_entry=is_entry,
-        )
+        """Record an individual fill leg.
 
+        Idempotent on ``fill_id``: if a leg for this fill_id already exists
+        (e.g. the same fill is replayed after a crash before the engine's
+        durable dedup mark), no second leg is written and the financial
+        effects are NOT re-applied (would otherwise double filled_quantity /
+        recompute P&L).
+        """
         with self._lock:
+            existing = self._get_leg_fill_id(fill_id)
+            if existing is not None:
+                return existing
+            leg_id = str(uuid.uuid4())
+            leg = TradeLeg(
+                leg_id=leg_id,
+                trade_id=trade_id,
+                fill_id=fill_id,
+                order_id=order_id,
+                side=side,
+                quantity=quantity,
+                price=price,
+                timestamp=timestamp,
+                slippage=slippage,
+                spread=spread,
+                is_entry=is_entry,
+            )
             self._save_leg(leg)
             trade = self._open_trades.get(trade_id)
             if trade:
@@ -213,8 +222,27 @@ class TradeLedger:
                     self._update_exit_fill(trade, leg)
                 trade.updated_at = time.time()
                 self._save_trade(trade)
+            return leg
 
-        return leg
+    def _get_leg_fill_id(self, fill_id: str) -> TradeLeg | None:
+        """Return the existing leg for a fill_id, or None if not recorded."""
+        try:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+        except Exception:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT * FROM trade_legs WHERE fill_id=?", (fill_id,)
+            ).fetchone()
+        except Exception:
+            return None
+        finally:
+            conn.row_factory = None
+        if row is None:
+            return None
+        fields = set(TradeLeg.__dataclass_fields__.keys())
+        return TradeLeg(**{k: row[k] for k in row.keys() if k in fields})
 
     def _update_entry_fill(self, trade: TradeRecord, leg: TradeLeg):
         """Update trade with entry fill."""
