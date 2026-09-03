@@ -32,6 +32,26 @@ from analytics.event_store import EventStore
 from analytics.trade_ledger import TradeLedger
 
 
+def _strategy_positions_for_risk(signal_type: "SignalType", open_positions: list) -> int:
+    """Number of the strategy's open positions to apply against the per-strategy
+    position cap for an incoming order.
+
+    A REVERSAL converts an existing position of the OPPOSITE side into the
+    incoming side; it never ADDS to the strategy's position count. Counting the
+    held opposite-side position would wrongly trip max_positions_per_strategy
+    (e.g. long->short at a 1-position cap) and reject the reversal re-entry,
+    stranding the stale leg. Net out the held position(s) that the reversal
+    replaces so the cap is not tripped by the position being flipped."""
+    open_held = [p for p in open_positions if getattr(p, "is_open", False)]
+    holds_short = any(getattr(p, "is_short", False) for p in open_held)
+    holds_long = any(getattr(p, "is_long", False) for p in open_held)
+    if signal_type == SignalType.LONG and holds_short:
+        return max(0, len(open_held) - 1)
+    if signal_type == SignalType.SHORT and holds_long:
+        return max(0, len(open_held) - 1)
+    return len(open_held)
+
+
 class TradingEngine:
     """Main trading engine that orchestrates all components.
     
@@ -854,10 +874,13 @@ class TradingEngine:
                 signal.instrument, signal.trigger_price, signal.quantity,
                 side="BUY" if signal.signal_type in (SignalType.LONG, SignalType.REVERSAL) else "SELL",
             )
+            held_positions = self.position_manager.get_positions_by_strategy(signal.strategy_id)
+            open_held = [p for p in held_positions if getattr(p, "is_open", False)]
+            strategy_positions = _strategy_positions_for_risk(signal.signal_type, open_held)
             allowed, reason = self.risk_engine.check_order(
                 signal=signal,
                 current_positions=len(self.position_manager.open_positions),
-                strategy_positions=len(self.position_manager.get_positions_by_strategy(signal.strategy_id)),
+                strategy_positions=strategy_positions,
                 available_margin=strat_account.available_margin,
                 margin_required=margin_required,
                 current_equity=strat_account.equity,

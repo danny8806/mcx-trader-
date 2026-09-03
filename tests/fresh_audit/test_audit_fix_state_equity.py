@@ -174,3 +174,63 @@ def test_equity_net_pnl_consistent_with_frontend_subtraction(tmp_path, monkeypat
     starting_capital = 1_200_000.0
     chart_net_pnl = final_equity - starting_capital
     assert chart_net_pnl == pytest.approx(-803.97, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# BUG-C -- reversal re-entry must not trip the per-strategy position cap
+# (live: SILVERM SHORT reversal was rejected with max_positions_per_strategy_reached
+#  while the stale LONG never closed).
+# ---------------------------------------------------------------------------
+
+from strategies.types import SignalType
+from trading_engine import _strategy_positions_for_risk
+
+
+def _mk_open_pos(side):
+    return _FakePos(side)
+
+
+class _FakePos:
+    def __init__(self, side):
+        self._side = side
+        self.is_open = True
+
+    @property
+    def is_long(self):
+        return self._side == "LONG"
+
+    @property
+    def is_short(self):
+        return self._side == "SHORT"
+
+
+def test_reversal_short_on_held_long_does_not_count_against_cap():
+    """LONG->SHORT reversal at a 1-position cap must net the held LONG out so the
+    SHORT re-entry passes the per-strategy cap (the pre-fix code passed 1 and was
+    rejected with max_positions_per_strategy_reached)."""
+    held = [_mk_open_pos("LONG")]
+    cnt = _strategy_positions_for_risk(SignalType.SHORT, held)
+    assert cnt == 0
+
+
+def test_reversal_long_on_held_short_does_not_count_against_cap():
+    held = [_mk_open_pos("SHORT")]
+    cnt = _strategy_positions_for_risk(SignalType.LONG, held)
+    assert cnt == 0
+
+
+def test_non_reversal_entry_counts_held_positions():
+    """A genuine add-on entry (same side as held) must still count against the cap."""
+    held = [_mk_open_pos("LONG")]
+    cnt = _strategy_positions_for_risk(SignalType.LONG, held)
+    assert cnt == 1
+
+
+def test_reversal_too_many_held_positions_still_rejected():
+    """A reversal MUST NOT let a strategy exceed max: held LONGs beyond the single
+    flip still count.  Holding 1 LONG and adding a SHORT reverses -> 0.  Holding 2
+    LONGs and adding a SHORT -> the second LONG still counts (2), rejecting under
+    a 1-position cap."""
+    held = [_mk_open_pos("LONG"), _mk_open_pos("LONG")]
+    cnt = _strategy_positions_for_risk(SignalType.SHORT, held)
+    assert cnt == 1  # one slot freed by the flip, one LONG still occupied
