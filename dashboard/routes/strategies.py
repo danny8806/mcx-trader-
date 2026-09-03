@@ -31,13 +31,47 @@ def _with_flat_indicators(ind_snap: dict) -> dict:
     return out
 
 
+def _reconcile_open_position(strategy_id: str, snap: dict) -> dict:
+    """Reconcile the visible strategy state against the open-position truth so
+    the Strategy Matrix / Positions panel can never disagree.
+
+    The position manager is the authoritative source for open positions.  A
+    strategy object's own ``position_side``/``state`` can lag or fail to be set
+    (e.g. after a crash-restart restore that backs the position manager but not
+    the strategy object), which made the Strategy Matrix show FLAT/None for
+    strategies that hold an open position.  Derive the reported state from the
+    open position when present so every consumer sees consistent data."""
+    if _engine is None or _engine.position_manager is None:
+        return snap
+    out = dict(snap)
+    try:
+        positions = _engine.position_manager.get_positions_by_strategy(strategy_id)
+    except Exception:
+        return out
+    open_pos = next((p for p in positions if getattr(p, "is_open", False)), None)
+    if open_pos is not None and open_pos.is_open:
+        if open_pos.is_long:
+            out["state"] = out.get("state") or "flat"
+            out["state"] = "long_position" if out["state"] not in (
+                "long_position", "short_position") else out["state"]
+            out["position_side"] = "LONG"
+        else:
+            out["state"] = "short_position" if out.get("state") not in (
+                "long_position", "short_position") else out["state"]
+            out["position_side"] = "SHORT"
+        stop = getattr(open_pos, "stop_price", None)
+        if stop is not None:
+            out["stop_price"] = stop
+    return out
+
+
 def _list_strategies_sync(instrument: Optional[str] = None, status: Optional[str] = None):
     if not _engine:
         return {"error": "Engine not initialized"}
     try:
         result = []
         for name, strat in _engine.strategies.items():
-            snap = strat.snapshot()
+            snap = _reconcile_open_position(name, strat.snapshot())
             inst = snap.get("instrument", "")
             state = snap.get("state", "unknown")
             if instrument and inst != instrument.upper():
@@ -82,7 +116,7 @@ def _get_strategy_sync(strategy_id: str):
         return {"error": f"Strategy {strategy_id} not found"}
     try:
         strat = _engine.strategies[strategy_id]
-        snap = strat.snapshot()
+        snap = _reconcile_open_position(strategy_id, strat.snapshot())
         inst = snap.get("instrument", "")
         pnl_eng = _engine.pnl_engines.get(strategy_id)
         pnl_snap = pnl_eng.snapshot() if pnl_eng else {}

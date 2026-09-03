@@ -87,6 +87,10 @@ def _enrich_strategies(snap):
         cfg = strategies_cfg.get(name, {})
         inst = cfg.get("instrument", "")
         inst_cfg = instruments.get(inst, {})
+        # Reconcile strategy state against the authoritative open-position
+        # source so WS engine_state can never show FLAT for a strategy that
+        # holds an open position (same contract as /api/strategies).
+        strat_snap = strategies._reconcile_open_position(name, dict(strat_snap))
         pnl_engine = _engine.pnl_engines.get(name)
         pnl_snap = pnl_engine.snapshot() if pnl_engine else {}
         val = lambda k, d=0: (pnl_snap.get(k, {}).get("value", d)
@@ -187,6 +191,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Could not initialize TradingEngine: {e}")
     print("[Lifespan] Engine ready", file=sys.stderr, flush=True)
+
+    # Make analytics equity/drawdown curves use the SAME capital baseline as the
+    # account / strategy starting_capital so the equity-graph net P&L is correct.
+    if _engine is not None:
+        try:
+            acct_cap = _engine.config.get("account.starting_capital")
+            if acct_cap:
+                analytics_routes.set_default_starting_equity(acct_cap)
+        except Exception as e:
+            print(f"[Lifespan] Set default starting equity failed: {e}", file=sys.stderr, flush=True)
 
     if _persistence is None:
         try:

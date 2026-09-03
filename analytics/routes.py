@@ -13,6 +13,7 @@ _event_store = None
 _trade_ledger = None
 _performance_engine = None
 _db_path = None
+_default_starting_equity = 1_000_000
 _STRATEGY_IDS = None
 
 _STRATEGY_FALLBACK = ["gold_01", "gold_02", "silver_01", "silver_02"]
@@ -47,6 +48,15 @@ def _strategy_ids() -> list[str]:
     except Exception:
         pass
     return list(_STRATEGY_FALLBACK)
+
+
+def set_default_starting_equity(value: Optional[float] = None):
+    """Set the baseline used for equity/drawdown curves when the API callers do
+    not pass an explicit starting_equity.  Must match the capital the frontend
+    subtracts (account starting_capital) or the reported net P&L is wrong."""
+    global _default_starting_equity
+    if value is not None:
+        _default_starting_equity = float(value)
 
 
 def init(db_path: str = "analytics.db", strategy_ids: Optional[list[str]] = None):
@@ -210,12 +220,13 @@ async def get_strategy_trades(
 # =====================================================================
 
 @router.get("/api/analytics/strategies/{strategy_id}/equity")
-async def get_strategy_equity(strategy_id: str, starting_equity: float = 1_000_000):
+async def get_strategy_equity(strategy_id: str, starting_equity: Optional[float] = None):
     """Get equity curve for a strategy."""
     if not _performance_engine:
         return {"error": "Analytics not initialized"}
-    
-    curve = _performance_engine.calculate_equity_curve(strategy_id, starting_equity)
+
+    baseline = starting_equity if starting_equity is not None else _default_starting_equity
+    curve = _performance_engine.calculate_equity_curve(strategy_id, baseline)
     return {"strategy_id": strategy_id, "equity_curve": curve, "count": len(curve)}
 
 
@@ -224,12 +235,13 @@ async def get_strategy_equity(strategy_id: str, starting_equity: float = 1_000_0
 # =====================================================================
 
 @router.get("/api/analytics/strategies/{strategy_id}/drawdown")
-async def get_strategy_drawdown(strategy_id: str, starting_equity: float = 1_000_000):
+async def get_strategy_drawdown(strategy_id: str, starting_equity: Optional[float] = None):
     """Get drawdown curve for a strategy."""
     if not _performance_engine:
         return {"error": "Analytics not initialized"}
-    
-    curve = _performance_engine.calculate_drawdown_curve(strategy_id, starting_equity)
+
+    baseline = starting_equity if starting_equity is not None else _default_starting_equity
+    curve = _performance_engine.calculate_drawdown_curve(strategy_id, baseline)
     return {"strategy_id": strategy_id, "drawdown_curve": curve, "count": len(curve)}
 
 
