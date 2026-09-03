@@ -204,19 +204,52 @@ class TradeCloseManager:
                         gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
                     )
                 else:
-                    # Fallback: ledger was not linked at open time (e.g. the
-                    # position predates the linkage). Close only the matching
-                    # open trade for this strategy+instrument.
-                    open_trades = self._trade_ledger.get_open_trades(
-                        strategy_id=strategy_id, instrument=fill.instrument,
+                    # No ledger row for this position (positions that predate
+                    # the open-time linkage, or a lost open write).  Create the
+                    # trade with the entry leg and close it so analytics.db
+                    # reflects the round trip instead of silently diverging
+                    # (BUG-2 fix: avoid leaving a ghost OPEN in analytics.db
+                    # while trading.db already has the closed record).
+                    fill_id = position.entry_fill_ids[0] if position.entry_fill_ids else None
+                    self._trade_ledger.create_trade(
+                        strategy_id=strategy_id,
+                        instrument=fill.instrument,
+                        side=side,
+                        entry_quantity=position.quantity,
+                        signal_time=position.entry_timestamp,
+                        trigger_price=position.average_entry,
+                        stop_price=position.stop_price or 0.0,
+                        multiplier=multiplier,
+                        trade_id=position.position_id,
+                        position_id=position.position_id,
                     )
-                    for t in open_trades:
-                        self._trade_ledger.close_trade(
-                            t.trade_id, exit_reason=exit_reason_final,
-                            gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
+                    if fill_id:
+                        self._trade_ledger.record_fill(
+                            trade_id=position.position_id,
+                            fill_id=fill_id,
+                            order_id="",
+                            side=position.is_long and "BUY" or "SELL",
+                            quantity=position.quantity,
+                            price=position.average_entry,
+                            timestamp=position.entry_timestamp,
+                            is_entry=True,
                         )
-            except Exception:
-                pass
+                    self._trade_ledger.record_fill(
+                        trade_id=position.position_id,
+                        fill_id=fill.fill_id,
+                        order_id=fill.order_id,
+                        side=fill.side,
+                        quantity=fill.quantity,
+                        price=fill.price,
+                        timestamp=fill.timestamp,
+                        is_entry=False,
+                    )
+                    self._trade_ledger.close_trade(
+                        position.position_id, exit_reason=exit_reason_final,
+                        gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
+                    )
+            except Exception as e:
+                print(f"[TradeClose] CRITICAL: analytics ledger close failed for {position.position_id}: {e}", flush=True)
 
         # Step 7: Record event
         if self._event_store:

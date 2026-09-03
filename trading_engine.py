@@ -253,7 +253,11 @@ class TradingEngine:
         self.execution_engine = PaperExecutionEngine(
             slippage_ticks=paper_config.get("slippage_ticks", 1),
             latency_ms=paper_config.get("latency_ms", 100),
-            partial_fill_probability=paper_config.get("partial_fill_probability", 0.1),
+            # NOTE: must default to 0.0 — PaperExecutionEngine raises ValueError
+            # when partial_fill_probability != 0 (partial-close accounting does
+            # not exist).  A nonzero default here would crash the engine on any
+            # config omission of the key.
+            partial_fill_probability=paper_config.get("partial_fill_probability", 0.0),
         )
         self.order_manager = OrderManager(
             execution_engine=self.execution_engine,
@@ -932,8 +936,14 @@ class TradingEngine:
                         "created_at": datetime.fromtimestamp(order.created_at or time.time(), tz=timezone.utc).isoformat(),
                         "updated_at": datetime.fromtimestamp(order.updated_at or time.time(), tz=timezone.utc).isoformat(),
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    # LOUD, not silent: the order-before-fill DB invariant is
+                    # otherwise broken — the fills dispatched below reference an
+                    # order_id never persisted to trading.db, and reconciliation
+                    # would flag orphan fills on restart. The fills still proceed
+                    # (the paper broker already produced them), but the missing
+                    # order row is visible instead of hidden.
+                    print(f"[Order] WARNING: failed to persist order {order.order_id}: {e}", flush=True)
             # Dispatch fills produced by the order (each persists its own fill
             # row in _on_fill before any position references it).
             for fill in self.order_manager.drain_fills():
@@ -1048,8 +1058,16 @@ class TradingEngine:
                     print(f"[Fill] DB replay detected, skipping re-apply: {fill.fill_id}", flush=True)
                     self.fill_dedup.mark_processed(fill.fill_id)
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                # FAIL-SAFE on DB uncertainty: if we cannot confirm whether this
+                # fill was already persisted by a prior session, we must NOT
+                # re-apply its financial effects (that could double-open a
+                # position or spuriously close one).  Mark it processed and skip
+                # loudly so reconcile/telegram can flag it — never silently
+                # reprocess into an inconsistent state.
+                print(f"[Fill] CRITICAL: idempotency check failed for {fill.fill_id}, skipping (fail-safe): {e}", flush=True)
+                self.fill_dedup.mark_processed(fill.fill_id)
+                return
         # In-process dedup lock: protects against a single fill being delivered
         # twice inside this process before the durable DB mark at method end.
         self.fill_dedup.note_processed(fill.fill_id)
@@ -1144,8 +1162,8 @@ class TradingEngine:
                             payload={"side": position.side.value, "price": fill.price,
                                      "quantity": fill.quantity, "margin": margin},
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"[Fill] WARNING: POSITION_OPENED event write failed for {position.position_id}: {e}", flush=True)
                 self.publish_event("position_opened", {
                     "position_id": position.position_id, "strategy_id": fill.strategy_id,
                     "instrument": fill.instrument, "side": position.side.value,
@@ -1196,8 +1214,13 @@ class TradingEngine:
                             timestamp=fill.timestamp,
                             is_entry=True,
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # LOUD, not silent: the position is open in memory and
+                        # persisted to trading.db regardless; if the analytics
+                        # trade record fails here, the startup backfill
+                        # (_backfill_ledger_for_open_positions) heals it on the
+                        # next restart so analytics.db can never diverge silently.
+                        print(f"[Fill] WARNING: analytics ledger create/leg failed for {position.position_id}: {e}", flush=True)
                 # Telegram notification
                 try:
                     strat_snap = self.strategies[fill.strategy_id].snapshot() if fill.strategy_id in self.strategies else {}
@@ -1731,3 +1754,120 @@ strat_snap, strat_acct_snap,
                     self.account_engine.starting_capital
                     + self.account_engine.realized_pnl
                 )
+            # Reconcile the analytics trade ledger against restored open
+            # positions so a carried-over / crash-restored open position can
+            # NEVER be missing from analytics.db (BUG-1 fix: previously the
+            # ledger/event writes only ran at fresh-open time, so a position
+            # restored from state had no trades_analytics row / entry leg).
+            self._backfill_ledger_for_open_positions()
+
+    def _backfill_ledger_for_open_positions(self) -> None:
+        """Ensure every restored/open position has an analytics trade record.
+
+        Called after position restore (and safe to call any time open
+        positions exist).  For each open position lacking a trades_analytics
+        row it creates the trade (status=OPEN), the entry leg, and the
+        POSITION_OPENED event so analytics.db can never silently diverge from
+        trading.db / in-memory state.  Failures are LOUD (logged), never
+        silently swallowed.
+        """
+        if self.trade_ledger is None:
+            print("[Engine] Ledger backfill skipped: trade_ledger is None", flush=True)
+            return
+        for pos in self.position_manager.open_positions:
+            trade_id = pos.position_id
+            fill_id = pos.entry_fill_ids[0] if pos.entry_fill_ids else None
+            try:
+                existing = self.trade_ledger.get_trade(trade_id)
+            except Exception:
+                existing = None
+            if existing is not None:
+                # Trade ALREADY present in analytics.  Guard against the
+                # partial-state case (Defect 6): the create_trade row existed
+                # but the entry leg write failed, leaving an OPEN trade with
+                # zero fills.  Heal by adding the missing entry leg only.
+                try:
+                    legs = self.trade_ledger.get_legs_for_trade(trade_id)
+                    entry_leg_present = any(
+                        leg.fill_id == fill_id and getattr(leg, "is_entry", True)
+                        for leg in legs
+                    ) if legs else False
+                except Exception:
+                    entry_leg_present = False
+                if not entry_leg_present and fill_id:
+                    try:
+                        order_id = ""
+                        entry_price = pos.average_entry
+                        if self._persistence:
+                            try:
+                                f = self._persistence.get_fill(fill_id)
+                                if f:
+                                    order_id = f.get("order_id") or ""
+                                    entry_price = f.get("price") or pos.average_entry
+                            except Exception:
+                                pass
+                        self.trade_ledger.record_fill(
+                            trade_id=pos.position_id,
+                            fill_id=fill_id,
+                            order_id=order_id,
+                            side="BUY" if pos.is_long else "SELL",
+                            quantity=pos.quantity,
+                            price=entry_price,
+                            timestamp=pos.entry_timestamp,
+                            is_entry=True,
+                        )
+                        print(f"[Engine] Backfilled missing entry leg for {pos.position_id}", flush=True)
+                    except Exception as e:
+                        print(f"[Engine] WARNING: entry-leg heal failed for {pos.position_id}: {e}", flush=True)
+                continue
+            side = "LONG" if pos.is_long else "SHORT"
+            order_id = ""
+            entry_price = pos.average_entry
+            if fill_id and self._persistence:
+                try:
+                    f = self._persistence.get_fill(fill_id)
+                    if f:
+                        order_id = f.get("order_id") or ""
+                        entry_price = f.get("price") or pos.average_entry
+                except Exception:
+                    pass
+            try:
+                self.trade_ledger.create_trade(
+                    strategy_id=pos.strategy_id,
+                    instrument=pos.instrument,
+                    side=side,
+                    entry_quantity=pos.quantity,
+                    signal_time=pos.entry_timestamp,
+                    trigger_price=pos.average_entry,
+                    stop_price=pos.stop_price or 0.0,
+                    multiplier=pos.multiplier,
+                    trade_id=pos.position_id,
+                    position_id=pos.position_id,
+                    entry_dema=None,
+                    entry_atr=None,
+                    entry_dema_atr=None,
+                    entry_htf_value=None,
+                )
+                if fill_id:
+                    self.trade_ledger.record_fill(
+                        trade_id=pos.position_id,
+                        fill_id=fill_id,
+                        order_id=order_id,
+                        side="BUY" if pos.is_long else "SELL",
+                        quantity=pos.quantity,
+                        price=entry_price,
+                        timestamp=pos.entry_timestamp,
+                        is_entry=True,
+                    )
+                if self.event_store:
+                    self.event_store.record(
+                        trade_id=pos.position_id,
+                        strategy_id=pos.strategy_id,
+                        instrument=pos.instrument,
+                        event_type="POSITION_OPENED",
+                        payload={"side": side, "price": entry_price,
+                                 "quantity": pos.quantity, "restored": True},
+                    )
+                print(f"[Engine] Backfilled ledger for restored open position {pos.position_id}", flush=True)
+            except Exception as e:
+                print(f"[Engine] WARNING: ledger backfill failed for {pos.position_id}: {e}", flush=True)

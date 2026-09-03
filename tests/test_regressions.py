@@ -79,6 +79,21 @@ class RegressionTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - start, 0.01)
         self.assertEqual(order.filled_quantity, 1)
 
+    def test_partial_fill_default_does_not_crash_engine(self):
+        # Regression (Fix A): trading_engine._init_execution previously read
+        # partial_fill_probability with a hardcoded default of 0.1, but
+        # PaperExecutionEngine raises ValueError for any value != 0.  Any config
+        # omission of the key would crash the engine at startup.  The default is
+        # now 0.0; verify the guard behaviour and that 0.0 (the default) works.
+        from execution.paper_broker import PaperExecutionEngine
+        # The guard still rejects non-zero (partial fills unsupported)
+        with self.assertRaises(ValueError):
+            PaperExecutionEngine(partial_fill_probability=0.1)
+        # The canonical default / live config value must construct fine.
+        engine = PaperExecutionEngine(partial_fill_probability=0.0)
+        self.assertEqual(engine.partial_fill_probability, 0.0)
+        engine.close() if hasattr(engine, "close") else None
+
     def test_risk_resets_before_order_check_on_new_ist_day(self):
         risk = RiskEngine(max_daily_loss=100)
         risk._daily_pnl = -100

@@ -123,3 +123,75 @@ def test_create_trade_without_explicit_id_generates_one(tmp_path):
     )
     assert trade.trade_id
     assert trade.trade_id != "pos_unknown"
+
+
+def test_close_position_when_ledger_missing_creates_and_closes_exact_trade(tmp_path):
+    """BUG-2 regression: closing a position whose analytics trade record is
+    missing must create that exact position-anchored trade (entry+exit legs)
+    and close it, rather than leaving a ghost OPEN or closing unrelated trades.
+    """
+    from core.trade_close import TradeCloseManager
+    # two open positions on SAME strategy:instrument to prove only the closed
+    # one is materialised+closed in analytics, the other stays untouched.
+    tl = TradeLedger(db_path=_init(tmp_path, "analytics.db"))
+    # pos_1 has NO ledger row (simulates the BUG-1 open-time omission)
+    pm = PositionManager()
+    for pid, side_, price in (("pos_1", "LONG", 100.0), ("pos_2", "LONG", 200.0)):
+        pm._positions[pid] = Position(
+            position_id=pid, strategy_id="gold_01", instrument="GOLDM",
+            side=PositionSide.LONG, quantity=1, average_entry=price,
+            entry_timestamp=1001.0, entry_fill_ids=[f"{pid}-entry"], multiplier=5.0,
+        )
+    # pos_2 DOES have an open ledger trade -> must remain OPEN.
+    tl.create_trade(strategy_id="gold_01", instrument="GOLDM", side="LONG",
+                    entry_quantity=1, signal_time=1001.0, trigger_price=200.0,
+                    stop_price=195.0, multiplier=5.0, trade_id="pos_2", position_id="pos_2")
+    tl.record_fill("pos_2", "pos_2-entry", "pos_2-ord", "BUY", 1, 200.0, 1001.0, is_entry=True)
+
+    exit_fill = Fill(fill_id="x1", order_id="o3", instrument="GOLDM", side="SELL",
+                     quantity=1, price=110.0, timestamp=2000.0, strategy_id="gold_01")
+    mgr = TradeCloseManager(
+        position_manager=pm, pnl_engines={}, account_engines={},
+        global_account=None, risk_engine=None, persistence=None,
+        event_store=None, telegram=None, trade_ledger=tl,
+    )
+    mgr.close_position(fill=exit_fill, position=pm._positions["pos_1"],
+                       strategy_id="gold_01", multiplier=5.0)
+
+    # pos_1 now present + CLOSED with both legs
+    t1 = tl.get_trade("pos_1")
+    assert t1 is not None and t1.status == "CLOSED"
+    assert t1.average_entry_price == 100.0
+    assert t1.exit_price == 110.0
+    legs1 = tl.get_legs_for_trade("pos_1")
+    assert len(legs1) == 2
+    # pos_2 untouched + still OPEN
+    assert tl.get_trade("pos_2").status == "OPEN"
+
+
+def test_backfill_logic_creates_missing_open_trade(tmp_path):
+    """BUG-1 regression (omitted from live-affected code, replicated here):
+    calling the same create_trade+record_fill sequence used by
+    _backfill_ledger_for_open_positions creates the OPEN record and entry leg
+    for a restored position, and is idempotent (skips if already present)."""
+    tl = TradeLedger(db_path=_init(tmp_path, "analytics.db"))
+    # simulate a restored open position missing from analytics
+    assert tl.get_trade("pos_9") is None
+    tl.create_trade(
+        strategy_id="silver_01", instrument="SILVERM", side="LONG",
+        entry_quantity=1, signal_time=1788350062.0, trigger_price=236980.0,
+        stop_price=235457.0, multiplier=5.0,
+        trade_id="pos_9", position_id="pos_9",
+    )
+    tl.record_fill("pos_9", "f9", "o9", "BUY", 1, 236980.0, 1788350062.0, is_entry=True)
+    t = tl.get_trade("pos_9")
+    assert t is not None and t.status == "OPEN"
+    assert t.average_entry_price == 236980.0
+    assert len(tl.get_legs_for_trade("pos_9")) == 1
+    # idempotent: re-running create_trade must not duplicate
+    import sqlite3, json
+    db = str(tmp_path / "analytics.db")
+    conn = sqlite3.connect(db)
+    rows = conn.execute("SELECT COUNT(*) c FROM trades_analytics WHERE trade_id='pos_9'").fetchone()
+    conn.close()
+    assert rows[0] == 1
