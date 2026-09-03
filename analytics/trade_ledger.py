@@ -296,6 +296,15 @@ class TradeLedger:
                 trade.r_multiple = trade.net_pnl / (trade.initial_risk * trade.entry_quantity)
                 trade.r_status = "DEFINED"
 
+            # A fully-closed trade must be removed from the open-trades cache so
+            # get_open_trades() never reports a CLOSED round trip as OPEN
+            # (mirrors close_trade).  Without this, an SL/reversal exit fill
+            # marks status=CLOSED in the DB but leaves a stale OPEN entry in
+            # _open_trades, desyncing /api/analytics/open-trades from the
+            # ledger rows.
+            if trade.trade_id in self._open_trades:
+                del self._open_trades[trade.trade_id]
+
         elif trade.exit_quantity > 0 and trade.remaining_quantity > 0:
             trade.status = "PARTIALLY_CLOSED"
 
@@ -303,9 +312,17 @@ class TradeLedger:
                     gross_pnl: Optional[float] = None,
                     net_pnl: Optional[float] = None,
                     fees: Optional[float] = None) -> Optional[TradeRecord]:
-        """Manually close a trade."""
+        """Manually close a trade and apply the authoritative P&L override.
+
+        The trade may already be CLOSED by an exit fill (which removes it from
+        the open-trades cache).  In that case fall back to the DB copy so the
+        fee-model-based authoritative P&L/gross/fees still get stamped on the
+        ledger row (TradeCloseManager calls record_fill(exit) then close_trade).
+        """
         with self._lock:
             trade = self._open_trades.get(trade_id)
+            if not trade:
+                trade = self._get_db_trade(trade_id)
             if trade:
                 trade.status = "CLOSED"
                 trade.exit_reason = exit_reason
@@ -325,7 +342,8 @@ class TradeLedger:
                     trade.duration_seconds = trade.closed_at - trade.first_fill_time
                     trade.duration_minutes = trade.duration_seconds / 60.0
                 self._save_trade(trade)
-                del self._open_trades[trade_id]
+                if trade.trade_id in self._open_trades:
+                    del self._open_trades[trade.trade_id]
         return trade
 
     def update_mfe_mae(self, trade_id: str, current_price: float) -> None:
@@ -363,6 +381,14 @@ class TradeLedger:
         """Get a trade by ID."""
         if trade_id in self._open_trades:
             return self._open_trades[trade_id]
+        return self._get_db_trade(trade_id)
+
+    def _get_db_trade(self, trade_id: str) -> Optional[TradeRecord]:
+        """Load a trade directly from the DB (skipping the open-trades cache).
+
+        Used by get_trade and close_trade so CLOSED trades that have been
+        purged from the in-memory open cache remain queryable/overridable.
+        """
         conn = self._get_conn()
         conn.row_factory = sqlite3.Row
         row = conn.execute(
