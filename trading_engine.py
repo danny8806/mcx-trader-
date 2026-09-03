@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 import threading
 from datetime import datetime, timezone, timedelta
@@ -592,6 +593,11 @@ class TradingEngine:
         instrument = tick.get("instrument")
         ltp = tick.get("ltp", 0.0)
         timestamp = tick.get("event_timestamp") or tick.get("timestamp", time.time())
+        # Guard: a bad LTP (Dhan `-1` no-data sentinel, NaN, inf, <=0) must not
+        # be written into the execution price map or used for unrealized marks.
+        # If the tick is invalid, still maintain data-status/health/lock bookkeeping
+        # but skip all price-sensitive updates.
+        valid_ltp = ltp is not None and not (isinstance(ltp, float) and (math.isnan(ltp) or math.isinf(ltp))) and ltp > 0.0
 
         # Update market data status
         ws_connected = self.data_adapter.ws.connected if self.data_adapter.ws else False
@@ -632,20 +638,23 @@ class TradingEngine:
                 self._execute_eod_close()
 
             # [1] Update execution engine price (for order fills)
-            self.execution_engine.update_price(instrument, ltp)
+            # Only with a valid (positive, finite) LTP; an invalid tick leaves
+            # the last-known-good price in place so fills/EOD never use `-1`/NaN.
+            if valid_ltp:
+                self.execution_engine.update_price(instrument, ltp)
 
-            # [2] Tick-level P&L marking for open positions
-            open_positions = self.position_manager.get_positions_by_instrument(instrument)
-            for pos in open_positions:
-                if pos.is_open:
-                    pos.update_mark(ltp)
-                    # Track MFE/MAE in the analytics trade ledger so
-                    # max-favorable/adverse excursion is captured live.
-                    if self.trade_ledger is not None:
-                        try:
-                            self.trade_ledger.update_mfe_mae(pos.position_id, ltp)
-                        except Exception:
-                            pass
+                # [2] Tick-level P&L marking for open positions
+                open_positions = self.position_manager.get_positions_by_instrument(instrument)
+                for pos in open_positions:
+                    if pos.is_open:
+                        pos.update_mark(ltp)
+                        # Track MFE/MAE in the analytics trade ledger so
+                        # max-favorable/adverse excursion is captured live.
+                        if self.trade_ledger is not None:
+                            try:
+                                self.trade_ledger.update_mfe_mae(pos.position_id, ltp)
+                            except Exception:
+                                pass
             # Update per-strategy accounts — sum ALL open positions (not just current instrument)
             for strat_id in self.account_engines:
                 strat_positions = self.position_manager.get_positions_by_strategy(strat_id)
@@ -663,11 +672,10 @@ class TradingEngine:
             if current_equity is not None:
                 self.risk_engine.update_peak_equity(current_equity)
 
-            # [4] Reversal-deferred exits: when the next fast bar has rolled
-            # over, consume the exit at this tick's LTP (= the bar's OPEN).
-            # Only the first tick STRICTLY after the signal bar's end may fire
-            # it (>= would fire on the signal bar's own closing tick).
-            if self.tick_signal_processing:
+            # [4] Reversal-deferred exits (uses LTP = next bar's OPEN) and
+            # [5] tick-entry-trigger / stop-loss monitoring. Both are price
+            # sensitive: skip entirely when the LTP is invalid.
+            if self.tick_signal_processing and valid_ltp:
                 for strat in self.strategies.values():
                     if strat.instrument != instrument:
                         continue
@@ -679,10 +687,6 @@ class TradingEngine:
                             continue
                     self._process_deferred_exit(strat, None, ltp=ltp)
 
-            # [5] Process tick-level entry triggers AND stop-loss monitoring.
-            # Previously this loop only called on_tick for strategies with
-            # pending_entry, leaving seated stops unchecked until bar close.
-            if self.tick_signal_processing:
                 for strat in self.strategies.values():
                     if strat.instrument != instrument:
                         continue
@@ -806,6 +810,16 @@ class TradingEngine:
         for pos in open_positions:
             try:
                 ltp = self.execution_engine._current_prices.get(pos.instrument, pos.average_entry)
+                # Guard: never EOD-close at a non-positive / non-finite price
+                # (a `-1` no-data sentinel must not book a fake close). Skip and
+                # retry on a later tick when the price is sane.
+                bad_ltp = (ltp is None
+                           or (isinstance(ltp, float) and (math.isnan(ltp) or math.isinf(ltp)))
+                           or ltp <= 0.0)
+                if bad_ltp:
+                    failed_count += 1
+                    print(f"[Engine] EOD close SKIPPED for {pos.position_id}: invalid ltp={ltp}", flush=True)
+                    continue
                 exit_fill = Fill(
                     fill_id=f"eod_{pos.position_id}_{int(time.time())}",
                     order_id="",
@@ -958,11 +972,15 @@ class TradingEngine:
         # Submit order
         fill_price = metadata.get("fill_price")
         if fill_price is not None:
-            # Backtest-placement model: fills at the exact model price level
-            # (trigger breakout = trigger level, SL exit = bar close, reversal
-            # exit = next bar open).  Override the broker's LTP for THIS order
-            # only; the next order/bar re-establishes its own LTP.
-            self.execution_engine.update_price(signal.instrument, float(fill_price))
+            fp = float(fill_price)
+            # Guard: a bad fill_price (<=0 / NaN / inf) must never be placed
+            # into the execution price map, or it could poison later fills/EOD.
+            if fp > 0.0 and not (isinstance(fp, float) and (math.isnan(fp) or math.isinf(fp))):
+                # Backtest-placement model: fills at the exact model price level
+                # (trigger breakout = trigger level, SL exit = bar close, reversal
+                # exit = next bar open).  Override the broker's LTP for THIS order
+                # only; the next order/bar re-establishes its own LTP.
+                self.execution_engine.update_price(signal.instrument, fp)
         order = self.order_manager.submit_signal(signal, multiplier=multiplier)
         if order:
             # ── Persist the order row BEFORE dispensing its fills, so the DB

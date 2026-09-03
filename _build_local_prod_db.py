@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 import _p1_lib as L
 from full_simulator import LIVE_STRATEGIES, build_bars
 
-START, STOP = "2026-08-26", "2026-08-28"
+START, STOP = "2026-08-26", "2026-08-31"
 _TF_RANK = {"1h": 0, "15m": 1, "5m": 2}
 
 

@@ -142,6 +142,7 @@ class ReconciliationEngine:
             lambda: self._check_duplicate_orders(db_orders, result),
             lambda: self._check_db_vs_memory_orders(db_orders, mem_orders, result),
             lambda: self._check_db_vs_memory_fills(db_fills, mem_fills, result),
+            lambda: self._check_price_sanity(db_fills, db_trades, result),
         ]:
             try:
                 check()
@@ -487,3 +488,44 @@ class ReconciliationEngine:
                 result.add_error(
                     f"Fill {fid} quantity mismatch: DB={db_qty}, memory={mem_qty}"
                 )
+
+    def _check_price_sanity(
+        self,
+        db_fills: list[dict],
+        db_trades: list[dict],
+        result: ReconciliationResult,
+    ) -> None:
+        """Reject non-positive / non-finite prices anywhere in the book.
+
+        This is the guard that would have caught the `-1` no-data sentinel
+        corruption: a trade/fill booked at `-1` is nonsense regardless of the
+        rest of the DB<->memory consistency. Both sources can carry the same
+        poison yet still 'agree', so this is intentionally independent of the
+        cross-source checks.
+        """
+        bad_fills = []
+        for f in db_fills:
+            price = f.get("price")
+            if price is None or price <= 0.0 or (
+                isinstance(price, float) and (price != price or abs(price) == float("inf"))
+            ):
+                bad_fills.append((f.get("fill_id"), price))
+        if bad_fills:
+            result.add_error(
+                f"{len(bad_fills)} fill(s) with invalid price (<=0/NaN/inf): "
+                f"{bad_fills[:5]}{'...' if len(bad_fills) > 5 else ''}"
+            )
+
+        bad_trades = []
+        for t in db_trades:
+            for key in ("entry_price", "exit_price"):
+                price = t.get(key)
+                if price is None or price <= 0.0 or (
+                    isinstance(price, float) and (price != price or abs(price) == float("inf"))
+                ):
+                    bad_trades.append((t.get("trade_id"), key, price))
+        if bad_trades:
+            result.add_error(
+                f"{len(bad_trades)} trade price(s) invalid (<=0/NaN/inf): "
+                f"{bad_trades[:5]}{'...' if len(bad_trades) > 5 else ''}"
+            )

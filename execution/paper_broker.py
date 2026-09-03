@@ -1,6 +1,7 @@
 """Paper execution engine for realistic paper trading simulation."""
 from __future__ import annotations
 
+import math
 import time
 import threading
 import uuid
@@ -161,7 +162,7 @@ class PaperExecutionEngine:
             time.sleep(self.latency_ms / 1000.0)
         with self._price_lock:
             current_price = self._current_prices.get(order.instrument)
-        if current_price is None:
+        if current_price is None or current_price <= 0.0:
             return None
 
         # Apply slippage
@@ -170,6 +171,8 @@ class PaperExecutionEngine:
             fill_price = current_price + slippage
         else:
             fill_price = current_price - slippage
+        if fill_price is None or fill_price <= 0.0 or math.isnan(fill_price) or math.isinf(fill_price):
+            return None
 
         # Create fill
         fill = Fill(
@@ -268,7 +271,13 @@ class PaperExecutionEngine:
         if not data:
             return
         # Restore current prices
-        self._current_prices = data.get("current_prices", {})
+        restored_prices = data.get("current_prices", {})
+        # Drop non-positive / non-finite prices (e.g. a stale `-1` sentinel)
+        # so a poisoned price can't survive restart and be used for fills/EOD.
+        self._current_prices = {
+            k: v for k, v in restored_prices.items()
+            if v is not None and not (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) and v > 0.0
+        }
         # Clear before restoring to avoid duplicates
         self._fills.clear()
         self._orders.clear()

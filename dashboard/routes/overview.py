@@ -48,10 +48,14 @@ def _get_overview_sync():
         starting = _safe(account.get("starting_capital", 0))
         net_pnl = equity - starting
 
+        # Coerce non-finite daily_pnl to 0 so a NaN/inf value can't poison the API.
+        _daily = risk_snap.get("daily_pnl", 0)
+        if isinstance(_daily, float) and (_daily != _daily or abs(_daily) == float("inf")):
+            _daily = 0.0
         return {
             "total_equity": {"value": equity, "timestamp": _ts()},
             "starting_capital": {"value": starting, "timestamp": _ts()},
-            "today_pnl": {"value": risk_snap.get("daily_pnl", 0), "timestamp": _ts()},
+            "today_pnl": {"value": _daily, "timestamp": _ts()},
             "total_net_pnl": {"value": net_pnl, "timestamp": _ts()},
             "realized_pnl": {"value": realized, "timestamp": _ts()},
             "unrealized_pnl": {"value": unrealized, "timestamp": _ts()},

@@ -1,6 +1,7 @@
 """Base DEMA-ATR strategy framework for Gold/Silver live trading."""
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Optional
 
@@ -575,6 +576,11 @@ class BaseDEMAStrategy:
         for next bar close. Also checks stop loss on every tick.
         """
         if not self.enabled or self.just_entered:
+            return None
+        # Guard against non-positive / non-finite LTP (e.g. Dhan `-1` no-data
+        # sentinel). A bad price must NEVER trigger a stop-loss exit or a
+        # pending-entry fill -- ignore the tick entirely.
+        if not (ltp is not None) or math.isnan(ltp) or math.isinf(ltp) or ltp <= 0.0:
             return None
         # A reversal exit is scheduled at the next bar's open; suppress
         # tick-level entries/stop-outs until the engine has executed it.

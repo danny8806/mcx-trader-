@@ -15,6 +15,7 @@ If step 4-8 fails: state is recoverable from database on restart.
 """
 from __future__ import annotations
 
+import math
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -62,6 +63,20 @@ class TradeCloseManager:
         Returns:
             True if close completed successfully, False if persistence failed.
         """
+        # ── Step 0: Reject a close at a non-positive / non-finite exit price ──
+        # This is the last line of defence against a `-1` no-data sentinel (or
+        # NaN/inf) ever booking a realistic trade into the ledger/account/risk.
+        # Entry fills are validated at order time; guard every close regardless.
+        if (fill is None or fill.price is None
+                or (isinstance(fill.price, float) and (math.isnan(fill.price) or math.isinf(fill.price)))
+                or fill.price <= 0.0):
+            print(
+                f"[TradeClose] REFUSED close for {getattr(position, 'position_id', '?')}: "
+                f"invalid exit price={getattr(fill, 'price', None)}",
+                flush=True,
+            )
+            return False
+
         # ── Step 1: Calculate P&L (pure calculation, no side effects) ──
         pnl_engine = self._pnl_engines.get(strategy_id)
         if pnl_engine:

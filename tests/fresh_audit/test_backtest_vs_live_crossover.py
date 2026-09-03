@@ -16,7 +16,8 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-LIVE_ROOT = r"C:\Users\pc\Desktop\NIFTY PAPER TRADING\Gold Silver live trading"
+# LIVE_ROOT points to THIS repo (MCX-TRADER = source of truth / deployed code).
+LIVE_ROOT = r"C:\Users\pc\Desktop\MCX-TRADER"
 BACKTEST_ROOT = r"C:\Users\pc\Desktop\nifty dema backtest\project"
 
 sys.path.insert(0, LIVE_ROOT)
