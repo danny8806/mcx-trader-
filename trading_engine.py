@@ -947,7 +947,21 @@ class TradingEngine:
             # Dispatch fills produced by the order (each persists its own fill
             # row in _on_fill before any position references it).
             for fill in self.order_manager.drain_fills():
-                self._on_fill(fill)
+                try:
+                    self._on_fill(fill)
+                except Exception as e:
+                    # Broad guard: an unexpected throw inside _on_fill must not
+                    # leave the strategy in a ghost long/short (blocked margin
+                    # with no position, or un-reset state).  Log LOUD and reset
+                    # the strategy to FLAT so the next bar starts clean instead
+                    # of silently wedging the engine.
+                    print(f"[Fill] CRITICAL: _on_fill unhandled for {fill.fill_id}: {e}", flush=True)
+                    strat = self.strategies.get(fill.strategy_id)
+                    if strat:
+                        strat.state = StrategyState.FLAT
+                        strat.position_side = None
+                        strat.stop_price = None
+                        strat.pending_entry = None
             print(f"[Order] Submitted: {order.order_id} {order.side} {order.instrument}", flush=True)
             self._notify_signal_alert(signal, order, metadata)
             if self.event_store:
