@@ -94,7 +94,7 @@ class ReconciliationEngine:
         """Run full reconciliation across all components.
 
         Args:
-            phase: One of "startup", "reconnect", "restart", "eod".
+            phase: One of "startup", "reconnect", "restart".
 
         Returns:
             ReconciliationResult with errors, warnings, and stats.

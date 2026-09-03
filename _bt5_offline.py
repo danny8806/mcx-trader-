@@ -116,7 +116,6 @@ def live_tick(instrument, ltp, ts):
 t0 = time.time()
 for day, bars in sorted(stream_by_day.items()):
     engine.market_status.force_state(MarketState.LIVE_TRADING)
-    engine.market_status._eod_close_done_today = False
     for bar in bars:
         strat = None
         for s in engine.strategies.values():

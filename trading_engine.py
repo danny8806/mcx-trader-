@@ -65,8 +65,11 @@ class TradingEngine:
         self._init_monitoring()
         self._init_notifications()
 
-        # Analytics event store (writes to analytics.db)
-        analytics_db = str(Path(self.config.get("system", {}).get("db_path", "trading.db")).parent / "analytics.db")
+        # Analytics event store (writes to analytics.db).  Resolve the path
+        # against the project root (not cwd) so a different launch cwd can never
+        # silently fork a separate analytics DB.
+        db_root = Path(Config.resolve_path(self.config.get("system", {}).get("db_path", "data/db/trading.db"))).parent
+        analytics_db = str(db_root / "analytics.db")
         try:
             self.event_store = EventStore(db_path=analytics_db)
         except Exception:
@@ -79,7 +82,7 @@ class TradingEngine:
             self.trade_ledger = None
 
         # Fill deduplication
-        db_path = str(self.config.get("system", {}).get("db_path", "trading.db"))
+        db_path = Config.resolve_path(self.config.get("system", {}).get("db_path", "trading.db"))
         self.fill_dedup = FillDeduplicator(db_path=db_path)
 
         # Safe mode manager
@@ -623,9 +626,6 @@ class TradingEngine:
 
         self.health.record_tick()
 
-        # Check for EOD force-close
-        # (moved inside lock below to prevent race with bar close processing)
-
         # Transition engine to TRADING if market is open and data is flowing
         if (self.market_status.state == MarketState.LIVE_TRADING
                 and self.market_status.data_status == DataStatus.CONNECTED
@@ -633,13 +633,9 @@ class TradingEngine:
             self.market_status.set_engine_status(EngineStatus.TRADING)
 
         with self._lock:
-            # Check for EOD force-close (inside lock to prevent race with bar processing)
-            if self.market_status.should_force_close:
-                self._execute_eod_close()
-
             # [1] Update execution engine price (for order fills)
             # Only with a valid (positive, finite) LTP; an invalid tick leaves
-            # the last-known-good price in place so fills/EOD never use `-1`/NaN.
+            # the last-known-good price in place so fills never use `-1`/NaN.
             if valid_ltp:
                 self.execution_engine.update_price(instrument, ltp)
 
@@ -767,7 +763,7 @@ class TradingEngine:
         if strat is None or not getattr(strat, "pending_exit_at_open", False):
             return False
         if strat.position_side is None:
-            # Position already gone (e.g. tick SL/EOD) — drop the deferred
+            # Position already gone (e.g. tick SL) — drop the deferred
             # exit but KEEP the armed pending_entry for the opposite breakout.
             strat.pending_exit_at_open = False
             strat.pending_exit_reason = None
@@ -796,73 +792,6 @@ class TradingEngine:
         )
         self._process_signal(exit_signal)
         return True
-
-    def _execute_eod_close(self) -> None:
-        """Force-close all open positions at market close (EOD)."""
-        if self.market_status._eod_close_done_today:
-            return
-        open_positions = list(self.position_manager.open_positions)
-        if not open_positions:
-            self.market_status.mark_eod_close_done()
-            return
-        print(f"[Engine] EOD CLOSE: {len(open_positions)} open positions", flush=True)
-        failed_count = 0
-        for pos in open_positions:
-            try:
-                ltp = self.execution_engine._current_prices.get(pos.instrument, pos.average_entry)
-                # Guard: never EOD-close at a non-positive / non-finite price
-                # (a `-1` no-data sentinel must not book a fake close). Skip and
-                # retry on a later tick when the price is sane.
-                bad_ltp = (ltp is None
-                           or (isinstance(ltp, float) and (math.isnan(ltp) or math.isinf(ltp)))
-                           or ltp <= 0.0)
-                if bad_ltp:
-                    failed_count += 1
-                    print(f"[Engine] EOD close SKIPPED for {pos.position_id}: invalid ltp={ltp}", flush=True)
-                    continue
-                exit_fill = Fill(
-                    fill_id=f"eod_{pos.position_id}_{int(time.time())}",
-                    order_id="",
-                    instrument=pos.instrument,
-                    side="SELL" if pos.is_long else "BUY",
-                    quantity=pos.quantity,
-                    price=ltp,
-                    timestamp=time.time(),
-                    strategy_id=pos.strategy_id,
-                    multiplier=pos.multiplier if hasattr(pos, 'multiplier') else 10.0,
-                )
-                if self._trade_close_manager:
-                    closed = self._trade_close_manager.close_position(
-                        fill=exit_fill, position=pos,
-                        strategy_id=pos.strategy_id, multiplier=exit_fill.multiplier,
-                        exit_reason="eod_close",
-                    )
-                    if not closed:
-                        failed_count += 1
-                        print(f"[Engine] EOD close FAILED (persistence) for {pos.position_id}", flush=True)
-                        continue
-                # Reset strategy state
-                strat = self.strategies.get(pos.strategy_id)
-                if strat:
-                    strat.state = StrategyState.FLAT
-                    strat.position_side = None
-                    strat.stop_price = None
-                    strat.pending_entry = None
-                print(f"[Engine] EOD closed: {pos.instrument} {pos.side.value} @ {ltp}", flush=True)
-            except Exception as e:
-                failed_count += 1
-                print(f"[Engine] EOD close failed for {pos.position_id}: {e}", flush=True)
-        if failed_count > 0:
-            print(f"[Engine] EOD: {failed_count}/{len(open_positions)} positions failed to close — will retry next tick", flush=True)
-        else:
-            self.market_status.mark_eod_close_done()
-        try:
-            acct_snap = self.account_engine.snapshot()
-            risk_snap = self.risk_engine.snapshot()
-            pnl_snap = self.account_engine.get_pnl_summary() if hasattr(self.account_engine, 'get_pnl_summary') else {}
-            self.telegram.send_daily_summary(acct_snap, pnl_snap, risk_snap)
-        except Exception:
-            self.telegram.send_sync(f"[EOD] Force-closed {len(open_positions)} positions at market close")
 
     def _calculate_margin(self, instrument: str, price: float, quantity: int, side: str = "BUY") -> float:
         """Calculate margin required using Dhan's margin model.
@@ -974,7 +903,7 @@ class TradingEngine:
         if fill_price is not None:
             fp = float(fill_price)
             # Guard: a bad fill_price (<=0 / NaN / inf) must never be placed
-            # into the execution price map, or it could poison later fills/EOD.
+            # into the execution price map, or it could poison later fills.
             if fp > 0.0 and not (isinstance(fp, float) and (math.isnan(fp) or math.isinf(fp))):
                 # Backtest-placement model: fills at the exact model price level
                 # (trigger breakout = trigger level, SL exit = bar close, reversal

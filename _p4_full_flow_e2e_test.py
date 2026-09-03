@@ -32,8 +32,8 @@ used as its own reference):
   [db]      trades/orders/fills/events integrity: no dup order/fill ids, no
             orphan fills, orders == fills == 2x closed trades, trade_closed
             events == closed trades.
-  [eod]     EOD force-close guard replayed in all 4 session states at every day
-            boundary: must never fire; positions + position_id survive the
+  [no-eod]  EOD force-close is REMOVED (no guard/method); in all 4 session
+            states at every day boundary positions + position_id survive the
             break (carry proof), entries/exits via reversal or stop only.
 """
 from __future__ import annotations
@@ -62,7 +62,6 @@ for _p in (OUT_CSV, OUT_MD):
 CHECKS = []
 CSV_ROWS = []
 ALL_PASS = True
-EOD_SPY = {"calls": 0}
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -151,13 +150,9 @@ def run_instrument(name: str, label: str):
     ms.force_state(MarketState.LIVE_TRADING)
     engine.execution_engine.update_price(name, float(raw[0][4]))
 
-    orig_eod = engine._execute_eod_close
-
-    def eod_spy(*a, **k):
-        EOD_SPY["calls"] += 1
-        return orig_eod(*a, **k)
-
-    engine._execute_eod_close = eod_spy
+    # EOD force-close has been REMOVED from the architecture: no method/guard.
+    assert not hasattr(engine, "_execute_eod_close"), "EOD force-close must be removed"
+    assert not hasattr(engine.market_status, "should_force_close"), "EOD guard must be removed"
 
     # per-strategy bar capture (inputs received, outputs produced by one bar)
     orig_on_bar = {}
@@ -247,10 +242,9 @@ def run_instrument(name: str, label: str):
                             if p.instrument == name and p.is_open)
             for state in SESSION_STATES:
                 ms.force_state(state)
-                guard_fired = bool(ms.should_force_close)
-                if guard_fired:
-                    engine._execute_eod_close()
-                eod_sim.append((day, state.value, guard_fired))
+                # EOD force-close is removed: no guard, nothing fires; the held
+                # position must carry unchanged across every session state.
+                eod_sim.append((day, state.value, False))
             ms.force_state(MarketState.LIVE_TRADING)
             after = sorted((p.strategy_id, p.side.value, round(float(p.average_entry), 2))
                            for p in engine.position_manager.open_positions
@@ -611,12 +605,12 @@ def verify_pnl_storage(name, db, engine, open_end):
 
 # ══════════════════════════════════════════════════════════════════════
 def verify_eod_carry(name, stratfills, eod_sim, pos_kept):
-    """[eod]+[carry] guard inert everywhere; held positions survive the break."""
+    """[removed-eod]+[carry] no EOD close anywhere; held positions survive the break."""
     bad = [s for d, st, fired in eod_sim if fired]
     kept = all(k for _, k in pos_kept)
-    check(f"EOD_{name}_guard_inert", not bad and EOD_SPY["calls"] == 0,
-          f"fired={len(bad)} calls={EOD_SPY['calls']} sims={len(eod_sim)}")
-    check(f"EOD_{name}_positions_preserved", kept,
+    check(f"CARRY_{name}_no_eod_guard_fires", not bad and len(eod_sim) > 0,
+          f"fired={len(bad)} sims={len(eod_sim)}")
+    check(f"CARRY_{name}_positions_preserved", kept,
           f"boundaries={len(pos_kept)} preserved={all(k for _, k in pos_kept)}")
 
     strat_sids = [s for s in FAST_TF if LIVE_STRATEGIES[s]["instrument"] == name]
@@ -706,8 +700,9 @@ def main():
         "   account realized == sum of its own nets == pnl-engine totals.",
         "9. db         - no dup orders/fills, no orphan fills, orders==fills==2x",
         "   closed trades, trade_closed events == closed trades.",
-        "10. eod       - should_force_close inert in all 4 session states at every",
-        "    day boundary; positions + position_id survive the break untouched.",
+        "10. no-eod     - EOD force-close is REMOVED (no guard, no method); in all 4",
+        "    session states at every day boundary positions + position_id survive",
+        "    the break untouched (carry).",
         "",
         f"Input/Output detail rows -> {OUT_CSV.name}",
     ]

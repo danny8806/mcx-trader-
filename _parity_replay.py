@@ -206,7 +206,6 @@ def run_replay(engine, stream_by_day, tick_processing: bool):
     engine.market_status.set_engine_status(EngineStatus.READY)
     engine.market_status.force_state(MarketState.LIVE_TRADING)
     engine.market_status.set_engine_status(EngineStatus.TRADING)
-    engine.market_status._eod_close_done_today = False
     ws = engine.data_adapter.ws
     capture = {"rows": [], "events": [], "errors": []}
 
@@ -220,7 +219,6 @@ def run_replay(engine, stream_by_day, tick_processing: bool):
 
     for bar in seq:
         engine.market_status.force_state(MarketState.LIVE_TRADING)
-        engine.market_status._eod_close_done_today = False
         ws.connected = True
         ws._last_tick_time = time.time()
 

@@ -173,7 +173,6 @@ def replay_day(engine, day_bars, is_disconnected=None, probe=None):
     engine._running = True  # full_simulator sets this before replay; _on_tick/_on_bar_closed gate on it
     engine.market_status.set_engine_status(EngineStatus.READY)
     engine.market_status.force_state(MarketState.LIVE_TRADING)
-    engine.market_status._eod_close_done_today = False
     ws = engine.data_adapter.ws
 
     for idx, bar in enumerate(day_bars):

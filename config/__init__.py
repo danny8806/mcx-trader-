@@ -32,6 +32,24 @@ class Config:
         return cls._config
 
     @classmethod
+    def resolve_path(cls, path: str | Path | None) -> str:
+        """Resolve a (possibly relative) file/dir path to an absolute one.
+
+        Relative paths are anchored to the project root (the directory that
+        contains ``config/``), NOT to the current working directory.  This
+        guarantees that the engine's trading.db/analytics.db/system_state.json
+        always resolve to the same files regardless of the process cwd, so a
+        differently-launched entrypoint can never silently fork a second DB.
+        """
+        if not path:
+            return ""
+        p = Path(path).expanduser()
+        if p.is_absolute():
+            return str(p)
+        root_dir = Path(__file__).resolve().parent.parent  # project root
+        return str((root_dir / p).resolve())
+
+    @classmethod
     def _resolve_env_vars(cls, obj: Any) -> Any:
         """Recursively resolve ${ENV_VAR} placeholders."""
         if isinstance(obj, dict):

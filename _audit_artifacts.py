@@ -148,7 +148,7 @@ Window: 2 passes agree only on the CURRENT working tree. Generated {NOW}
 - 160 non-test source files total (py/tsx/ts/json/css/html) — see AUDIT_FILE_INVENTORY.csv
 
 ## Layers (verified present and wired)
-- `engine/` — TradingEngine (singleton), lifecycle, EOD, safe-mode, market gating
+- `engine/` — TradingEngine (singleton), lifecycle, safe-mode, market gating
 - `core/` — market_status, fill_dedup, indicators (DEMA-ATR), schemas, config
 - `indicators/` — DEMA, ATR, DEMAATR (snapshot with ema1/ema2/tr_values/count/initialized)
 - `execution/` — order dispatch + fill capture (Dhan)

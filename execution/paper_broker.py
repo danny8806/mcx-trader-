@@ -273,7 +273,7 @@ class PaperExecutionEngine:
         # Restore current prices
         restored_prices = data.get("current_prices", {})
         # Drop non-positive / non-finite prices (e.g. a stale `-1` sentinel)
-        # so a poisoned price can't survive restart and be used for fills/EOD.
+        # so a poisoned price can't survive restart and be used for fills.
         self._current_prices = {
             k: v for k, v in restored_prices.items()
             if v is not None and not (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) and v > 0.0

@@ -22,11 +22,11 @@ Method (nothing reused from any past audit):
             real PaperBroker (slippage forced to 0 so fills == model price),
             OrderManager, TradeCloseManager, P&L accounts, persistence DB.
    INPUT  = the raw LAST5 5m REST stream for GOLDM + SILVERM (real market data).
-   The stream is fed DAY-BY-DAY.  After every non-final day the engine's own
-   EOD guard (trading_engine.py `_on_tick` lines ~631-632) is replayed:
-   `if market_status.should_force_close: _execute_eod_close()` - across all
-   four session states - with `_execute_eod_close` wrapped in a spy.  Each
-   fast bar of every strategy is captured with pre/post position + pending +
+   The stream is fed DAY-BY-DAY.  EOD force-close has been REMOVED from the
+   architecture (no `should_force_close`, no `_execute_eod_close`); after every
+   non-final day the session state is stepped across all four market states and
+   the held positions must carry unchanged (no forced exit).  Each fast bar of
+   every strategy is captured with pre/post position + pending +
    open-position-entry state so the carry is proven from the REAL live chain.
 
 Outputs (in _DEEP_AUDIT_LIVE_VS_BT_2026-08-30):
@@ -55,7 +55,6 @@ for _p in (OUT_CSV, OUT_MD):
 CHECKS = []
 CSV_ROWS = []
 ALL_PASS = True
-EOD_SPY = {"calls": 0}
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -148,14 +147,11 @@ def run_instrument(name: str, label: str):
     ms.force_state(MarketState.LIVE_TRADING)
     engine.execution_engine.update_price(name, float(raw[0][4]))
 
-    # EOD spy: counts every real invocation of the engine's EOD force-close
-    orig_eod = engine._execute_eod_close
-
-    def eod_spy(*a, **k):
-        EOD_SPY["calls"] += 1
-        return orig_eod(*a, **k)
-
-    engine._execute_eod_close = eod_spy
+    # EOD force-close has been REMOVED from the architecture: the engine no
+    # longer exposes any EOD-close method or guard, so positions can only exit
+    # on real signals. We record that (verified by the carry loop below).
+    assert not hasattr(engine, "_execute_eod_close"), "EOD force-close must be removed"
+    assert not hasattr(engine.market_status, "should_force_close"), "EOD guard must be removed"
 
     captured: dict[str, list[dict]] = defaultdict(list)
     orig_on_bar = {}
@@ -210,7 +206,7 @@ def run_instrument(name: str, label: str):
         days[isod(float(b.start_ts)).strftime("%Y-%m-%d")].append(b)
     day_list = sorted(days)
 
-    eod_sim = []          # (day, state, should_force_close_seen)
+    eod_sim = []          # (day, state, fired) — fired is always False (no EOD)
     pos_kept = []         # (day, open positions before sim -> after sim kept)
     eod_open = {}         # day -> {sid: [(side, avg_2dp, position_id)]} REAL state
                           # after every bar/signal of that day has settled
@@ -229,10 +225,9 @@ def run_instrument(name: str, label: str):
                             if p.instrument == name and p.is_open)
             for state in SESSION_STATES:
                 ms.force_state(state)
-                guard_fired = bool(ms.should_force_close)   # EXACT _on_tick predicate
-                if guard_fired:
-                    engine._execute_eod_close()             # genuine guard body
-                eod_sim.append((day, state.value, guard_fired))
+                # EOD force-close is removed: no guard exists, nothing fires.
+                # Positions must carry unchanged across every session state.
+                eod_sim.append((day, state.value, False))
             ms.force_state(MarketState.LIVE_TRADING)
             after = sorted((p.strategy_id, p.side.value, round(float(p.average_entry), 2))
                            for p in engine.position_manager.open_positions
@@ -284,15 +279,15 @@ def main():
             check(f"P_parallel_{name}_{sid}_processed", n > 0 and acct is not None and pnl is not None,
                   f"bars={n} acct={acct is not None} pnl={pnl is not None}")
 
-    # ── EOD: guard inert in every session state at every day boundary ──
+    # ── CARRY: no EOD close — positions preserved across every session state
+    #    at every day boundary (EOD force-close is removed entirely).
     for name in ("GOLDM", "SILVERM"):
         captured, db, engine, eod_sim, pos_kept, eod_open = runs[name]
         bad = [s for day, state, fired in eod_sim if fired]
         kept = all(k for _, k in pos_kept)
-        check(f"EOD_inert_{name}_guard_never_fires",
-              not bad and EOD_SPY["calls"] == 0,
-              f"fired={len(bad)} _execute_eod_close_calls={EOD_SPY['calls']} sims={len(eod_sim)}")
-        check(f"EOD_positions_preserved_{name}", kept,
+        check(f"CARRY_{name}_no_eod_guard_fires", not bad and len(eod_sim) > 0,
+              f"fired={len(bad)} sims={len(eod_sim)}")
+        check(f"CARRY_{name}_positions_preserved", kept,
               f"day-boundaries={len(pos_kept)} preserved={all(k for _, k in pos_kept)}")
 
     # ── DB facts (closed-trade rows, order/fill/event integrity) ──
@@ -546,9 +541,10 @@ def main():
         "no past result file is read or trusted. Real PaperBroker (slippage=0 ->",
         "fills equal model price), real OrderManager / TradeCloseManager / P&L",
         "accounts / persistence DB / all 4 strategies parallel. Input: real LAST5",
-        "5m stream fed DAY-BY-DAY; after every non-final day the engine's EOD",
-        "guard (`_on_tick` -> `_execute_eod_close`) is replayed in all four",
-        "session states with a spy on `_execute_eod_close`.",
+        "5m stream fed DAY-BY-DAY; EOD force-close has been REMOVED from the",
+        "architecture, so after every non-final day the session state is stepped",
+        "across all four market states and held positions must carry (no forced",
+        "exit).",
         "",
         f"- Input rows: GOLDM {len(raw_by['GOLDM'])}, SILVERM {len(raw_by['SILVERM'])} (5m)",
         f"- Nightly held-across-boundary carries verified: **{carried_boundaries}**",
@@ -575,10 +571,10 @@ def main():
         "3. Trade saving     - carried trades persisted open->closed with their",
         "   fills/orders; no duplicate/orphan rows; trade_closed events == closed",
         "   trades.",
-        "4. NO EOD exit      - should_force_close() is False in LIVE_TRADING /",
-        "   MARKET_CLOSE / AFTER_MARKET / OVERNIGHT at every day boundary;",
-        "   `_execute_eod_close` is never invoked; positions and their entry",
-        "   prices survive the break untouched.",
+        "4. NO EOD exit      - EOD force-close is REMOVED from the architecture (no",
+        "   `should_force_close`, no `_execute_eod_close`); on every day boundary",
+        "   across all four session states positions and their entry prices",
+        "   survive unchanged (carry), exiting only on a real reversal/stop.",
         "5. Carried pending  - the armed breakout pending (trigger/SL) survives",
         "   the break and resolves only by fill / expiry rule.",
         "6. Parallel accounts- each strategy's account realized == the sum of its",

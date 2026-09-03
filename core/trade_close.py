@@ -58,7 +58,7 @@ class TradeCloseManager:
             position: The open Position object.
             strategy_id: Strategy identifier.
             multiplier: Contract multiplier.
-            exit_reason: Reason for close (e.g. "signal_exit", "stop_loss", "eod_close").
+            exit_reason: Reason for close (e.g. "signal_exit", "stop_loss").
 
         Returns:
             True if close completed successfully, False if persistence failed.

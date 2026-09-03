@@ -14,7 +14,7 @@ Explicit scenario coverage (the issues we fixed):
   S3  safe mode: entry BLOCKED but exit EXECUTES -> trade saved to DB
   S4  market not allowed: entry BLOCKED but exit EXECUTES
   S5  opposite (reversal) trade placement: exit at next open + opposite entry
-  S6  EOD force close -> DB trade saved
+  S6  no EOD force close: open position carries at market close
 
 Usage:  python _live_flow_check.py
 """
@@ -72,7 +72,6 @@ def make_engine(root: Path):
     engine.market_status.set_engine_status(EngineStatus.TRADING)
     engine.market_status.update_data_status(True, time.time())
     engine.market_status.force_state(MarketState.LIVE_TRADING)
-    engine.market_status._eod_close_done_today = False
     engine._trade_close_manager = TradeCloseManager(
         position_manager=engine.position_manager, pnl_engines=engine.pnl_engines,
         account_engines=engine.account_engines, global_account=engine.account_engine,
@@ -471,8 +470,8 @@ ok("S5 reconciliation consistent", reconcile(eng).is_consistent, "recon")
 db_evidence(eng, "S5")
 teardown(eng, pers)
 
-# ── S6: EOD force close ────────────────────────────────────────────
-print("\n### S6  EOD force close -> DB trade saved")
+# ── S6: no EOD force close — position carries at market close ───────
+print("\n### S6  NO EOD force close -> open position carries overnight")
 r7 = RUN_BASE / "s6"
 if r7.exists():
     shutil.rmtree(r7)
@@ -481,18 +480,14 @@ eng, pers = make_engine(r7)
 expl = arm_entry(eng, "gold_01", "LONG", 162_000.0, 161_800.0, StrategyState.LONG_POSITION)
 eng.execution_engine.update_price("GOLDM", 162_500.0)
 eng._process_signal(entry_signal(time.time(), 162_000.0, 161_800.0))
-eng.market_status._eod_close_done_today = False
-buf = io.StringIO()
-with contextlib.redirect_stdout(buf):
-    eng._execute_eod_close()
-out = buf.getvalue()
+# Advance to market close: engine must NOT force-close (EOD close removed)
+eng.market_status.force_state(MarketState.MARKET_CLOSE)
 db7 = eng._persistence.db_path
 t7 = readonly_sql(db7, "SELECT entry_price, exit_price, exit_reason, status, net_pnl FROM trades")
-ok("S6 EOD position closed", len(list(eng.position_manager.open_positions)) == 0, "open=0")
-ok("S6 EOD trade saved in DB (exit_reason=eod_close)", len(t7) == 1 and t7[0][2] == "eod_close"
-   and t7[0][3] == "closed" and t7[0][4] is not None,
-   f"{t7}")
-ok("S6 margin released after EOD", abs(eng.account_engines["gold_01"].used_margin) < 1.0,
+ok("S6 position CARRIES at market close (no EOD close)", len(list(eng.position_manager.open_positions)) == 1,
+   f"open={len(list(eng.position_manager.open_positions))}")
+ok("S6 no trade written on market-close carry", len(t7) == 0, f"trades={t7}")
+ok("S6 margin still blocked (position held)", abs(eng.account_engines["gold_01"].used_margin) > 1.0,
    f"used_margin={eng.account_engines['gold_01'].used_margin:.2f}")
 teardown(eng, pers)
 

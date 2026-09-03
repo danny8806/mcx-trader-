@@ -9,7 +9,8 @@ as a reference).
 
 Sections:
   A. Full engine lifecycle: start -> READY -> entry -> exit -> reconcile
-  B. Restart recovery: open position survives restart; EOD close persists
+  B. Restart recovery: open position survives restart; no EOD force-close —
+     positions carry across session/MARKET_CLOSE until a real exit signal
   C. Fill dedup survives restart
   D. Deep financial invariants across multiple round trips
   E. Pure component invariants (candle aggregation, fee/margin math,
@@ -401,19 +402,29 @@ class TestRestartRecovery:
             # Startup reconciliation must be consistent after restore
             assert not engine2.safe_mode.is_active, "reconciliation failed after restore"
 
-            # EOD force-close persists through the atomic trade-close manager
+            # EOD force-close has been REMOVED: open positions must carry
+            # across a MARKET_CLOSE boundary with no forced exit and no DB
+            # trade write. The position only closes on a real exit signal.
             engine2.execution_engine.update_price("GOLDM", 78500.0)
             engine2.market_status.force_state(MarketState.MARKET_CLOSE)
-            engine2._execute_eod_close()
-
-            assert len(engine2.position_manager.open_positions) == 0
-            assert len(engine2.position_manager.closed_positions) == 1
+            # No _execute_eod_close exists anymore; the engine must not close.
+            assert len(engine2.position_manager.open_positions) == 1, "position must carry (no EOD close)"
             db = engine2._persistence.db_path
             trades = _readonly_sql(db, "SELECT trade_id, status, exit_reason, net_pnl FROM trades")
-            assert len(trades) == 1
-            assert trades[0][0] == pos_id
-            assert trades[0][1] == "closed"
-            assert trades[0][2] == "eod_close"
+            assert len(trades) == 0, "no trade written on MARKET_CLOSE carry"
+            result = _reconcile_result(engine2)
+            assert result.is_consistent, result.errors
+
+            # Now drive a real exit signal (SHORT + exit=True closes the LONG)
+            _enable_trading(engine2)
+            _process(engine2, Signal(SignalType.SHORT, "GOLDM", "gold_01", time.time(), 78500.0, 77500.0, 1,
+                                     metadata={"exit": True}))
+            assert len(engine2.position_manager.open_positions) == 0, "position closed by real exit signal"
+            trades2 = _readonly_sql(db, "SELECT trade_id, status, exit_reason FROM trades")
+            assert len(trades2) == 1
+            assert trades2[0][0] == pos_id
+            assert trades2[0][1] == "closed"
+            assert trades2[0][2] != "eod_close", "exit must be a real signal, not EOD close"
             result = _reconcile_result(engine2)
             assert result.is_consistent, result.errors
         finally:

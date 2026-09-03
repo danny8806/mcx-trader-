@@ -320,7 +320,6 @@ def replay(engine, stream_by_day):
 
     for day, bars in sorted(stream_by_day.items()):
         engine.market_status.force_state(MarketState.LIVE_TRADING)
-        engine.market_status._eod_close_done_today = False
         last_close = {}
         last_ts = {}
         for bar in bars:
@@ -336,9 +335,9 @@ def replay(engine, stream_by_day):
             last_close[bar.instrument] = bar.close
             last_ts[bar.instrument] = bar.end_ts
 
-        # NOTE: no EOD force-close.  Open positions carry into the next
-        # session until the opposite trade / stop-loss exits them (backtest
-        # style).  should_force_close is disabled in trading_engine._on_tick.
+        # NOTE: EOD force-close is REMOVED from the architecture.  Open
+        # positions carry into the next session until the opposite trade /
+        # stop-loss exits them (backtest style).
 
     engine.market_status.force_state(MarketState.AFTER_MARKET)
 
@@ -461,10 +460,10 @@ def main():
     fills = readonly_sql(db, "SELECT fill_id, order_id, side, price FROM fills")
     ok("DB: all orders filled", orders and all(o[1] == "filled" for o in orders),
        f"{len(orders)} orders")
-    # EOD-close fills are synthetic and legitimately carry order_id == "".
+    # Every fill should reference a persisted order (no synthetic EOD fills).
     ok("DB: fills reference orders", fills and all(
-        any(f[1] == o[0] for o in orders) for f in fills if f[1]),
-       f"{len(fills)} fills ({sum(1 for f in fills if not f[1])} EOD synthetic)")
+        any(f[1] == o[0] for o in orders) for f in fills),
+       f"{len(fills)} fills (all carry an order)")
     trades_db = readonly_sql(db, "SELECT trade_id, status FROM trades")
     ok("DB: closed trades", trades_db and all(t[1] in ("open", "closed") for t in trades_db),
        f"{len(trades_db)} trades")
@@ -507,7 +506,8 @@ def main():
     ok("Final equity (incl. unrealized)", abs(final_equity - (1200000.0 + net_sum + unrealized_sum)) < 1.0,
        f"equity {final_equity:,.0f} vs 1200000+net({net_sum:,.0f})+unrlz({unrealized_sum:,.0f}) "
        f"= {1200000.0+net_sum+unrealized_sum:,.0f}")
-    ok("No eod_close exits (carry enabled)", all((t.exit_reason or "") != "eod_close" for t in trade_rows),
+    ok("No eod_close exits (EOD force-close removed, carry enabled)",
+       all((t.exit_reason or "") != "eod_close" for t in trade_rows),
        f"{sum(1 for t in trade_rows if (t.exit_reason or '') == 'eod_close')} eod_close")
     ok("Positions carry / open at window end allowed", True,
        f"{len(open_pos)} open positions carried to next session")

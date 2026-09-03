@@ -126,7 +126,6 @@ def seed_engine():
     engine.market_status.set_engine_status(EngineStatus.TRADING)
     engine.market_status.update_data_status(True, time.time())
     engine.market_status.force_state(MarketState.LIVE_TRADING)
-    engine.market_status._eod_close_done_today = False
     engine._trade_close_manager = TradeCloseManager(
         position_manager=engine.position_manager, pnl_engines=engine.pnl_engines,
         account_engines=engine.account_engines, global_account=engine.account_engine,
@@ -141,13 +140,12 @@ def seed_engine():
     open_long(engine, "gold_01", "GOLDM", 162_000.0, 161_800.0)
     close_exit(engine, "gold_01", "GOLDM", 161_500.0, "stop_loss_hit")
 
-    # -- silver_02: LONG -> EOD force close (closed trade). Do this BEFORE
-    #    opening gold_02/silver_01 so EOD only closes silver_02. --
+    # -- silver_02: LONG -> real stop-loss exit (closed trade). Do this BEFORE
+    #    opening gold_02/silver_01 so the close only affects silver_02. --
     open_long(engine, "silver_02", "SILVERM", 251_650.0, 251_200.0)
     mfe_tick(engine, "silver_02", "SILVERM", 251_900.0)
     engine.execution_engine.update_price("SILVERM", 251_600.0)
-    engine.market_status._eod_close_done_today = False
-    engine._execute_eod_close()
+    close_exit(engine, "silver_02", "SILVERM", 251_100.0, "stop_loss_hit")
 
     # -- gold_02: LONG -> opposite (reversal) SHORT, left OPEN --
     s = open_long(engine, "gold_02", "GOLDM", 158_253.0, 158_100.0)
@@ -354,7 +352,7 @@ async def main_checks(engine, ref):
         r = (await c.get("/api/trades")).json()
         tr = r.get("trades", [])
         ok("trades.closed_count", r.get("count") == ref["count"] == 3, f"api={r.get('count')} db={ref['count']}")
-        ok("trades.reasons", sorted(t.get("exit_reason") for t in tr) == sorted(["stop_loss_hit", "short_reversal", "eod_close"]),
+        ok("trades.reasons", sorted(t.get("exit_reason") for t in tr) == sorted(["stop_loss_hit", "stop_loss_hit", "short_reversal"]),
            f"reasons={sorted(t.get('exit_reason') for t in tr)}")
         trid = next(t.get("trade_id") for t in tr if t.get("strategy_id") == "gold_01")
         r = (await c.get(f"/api/trades/{trid}")).json()

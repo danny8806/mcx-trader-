@@ -89,7 +89,6 @@ class MarketStatus:
         self._session_date: Optional[str] = None
         self._warmup_done_today: bool = False
         self._reconcile_done_today: bool = False
-        self._eod_close_done_today: bool = False
         self._force_state_override: Optional[MarketState] = None
         self._on_transition_callbacks: List[Callable] = []
 
@@ -131,14 +130,6 @@ class MarketStatus:
     @property
     def should_fetch_candles(self) -> bool:
         return self.state in (MarketState.MARKET_OPEN, MarketState.LIVE_TRADING)
-
-    @property
-    def should_force_close(self) -> bool:
-        # EOD force-close is intentionally DISABLED: open positions carry
-        # overnight to the next session until the opposite trade is placed
-        # (reversal) or the stop-loss hits — mirroring the backtest model.
-        # MARKET_CLOSE still gates new entries after hours.
-        return False
 
     @property
     def should_warmup(self) -> bool:
@@ -184,10 +175,6 @@ class MarketStatus:
         with self._lock:
             self._reconcile_done_today = True
 
-    def mark_eod_close_done(self) -> None:
-        with self._lock:
-            self._eod_close_done_today = True
-
     def enter_safe_mode(self, reason: str = "") -> None:
         with self._lock:
             self._force_state_override = MarketState.SAFE_MODE
@@ -223,7 +210,6 @@ class MarketStatus:
                 "session_date": self._session_date,
                 "warmup_done_today": self._warmup_done_today,
                 "reconcile_done_today": self._reconcile_done_today,
-                "eod_close_done_today": self._eod_close_done_today,
                 "session_open": self.session_open,
                 "session_close": self.session_close,
             }
@@ -234,11 +220,9 @@ class MarketStatus:
                 # New day — reset daily flags
                 self._warmup_done_today = False
                 self._reconcile_done_today = False
-                self._eod_close_done_today = False
             else:
                 self._warmup_done_today = data.get("warmup_done_today", False)
                 self._reconcile_done_today = data.get("reconcile_done_today", False)
-                self._eod_close_done_today = data.get("eod_close_done_today", False)
                 # Restore state from same session
                 ms = data.get("market_state")
                 if ms:
@@ -289,7 +273,6 @@ class MarketStatus:
         if current_date != self._session_date:
             self._warmup_done_today = False
             self._reconcile_done_today = False
-            self._eod_close_done_today = False
             self._session_date = current_date
 
         # Weekend: stay OVERNIGHT

@@ -1,7 +1,0 @@
-run,instrument,ref_base_bars,live_fast_bars,missing_live,live_first_processed,live_processed_bars,ref_h1_finite,live_h1_finite
-A_controlled,GOLDM,290,290,0,2026-08-24 10:15,285,287,287
-A_controlled,SILVERM,290,290,0,2026-08-24 10:15,285,287,287
-B_production,GOLDM,290,290,0,2026-08-24 09:00,290,287,290
-B_production,SILVERM,290,290,0,2026-08-24 09:00,290,287,290
-C_matched,GOLDM,290,290,0,2026-08-24 10:15,285,287,287
-C_matched,SILVERM,290,290,0,2026-08-24 10:15,285,287,287
