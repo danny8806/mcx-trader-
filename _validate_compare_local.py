@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import compare_replay_trades as C
 
-IC = {'GOLDM': {'security_id': '563946'}, 'SILVERM': {'security_id': '483080'}}
+IC = {'GOLDM': {'security_id': '569003'}, 'SILVERM': {'security_id': '483080'}}
 
 
 def mk_closed(sid='gold_01', side='LONG', ets='2026-08-28 11:30:00', ep=162000.0,

@@ -139,7 +139,7 @@ def _write_config(root: Path) -> Path:
         },
         "instruments": {
             "GOLDM": {
-                "symbol": "MCX:GOLDM202609", "security_id": "563946",
+                "symbol": "MCX:GOLDM202610", "security_id": "569003",
                 "exchange_segment": "MCX_COMM", "instrument": "FUTCOM",
                 "multiplier": 10.0, "tick_size": 1.0, "lot_size": 1,
                 "session_open": "09:00", "session_close": "23:30", "session_minutes": 870,

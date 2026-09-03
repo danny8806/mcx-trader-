@@ -6,7 +6,7 @@
 
 ## 1. Configuration
 
-- `config/settings.json`: instruments GOLDM (563946, mult 10.0, session 09:00-23:30/870min) &
+- `config/settings.json`: instruments GOLDM (569003, mult 10.0, session 09:00-23:30/870min) &
   SILVERM (483080, mult 5.0) — **same contracts as the backtest reference** (`:19-54`).
 - Indicators `dema_period 3, atr_period 6, atr_factor 1.0` (`:55-59`).
 - Strategies: `gold_02` & `silver_01` = `fast_timeframe 15m, mid_timeframe 15m, htf_timeframe 1h,

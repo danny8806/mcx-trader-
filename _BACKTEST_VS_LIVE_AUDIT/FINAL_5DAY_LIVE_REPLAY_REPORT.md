@@ -2,7 +2,7 @@
 
 **Audit date (replay window):** Mon 2026-08-24 09:00 → Fri 2026-08-28 23:15 (290 x 15m bars per instrument)
 
-**Instruments:** GOLDM (M-563946 ×10), SILVERM (M-483080 ×5) — MCX futures
+**Instruments:** GOLDM (M-569003 ×10), SILVERM (M-483080 ×5) — MCX futures
 
 **Reference (backtest):** `nifty dema backtest\project` — `show_15_15_60.py` / `dema_mtf_base.py` (Pine DEMA-ATR(3,6,1.0), 15m base, 15m/60m HTF)
 

@@ -46,7 +46,7 @@ WINDOW_DEFAULT = ("2026-08-21", "2026-08-28")
 
 # instrument -> (security_id, multiplier, margin slope, margin intercept)
 LIVE_INSTRUMENTS = {
-    "GOLDM":   {"symbol": "MCX:GOLDM202609", "security_id": "563946",
+    "GOLDM":   {"symbol": "MCX:GOLDM202610", "security_id": "569003",
                 "exchange_segment": "MCX_COMM", "instrument": "FUTCOM",
                 "multiplier": 10.0, "tick_size": 1.0, "lot_size": 1,
                 "session_open": "09:00", "session_close": "23:30", "session_minutes": 870,

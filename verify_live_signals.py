@@ -40,7 +40,7 @@ print("=" * 70)
 print("EXACT LIVE SYSTEM REPLICATION: %s" % day)
 print("=" * 70)
 
-instruments = {"GOLDM": "563946", "SILVERM": "483080"}
+instruments = {"GOLDM": "569003", "SILVERM": "483080"}
 session_open = "09:00"
 
 for inst_name, sec_id in instruments.items():

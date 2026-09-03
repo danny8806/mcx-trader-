@@ -53,8 +53,8 @@ def resolve_symbol(raw: str) -> tuple[str, dict[str, str]]:
     """Resolve a raw symbol string to (symbol, metadata dict).
     
     Handles:
-    - Full symbol like "MCX:GOLDM202609"
-    - Security ID like "563946"
+    - Full symbol like "MCX:GOLDM202610"
+    - Security ID like "569003"
     - Instrument name like "GOLDM"
     """
     raw = raw.strip()

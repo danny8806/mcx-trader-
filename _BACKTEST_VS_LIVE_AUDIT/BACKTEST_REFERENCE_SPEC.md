@@ -5,7 +5,7 @@
 > compared line-by-line against the LIVE system (`LIVE_REFERENCE_SPEC.md`).
 >
 > Combo audited: **15m base / 15m mid / 60m HTF, D=3 A=6 F=1.0, BASE strategy**.
-> Instruments: **GOLDM-Sep26 (563946) mult 10.0**, **SILVERM-Nov26 (483080) mult 5.0**.
+> Instruments: **GOLDM-Oct26 (569003) mult 10.0**, **SILVERM-Nov26 (483080) mult 5.0**.
 > Window: **2026-08-24..2026-08-28** (LAST5). Capital **300000**, qty **1**.
 
 ## 1. Entry-point / runner
@@ -14,7 +14,7 @@
 |---|---|---|
 | Runner | `show_15_15_60.py` | `project\show_15_15_60.py` |
 | Params | `BASE,MID,HTF = 15,15,60`; `CAPITAL = 300_000`; `LAST5 = 24..28 Aug 2026` | `show_15_15_60.py:25-27` |
-| Instruments | `GOLDM-Sep26 (563946)` → `data_mcx/gold/GOLDM_04Sep2026_5m.csv`, mult `10.0`; `SILVERM-Nov26 (483080)` → `data_mcx/silver/SILVERM_30Nov2026_5m.csv`, mult `5.0` | `show_15_15_60.py:29-32` |
+| Instruments | `GOLDM-Oct26 (569003)` → `data_mcx/gold/GOLDM_04Sep2026_5m.csv`, mult `10.0`; `SILVERM-Nov26 (483080)` → `data_mcx/silver/SILVERM_30Nov2026_5m.csv`, mult `5.0` | `show_15_15_60.py:29-32` |
 | Strategy engine | `goldm_dema_mtf_futures.GoldFuturesDemaStrategy` (Backtrader) | `show_15_15_60.py:49-52`, `goldm_dema_mtf_futures.py:115` |
 | Resample override | `DM.resample_ohlcv = base_mod.resample_ohlcv` — **KEEP ALL BUCKETS** (partial end-of-session windows are INCLUDED) | `show_15_15_60.py:13-17`; `%TEMP%\opencode\dema_mtf_base.py` |
 | Signals/indicators | `core.dema_mtf.htf_dema_line` (`DM.htf_dema_line`) | `show_15_15_60.py:38-41` |

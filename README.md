@@ -46,7 +46,7 @@ Edit `config/settings.json`:
 
 - **Dhan API**: client_id, pin, totp_secret
 - **Telegram**: bot_token, chat_id (comma-separated for multiple)
-- **Instruments**: GOLDM (563946), SILVERM (483080)
+- **Instruments**: GOLDM (569003), SILVERM (483080)
 - **Strategies**: capital, timeframes, enabled/disabled
 
 ## Environment Variables

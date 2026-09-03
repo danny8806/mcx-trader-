@@ -6,7 +6,7 @@ system (`MCX-TRADER`) implement each stage of the same strategy, and where the t
 
 ```
                   ┌──────────────── BACKTEST (reference) ─────────────────┐  ┌─────────────── LIVE (production) ───────────────┐
-  DATA            5m MCX CSV (GOLDM/SILVERM, 24-28 Aug 2026)              │  5m MCX candles (Dhan REST, same contracts 563946/483080)
+  DATA            5m MCX CSV (GOLDM/SILVERM, 24-28 Aug 2026)              │  5m MCX candles (Dhan REST, same contracts 569003/483080)
                   load_5m (validate/dedupe)              goldm_dema_mtf_futures.load_5m   CandleFetcher._fetch_candle/create_bar
                   filter LAST5 (5 days)                  show_15_15_60.py:60              _warmup_from_rest (7 days) trading_engine.py:1351
                   ├─ 15m base: resample KEEP-ALL buckets (dema_mtf_base)                  ├─ 15m/1h bars COMPLETE WINDOWS ONLY

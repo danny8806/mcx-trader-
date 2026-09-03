@@ -34,7 +34,7 @@ class TestWebSocketDedup:
     def test_same_ltt_different_price_is_delivered(self):
         ticks = []
         client = DhanWebSocketClient(client_id="c", token="", on_tick=ticks.append)
-        sid = 563946
+        sid = 569003
         client._stats["recv"] = 0
         for price in (100.0, 100.5, 101.0):
             client._on_message(None, _make_quote_packet(sid, price, ltt=1700000000))
@@ -44,7 +44,7 @@ class TestWebSocketDedup:
     def test_exact_duplicate_is_dropped(self):
         ticks = []
         client = DhanWebSocketClient(client_id="c", token="", on_tick=ticks.append)
-        packet = _make_quote_packet(563946, 100.0, ltt=1700000000)
+        packet = _make_quote_packet(569003, 100.0, ltt=1700000000)
         client._on_message(None, packet)
         client._on_message(None, packet)
         assert len(ticks) == 1
