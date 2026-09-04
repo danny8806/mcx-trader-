@@ -341,7 +341,10 @@ class ReconciliationEngine:
             strat = trade.get("strategy_id", "")
             net = trade.get("net_pnl") or 0.0
             trade_pnl_by_strategy[strat] = trade_pnl_by_strategy.get(strat, 0.0) + net
-            trade_count_by_strategy[strat] = trade_count_by_strategy.get(strat, 0) + 1
+            # Only count closed trades (PNLEngine only tracks realized/closed)
+            status = (trade.get("status") or "").lower()
+            if status in ("closed",):
+                trade_count_by_strategy[strat] = trade_count_by_strategy.get(strat, 0) + 1
 
         for strat_id, engine in self.pnl_engines.items():
             db_pnl = trade_pnl_by_strategy.get(strat_id, 0.0)
@@ -520,6 +523,9 @@ class ReconciliationEngine:
         for t in db_trades:
             for key in ("entry_price", "exit_price"):
                 price = t.get(key)
+                # Skip exit_price check for open trades (exit_price=0.0 is correct)
+                if key == "exit_price" and t.get("status", "").lower() not in ("closed",):
+                    continue
                 if price is None or price <= 0.0 or (
                     isinstance(price, float) and (price != price or abs(price) == float("inf"))
                 ):

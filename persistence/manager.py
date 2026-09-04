@@ -79,7 +79,9 @@ class PersistenceManager:
                     net_pnl REAL,
                     exit_reason TEXT,
                     status TEXT,
-                    created_at TEXT DEFAULT (datetime('now'))
+                    created_at TEXT DEFAULT (datetime('now')),
+                    entry_signal_id TEXT,
+                    exit_signal_id TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS orders (
@@ -95,7 +97,9 @@ class PersistenceManager:
                     filled_quantity INTEGER,
                     average_fill_price REAL,
                     created_at TEXT,
-                    updated_at TEXT
+                    updated_at TEXT,
+                    entry_signal_id TEXT,
+                    trade_id TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS fills (
@@ -107,7 +111,34 @@ class PersistenceManager:
                     side TEXT NOT NULL,
                     quantity INTEGER,
                     price REAL,
-                    timestamp TEXT
+                    timestamp TEXT,
+                    entry_signal_id TEXT,
+                    trade_id TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS signals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    signal_id TEXT UNIQUE,
+                    strategy_id TEXT NOT NULL,
+                    instrument TEXT NOT NULL,
+                    side TEXT,
+                    signal_type TEXT,
+                    timestamp REAL,
+                    trigger_price REAL,
+                    stop_price REAL,
+                    quantity INTEGER,
+                    candle_data TEXT,
+                    indicator_data TEXT,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS trade_signal_link (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trade_id TEXT NOT NULL,
+                    signal_id TEXT NOT NULL,
+                    relationship_type TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(trade_id, signal_id, relationship_type)
                 );
 
                 CREATE TABLE IF NOT EXISTS account_snapshots (
@@ -129,8 +160,39 @@ class PersistenceManager:
                     details TEXT
                 );
             """)
+            # Run migrations for existing databases
+            self._migrate_db(conn)
         finally:
             conn.close()
+
+    def _migrate_db(self, conn: sqlite3.Connection) -> None:
+        """Add missing columns to existing tables (idempotent)."""
+        cursor = conn.cursor()
+        # Check which columns exist on each table
+        existing = {}
+        for table in ("trades", "orders", "fills"):
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing[table] = {row[1] for row in cursor.fetchall()}
+
+        # trades table
+        if "entry_signal_id" not in existing.get("trades", set()):
+            cursor.execute("ALTER TABLE trades ADD COLUMN entry_signal_id TEXT")
+        if "exit_signal_id" not in existing.get("trades", set()):
+            cursor.execute("ALTER TABLE trades ADD COLUMN exit_signal_id TEXT")
+
+        # orders table
+        if "entry_signal_id" not in existing.get("orders", set()):
+            cursor.execute("ALTER TABLE orders ADD COLUMN entry_signal_id TEXT")
+        if "trade_id" not in existing.get("orders", set()):
+            cursor.execute("ALTER TABLE orders ADD COLUMN trade_id TEXT")
+
+        # fills table
+        if "entry_signal_id" not in existing.get("fills", set()):
+            cursor.execute("ALTER TABLE fills ADD COLUMN entry_signal_id TEXT")
+        if "trade_id" not in existing.get("fills", set()):
+            cursor.execute("ALTER TABLE fills ADD COLUMN trade_id TEXT")
+
+        conn.commit()
 
     def save_state(self, state: dict) -> None:
         """Save system state to JSON file (atomic write, thread-safe)."""
@@ -160,8 +222,8 @@ class PersistenceManager:
                     trade_id, strategy_id, instrument, side,
                     entry_timestamp, entry_price, exit_timestamp, exit_price,
                     quantity, multiplier, gross_pnl, charges, net_pnl,
-                    exit_reason, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    exit_reason, status, entry_signal_id, exit_signal_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 trade.get("trade_id"),
                 trade.get("strategy_id"),
@@ -178,6 +240,8 @@ class PersistenceManager:
                 trade.get("net_pnl"),
                 trade.get("exit_reason"),
                 trade.get("status", "closed"),
+                trade.get("entry_signal_id"),
+                trade.get("exit_signal_id"),
             ))
             conn.commit()
 
@@ -190,8 +254,9 @@ class PersistenceManager:
                     order_id, strategy_id, instrument, side,
                     quantity, order_type, price, state,
                     filled_quantity, average_fill_price,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at,
+                    entry_signal_id, trade_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order.get("order_id"),
                 order.get("strategy_id"),
@@ -205,6 +270,8 @@ class PersistenceManager:
                 order.get("average_fill_price"),
                 order.get("created_at"),
                 order.get("updated_at"),
+                order.get("entry_signal_id"),
+                order.get("trade_id"),
             ))
             conn.commit()
 
@@ -215,8 +282,9 @@ class PersistenceManager:
             conn.execute("""
                 INSERT OR REPLACE INTO fills (
                     fill_id, order_id, strategy_id, instrument,
-                    side, quantity, price, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    side, quantity, price, timestamp,
+                    entry_signal_id, trade_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 fill.get("fill_id"),
                 fill.get("order_id"),
@@ -226,7 +294,45 @@ class PersistenceManager:
                 fill.get("quantity"),
                 fill.get("price"),
                 fill.get("timestamp"),
+                fill.get("entry_signal_id"),
+                fill.get("trade_id"),
             ))
+            conn.commit()
+
+    def save_signal(self, signal_data: dict) -> None:
+        """Save signal to the signals table for audit trail."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT OR IGNORE INTO signals (
+                    signal_id, strategy_id, instrument, side, signal_type,
+                    timestamp, trigger_price, stop_price, quantity,
+                    candle_data, indicator_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                signal_data.get("signal_id"),
+                signal_data.get("strategy_id"),
+                signal_data.get("instrument"),
+                signal_data.get("side"),
+                signal_data.get("signal_type"),
+                signal_data.get("timestamp"),
+                signal_data.get("trigger_price"),
+                signal_data.get("stop_price"),
+                signal_data.get("quantity"),
+                json.dumps(signal_data.get("candle_data")) if signal_data.get("candle_data") else None,
+                json.dumps(signal_data.get("indicator_data")) if signal_data.get("indicator_data") else None,
+            ))
+            conn.commit()
+
+    def save_trade_signal_link(self, trade_id: str, signal_id: str, relationship_type: str) -> None:
+        """Save a trade-signal relationship link."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT OR IGNORE INTO trade_signal_link (
+                    trade_id, signal_id, relationship_type
+                ) VALUES (?, ?, ?)
+            """, (trade_id, signal_id, relationship_type))
             conn.commit()
 
     def get_fill(self, fill_id: str) -> Optional[dict]:
@@ -249,24 +355,27 @@ class PersistenceManager:
                         trade_id, strategy_id, instrument, side,
                         entry_timestamp, entry_price, exit_timestamp, exit_price,
                         quantity, multiplier, gross_pnl, charges, net_pnl,
-                        exit_reason, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        exit_reason, status, entry_signal_id, exit_signal_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     trade.get("trade_id"), trade.get("strategy_id"), trade.get("instrument"),
                     trade.get("side"), trade.get("entry_timestamp"), trade.get("entry_price"),
                     trade.get("exit_timestamp"), trade.get("exit_price"), trade.get("quantity"),
                     trade.get("multiplier"), trade.get("gross_pnl"), trade.get("charges"),
                     trade.get("net_pnl"), trade.get("exit_reason"), trade.get("status", "closed"),
+                    trade.get("entry_signal_id"), trade.get("exit_signal_id"),
                 ))
                 conn.execute("""
                     INSERT OR REPLACE INTO fills (
                         fill_id, order_id, strategy_id, instrument,
-                        side, quantity, price, timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        side, quantity, price, timestamp,
+                        entry_signal_id, trade_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
                     fill.get("instrument"), fill.get("side"), fill.get("quantity"),
                     fill.get("price"), fill.get("timestamp"),
+                    fill.get("entry_signal_id"), fill.get("trade_id"),
                 ))
                 conn.commit()
             except Exception:

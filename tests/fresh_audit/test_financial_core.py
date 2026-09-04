@@ -526,7 +526,7 @@ class TestTradeClose:
         pos = pm.open_position(open_fill, multiplier=10.0)
         exit_fill = _make_fill("SELL", 53000.0, fill_id="f_exit")
         result = tc.close_position(exit_fill, pos, "gold_01", 10.0)
-        assert result is True
+        assert result is not False and result is not None
         assert len(pers.trades) == 1
         assert pers.trades[0]["exit_price"] == 53000.0
 

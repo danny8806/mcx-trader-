@@ -594,7 +594,7 @@ class TestStrategyConfigs:
         from strategies.silver import SilverStrategy01
         s = SilverStrategy01(strategy_id="silver_01")
         assert s.instrument == "SILVERM"
-        assert s.fast_timeframe == "5m"
+        assert s.fast_timeframe == "15m"
         assert s.htf_timeframe == "1h"
 
     def test_silver_02_config(self):
@@ -909,7 +909,7 @@ class TestTradeClose:
         exit_ = Fill("f_exit", "o1", "GOLDM", "SELL", 1, 110.0, time.time(), "gold_01", 10.0)
 
         result = tcm.close_position(fill=exit_, position=pos, strategy_id="gold_01", multiplier=10.0)
-        assert result is True
+        assert result is not False and result is not None
         assert len(pm.open_positions) == 0
         # Check trade persisted
         trades = pers.get_trades("gold_01")

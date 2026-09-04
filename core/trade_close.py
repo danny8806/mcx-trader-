@@ -50,7 +50,7 @@ class TradeCloseManager:
         self._event_callback = event_callback
         self._trade_ledger = trade_ledger
 
-    def close_position(self, fill: Fill, position, strategy_id: str, multiplier: float, exit_reason: str = "signal_exit") -> bool:
+    def close_position(self, fill: Fill, position, strategy_id: str, multiplier: float, exit_reason: str = "signal_exit", exit_signal_id: Optional[str] = None):
         """Atomically close a position.
 
         Args:
@@ -59,9 +59,10 @@ class TradeCloseManager:
             strategy_id: Strategy identifier.
             multiplier: Contract multiplier.
             exit_reason: Reason for close (e.g. "signal_exit", "stop_loss").
+            exit_signal_id: Signal ID that triggered the exit (if signal-based).
 
         Returns:
-            True if close completed successfully, False if persistence failed.
+            dict with gross_pnl, charges, net_pnl on success, False on failure.
         """
         # ── Step 0: Reject a close at a non-positive / non-finite exit price ──
         # This is the last line of defence against a `-1` no-data sentinel (or
@@ -110,6 +111,9 @@ class TradeCloseManager:
         )
         exit_reason_final = position.exit_reason or exit_reason
 
+        # ── Resolve effective exit_signal_id ──
+        effective_exit_signal_id = exit_signal_id or getattr(position, 'exit_signal_id', None)
+
         # ── Steps 2-3: Persist trade and exit fill in one transaction ──
         if self._persistence:
             try:
@@ -129,12 +133,16 @@ class TradeCloseManager:
                     "net_pnl": net_pnl,
                     "exit_reason": exit_reason_final,
                     "status": "closed",
+                    "entry_signal_id": getattr(position, 'entry_signal_id', None),
+                    "exit_signal_id": effective_exit_signal_id,
                 }
                 fill_record = {
                     "fill_id": fill.fill_id, "order_id": fill.order_id,
                     "strategy_id": fill.strategy_id, "instrument": fill.instrument,
                     "side": fill.side, "quantity": fill.quantity, "price": fill.price,
                     "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
+                    "entry_signal_id": getattr(position, 'entry_signal_id', None),
+                    "trade_id": position.position_id,
                 }
                 if hasattr(self._persistence, "save_trade_and_fill"):
                     self._persistence.save_trade_and_fill(trade_record, fill_record)
@@ -156,9 +164,15 @@ class TradeCloseManager:
                 position_id=position.position_id,
                 fill=fill,
                 reason=exit_reason_final,
+                exit_signal_id=effective_exit_signal_id,
             )
         except Exception as e:
-            print(f"[TradeClose] WARNING: close_position memory update failed: {e}", flush=True)
+            print(f"[TradeClose] CRITICAL: close_position memory update failed: {e}", flush=True)
+            # Do NOT return True — the position is still open in memory while
+            # the DB says closed.  Returning True would let the strategy state
+            # be updated (position_side=None) while the position manager still
+            # holds the position, causing a desync on next restart.
+            return False
 
         # Step 5: Update account P&L
         strat_account = self._account_engines.get(strategy_id)
@@ -266,6 +280,8 @@ class TradeCloseManager:
                         "exit_reason": exit_reason_final,
                         "entry_price": position.average_entry,
                         "exit_price": fill.price,
+                        "entry_signal_id": getattr(position, 'entry_signal_id', None),
+                        "exit_signal_id": effective_exit_signal_id,
                     },
                 )
             except Exception:
@@ -326,4 +342,4 @@ class TradeCloseManager:
                 pass
 
         print(f"[TradeClose] Closed: strategy={strategy_id} P&L={net_pnl:.2f}", flush=True)
-        return True
+        return {"gross_pnl": gross_pnl, "charges": charges, "net_pnl": net_pnl}

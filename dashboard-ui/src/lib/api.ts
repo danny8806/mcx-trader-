@@ -61,6 +61,8 @@ export const api = {
     return fetchJSON<any>(`/api/alerts${qs}`);
   },
   reconciliation: () => fetchJSON<any>("/api/reconciliation"),
+  orphanScan: () => fetchJSON<any>("/api/trades/orphan-scan"),
+  lifecycleReconcile: () => fetchJSON<any>("/api/trades/lifecycle-reconcile"),
   settings: () => fetchJSON<any>("/api/settings"),
   refreshSettings: () => postJSON<any>("/api/settings/refresh"),
   audit: (params?: Record<string, string>) => {

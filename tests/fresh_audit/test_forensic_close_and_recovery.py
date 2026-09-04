@@ -80,7 +80,7 @@ def _fees(entry, exitp, qty, mult, side):
 class TestFullCloseRoundTrip:
     def test_close_persists_one_closed_trade_to_trading_db(self, tmp_path):
         pm, tl, pnl, ok, pid = _make_engine(tmp_path, side="LONG", entry=100.0, exitp=104.0)
-        assert ok is True
+        assert ok is not False and ok is not None
         conn = sqlite3.connect(str(tmp_path / "trading.db"))
         trades = conn.execute("SELECT trade_id,status,entry_price,exit_price,gross_pnl,net_pnl,charges,quantity,multiplier FROM trades").fetchall()
         conn.close()
@@ -105,7 +105,7 @@ class TestFullCloseRoundTrip:
 
     def test_short_close_persists_correct_pnl(self, tmp_path):
         pm, tl, pnl, ok, pid = _make_engine(tmp_path, side="SHORT", entry=100.0, exitp=96.0)
-        assert ok is True
+        assert ok is not False and ok is not None
         conn = sqlite3.connect(str(tmp_path / "trading.db"))
         row = conn.execute("SELECT gross_pnl FROM trades WHERE trade_id=?", (pid,)).fetchone()
         conn.close()

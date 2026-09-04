@@ -13,7 +13,7 @@ from config import Config
 from data.dhan import DhanDataAdapter
 from core.timeframe_engine import Bar
 from core.risk_engine import RiskEngine
-from core.market_status import MarketStatus, MarketState, EngineStatus, DataStatus
+from core.market_status import MarketStatus, MarketState, EngineStatus
 from core.safe_mode import SafeModeManager
 from core.trade_close import TradeCloseManager
 from core.fill_dedup import FillDeduplicator
@@ -30,6 +30,7 @@ from monitoring.health import HealthMonitor, SystemStatus
 from notifications.telegram_router import TelegramRouter
 from analytics.event_store import EventStore
 from analytics.trade_ledger import TradeLedger
+from core.lifecycle import TradeLifecycleManager
 
 
 def _strategy_positions_for_risk(signal_type: "SignalType", open_positions: list) -> int:
@@ -110,6 +111,9 @@ class TradingEngine:
 
         # Atomic trade close manager (wired after portfolio init)
         self._trade_close_manager = None  # wired in start()
+
+        # Central trade lifecycle manager (wired after persistence init)
+        self._lifecycle = TradeLifecycleManager()  # fully wired in start()
 
         # State
         self._running = False
@@ -385,6 +389,13 @@ class TradingEngine:
             trade_ledger=self.trade_ledger,
         )
 
+        # Wire central trade lifecycle manager — single source of truth for all trade identity
+        self._lifecycle = TradeLifecycleManager(
+            persistence=self._persistence,
+            event_store=self.event_store,
+            trade_ledger=self.trade_ledger,
+        )
+
         # Load fill dedup state from database
         try:
             count = self.fill_dedup.load_from_database()
@@ -408,6 +419,17 @@ class TradingEngine:
             print(result.summary(), flush=True)
             if not result.is_consistent:
                 self.safe_mode.enter_safe_mode("reconciliation_failed", f"{len(result.errors)} errors")
+            else:
+                # Reconciliation passed — clear any stale safe_mode override
+                # that was persisted from a previous session (e.g. WS disconnect).
+                # If SafeModeManager has no active reasons, exit safe mode.
+                if self.safe_mode.is_active:
+                    # Clear all reasons that were from prior sessions, not fresh
+                    for reason in list(self.safe_mode.active_reasons):
+                        self.safe_mode.clear_reason(reason)
+                if self.market_status.is_safe:
+                    self.market_status.exit_safe_mode()
+                    print("[Engine] Cleared stale safe_mode after successful reconciliation", flush=True)
             self.market_status.mark_reconcile_done()
         except Exception as e:
             print(f"[Engine] Reconciliation failed: {e}", flush=True)
@@ -610,6 +632,19 @@ class TradingEngine:
             pass
         print("[Engine] Stopped", flush=True)
 
+    def _maybe_enable_trading(self) -> None:
+        """Transition READY -> TRADING when the market is open and live market
+        data is confirmed (via WebSocket ticks OR fresh REST candles).
+
+        Called from both _on_tick (WebSocket path) and _on_bar_closed (REST
+        candle path) so that a silent WebSocket LTP feed does not stall trading
+        while REST candles keep confirming real live prices.
+        """
+        if (self.market_status.state == MarketState.LIVE_TRADING
+                and self.market_status.engine_status == EngineStatus.READY
+                and self.market_status.has_live_market_data):
+            self.market_status.set_engine_status(EngineStatus.TRADING)
+
     def _on_tick(self, tick: dict[str, Any]) -> None:
         """Handle incoming tick from WebSocket.
         
@@ -642,8 +677,11 @@ class TradingEngine:
         else:
             self.health.update_component("data_adapter", SystemStatus.ERROR, "WebSocket disconnected")
 
-        # Stale connection check
-        if self.data_adapter.ws and self.data_adapter.ws.is_stale():
+        # Stale connection check — only if WS has received ticks before
+        # (avoids false safe_mode during initial connection before first tick)
+        ws_stats = self.data_adapter.ws._stats if self.data_adapter.ws else {}
+        if (self.data_adapter.ws and self.data_adapter.ws.is_stale()
+                and ws_stats.get("tick", 0) > 0):
             print("[Engine] WARNING: WebSocket stale - no ticks received recently", flush=True)
             if self.market_status.is_trading_allowed:
                 self.safe_mode.enter_safe_mode("market_data_uncertain", "WebSocket stale during trading hours")
@@ -651,10 +689,7 @@ class TradingEngine:
         self.health.record_tick()
 
         # Transition engine to TRADING if market is open and data is flowing
-        if (self.market_status.state == MarketState.LIVE_TRADING
-                and self.market_status.data_status == DataStatus.CONNECTED
-                and self.market_status.engine_status == EngineStatus.READY):
-            self.market_status.set_engine_status(EngineStatus.TRADING)
+        self._maybe_enable_trading()
 
         with self._lock:
             # [1] Update execution engine price (for order fills)
@@ -692,7 +727,7 @@ class TradingEngine:
             if current_equity is not None:
                 self.risk_engine.update_peak_equity(current_equity)
 
-            # [4] Reversal-deferred exits (uses LTP = next bar's OPEN) and
+            # [4] Reversal-deferred exits (trigger-based) and
             # [5] tick-entry-trigger / stop-loss monitoring. Both are price
             # sensitive: skip entirely when the LTP is invalid.
             if self.tick_signal_processing and valid_ltp:
@@ -701,6 +736,28 @@ class TradingEngine:
                         continue
                     if not getattr(strat, "pending_exit_at_open", False):
                         continue
+
+                    # Trigger-based exit: when LTP crosses the trigger price,
+                    # fire the deferred exit IMMEDIATELY at the trigger price
+                    # (not at LTP or next bar open).  This ensures the LONG
+                    # exit and SHORT entry fire simultaneously at the same
+                    # price level when the trigger is reached.
+                    if strat.pending_entry is not None:
+                        trigger = strat.pending_entry.trigger_price
+                        side = strat.pending_entry.side
+                        trigger_crossed = (
+                            (side == "SHORT" and ltp <= trigger) or
+                            (side == "LONG" and ltp >= trigger)
+                        )
+                        if trigger_crossed:
+                            self._process_deferred_exit(
+                                strat, None, fill_price=trigger)
+                            # Deferred exit consumed — pending entry will
+                            # fire in [5] on this same tick since
+                            # pending_exit_at_open is now False.
+                            continue
+
+                    # Fallback: time-gate based exit (next bar's open)
                     if strat.pending_exit_bar_start is not None:
                         window = getattr(strat, "fast_window_seconds", 300)
                         if timestamp - strat.pending_exit_bar_start <= window:
@@ -727,6 +784,12 @@ class TradingEngine:
             return
 
         self.health.record_bar()
+
+        # A successfully delivered REST candle confirms real live market data
+        # (authoritative source of truth for signals). Mirror the WebSocket data
+        # confirmation so trading is not stalled by a silent WS LTP feed.
+        self.market_status.mark_rest_data_fresh()
+        self._maybe_enable_trading()
 
         with self._lock:
             # Update indicator
@@ -772,7 +835,8 @@ class TradingEngine:
                     if stop2 is not None:
                         self._process_signal(stop2)
 
-    def _process_deferred_exit(self, strat, bar, ltp: Optional[float] = None) -> bool:
+    def _process_deferred_exit(self, strat, bar, ltp: Optional[float] = None,
+                               fill_price: Optional[float] = None) -> bool:
         """Execute a reversal-scheduled exit at the next fast bar's OPEN.
 
         Consumes strat.pending_exit_at_open (armed by _create_reversal_signal
@@ -781,6 +845,10 @@ class TradingEngine:
         breakout) then routes through the normal signal/order/fill path once a
         bar crosses its trigger — the backtest exit-at-next-open + breakout
         re-entry model.
+
+        When fill_price is provided (trigger-based exit), the exit fills at
+        the specified price instead of bar.open or LTP.  This is used for
+        simultaneous exit+entry when LTP crosses the trigger price.
 
         Returns True if a deferred exit was consumed.
         """
@@ -793,7 +861,10 @@ class TradingEngine:
             strat.pending_exit_reason = None
             strat.pending_exit_bar_start = None
             return False
-        exit_price = ltp if ltp is not None else bar.open
+        if fill_price is not None:
+            exit_price = fill_price
+        else:
+            exit_price = ltp if ltp is not None else bar.open
         strat.pending_exit_at_open = False
         strat.pending_exit_reason = strat.pending_exit_reason or "reversal"
         strat.pending_exit_bar_start = None
@@ -859,6 +930,26 @@ class TradingEngine:
             self._reset_strategy_state(signal.strategy_id)
             return
         self.health.record_signal()
+
+        # ── Persist signal to signals table for audit trail ──
+        if self._persistence:
+            try:
+                self._persistence.save_signal({
+                    "signal_id": signal.signal_id,
+                    "strategy_id": signal.strategy_id,
+                    "instrument": signal.instrument,
+                    "side": signal.signal_type.value,
+                    "signal_type": "exit" if is_exit else "entry",
+                    "timestamp": datetime.fromtimestamp(signal.timestamp, tz=timezone.utc).isoformat(),
+                    "trigger_price": signal.trigger_price,
+                    "stop_price": signal.stop_price,
+                    "quantity": signal.quantity,
+                    "candle_data": metadata.get("candle_data"),
+                    "indicator_data": metadata.get("indicator_data"),
+                })
+            except Exception as e:
+                print(f"[Signal] WARNING: failed to persist signal {signal.signal_id}: {e}", flush=True)
+
         # Risk check using per-strategy account
         instrument_config = self.config.instrument(signal.instrument)
         multiplier = instrument_config.get("multiplier", 1.0)
@@ -938,6 +1029,29 @@ class TradingEngine:
                 # only; the next order/bar re-establishes its own LTP.
                 self.execution_engine.update_price(signal.instrument, fp)
         order = self.order_manager.submit_signal(signal, multiplier=multiplier)
+
+        # ── Register trade in central lifecycle ──
+        # For non-exit signals, create a new trade context
+        if not is_exit and order:
+            # Check if a trade already exists for this signal
+            existing_trade = self._lifecycle.resolve_trade_from_signal(signal.signal_id)
+            if not existing_trade:
+                lifecycle_trade = self._lifecycle.create_trade_from_signal(
+                    signal=signal,
+                    strategy_id=signal.strategy_id,
+                    strategy_name=signal.strategy_id,
+                    instrument=signal.instrument,
+                    quantity=signal.quantity,
+                    multiplier=multiplier,
+                )
+                # Register the order with the trade
+                self._lifecycle.register_order(lifecycle_trade.trade_id, order.order_id, role="ENTRY")
+        elif is_exit and order:
+            # Exit signal — find existing trade by signal or position
+            existing_trade = self._lifecycle.resolve_trade_from_signal(signal.signal_id)
+            if existing_trade:
+                self._lifecycle.register_order(existing_trade.trade_id, order.order_id, role="EXIT")
+
         if order:
             # ── Persist the order row BEFORE dispensing its fills, so the DB
             # invariant "every fill references an existing order" holds even on
@@ -958,6 +1072,7 @@ class TradingEngine:
                         "average_fill_price": order.average_fill_price,
                         "created_at": datetime.fromtimestamp(order.created_at or time.time(), tz=timezone.utc).isoformat(),
                         "updated_at": datetime.fromtimestamp(order.updated_at or time.time(), tz=timezone.utc).isoformat(),
+                        "entry_signal_id": signal.signal_id,
                     })
                 except Exception as e:
                     # LOUD, not silent: the order-before-fill DB invariant is
@@ -971,7 +1086,7 @@ class TradingEngine:
             # row in _on_fill before any position references it).
             for fill in self.order_manager.drain_fills():
                 try:
-                    self._on_fill(fill)
+                    self._on_fill(fill, signal_id=signal.signal_id)
                 except Exception as e:
                     # Broad guard: an unexpected throw inside _on_fill must not
                     # leave the strategy in a ghost long/short (blocked margin
@@ -993,12 +1108,14 @@ class TradingEngine:
                         trade_id=order.order_id, strategy_id=signal.strategy_id,
                         instrument=signal.instrument, event_type="ORDER_CREATED",
                         payload={"order_id": order.order_id, "side": order.side,
-                                 "trigger_price": signal.trigger_price, "stop_price": signal.stop_price},
+                                 "trigger_price": signal.trigger_price, "stop_price": signal.stop_price,
+                                 "signal_id": signal.signal_id},
                     )
                 except Exception:
                     pass
             self.publish_event("order_submitted", {
                 "order_id": order.order_id,
+                "signal_id": signal.signal_id,
                 "strategy_id": signal.strategy_id,
                 "instrument": signal.instrument,
                 "side": str(order.side),
@@ -1079,7 +1196,7 @@ class TradingEngine:
             strat.same_bar_stop = None
             strat.last_exit_reason = None
 
-    def _on_fill(self, fill: Fill) -> None:
+    def _on_fill(self, fill: Fill, signal_id: Optional[str] = None) -> None:
         """Handle order fill with dedup and atomic close."""
         # Fill deduplication — in-memory set + DB set fast path.
         if self.fill_dedup.is_duplicate(fill.fill_id):
@@ -1149,6 +1266,7 @@ class TradingEngine:
                         fill=fill, multiplier=multiplier, margin=margin,
                         stop_price=(self.strategies.get(fill.strategy_id).stop_price
                                     if fill.strategy_id in self.strategies else None),
+                        entry_signal_id=signal_id,
                     )
                 except Exception as e:
                     # Rollback margin on position open failure
@@ -1169,6 +1287,8 @@ class TradingEngine:
                             "strategy_id": fill.strategy_id, "instrument": fill.instrument,
                             "side": fill.side, "quantity": fill.quantity, "price": fill.price,
                             "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
+                            "entry_signal_id": signal_id,
+                            "trade_id": position.position_id,
                         })
                     except Exception as exc:
                         # Fill persist failed — the in-memory position now
@@ -1191,6 +1311,22 @@ class TradingEngine:
                         self.fill_dedup.mark_processed(fill.fill_id)
                         return
                 print(f"[Position] Opened: {position.side.value} {fill.instrument} @ {fill.price} (strategy={fill.strategy_id})", flush=True)
+
+                # ── Register entry fill in central lifecycle ──
+                lifecycle_trade = self._lifecycle.resolve_trade_from_signal(signal_id)
+                if lifecycle_trade:
+                    self._lifecycle.register_entry_fill(
+                        trade_id=lifecycle_trade.trade_id,
+                        fill_id=fill.fill_id,
+                        price=fill.price,
+                        timestamp=fill.timestamp or time.time(),
+                    )
+                    self._lifecycle.register_position(lifecycle_trade.trade_id, position.position_id)
+                else:
+                    # Fallback: create lifecycle trade from existing position
+                    # This handles cases where signal wasn't registered earlier
+                    print(f"[Lifecycle] WARNING: no trade found for signal {signal_id}, creating lifecycle entry", flush=True)
+
                 if self.event_store:
                     try:
                         self.event_store.record(
@@ -1206,6 +1342,15 @@ class TradingEngine:
                     "instrument": fill.instrument, "side": position.side.value,
                     "price": fill.price, "quantity": fill.quantity, "margin": margin,
                 })
+                # ── Persist trade-signal link (entry) ──
+                if self._persistence and signal_id:
+                    try:
+                        self._persistence.save_trade_signal_link(
+                            trade_id=position.position_id, signal_id=signal_id,
+                            relationship_type="entry",
+                        )
+                    except Exception as e:
+                        print(f"[Signal] WARNING: trade_signal_link save failed: {e}", flush=True)
                 # Create trade in ledger (position-anchored 1:1: trade_id =
                 # position_id) and record the entry fill leg.
                 if self.trade_ledger:
@@ -1304,11 +1449,47 @@ strat_snap, strat_acct_snap,
             strat = self.strategies.get(strategy_id)
             exit_reason = getattr(strat, "last_exit_reason", None) or "signal_exit"
             if self._trade_close_manager:
-                success = self._trade_close_manager.close_position(
+                close_result = self._trade_close_manager.close_position(
                     fill=fill, position=position,
                     strategy_id=strategy_id, multiplier=multiplier,
                     exit_reason=exit_reason,
+                    exit_signal_id=signal_id,
                 )
+                success = close_result is not False and close_result is not None
+                # ── Persist trade-signal link (exit) ──
+                if success and self._persistence and signal_id:
+                    try:
+                        self._persistence.save_trade_signal_link(
+                            trade_id=position.position_id, signal_id=signal_id,
+                            relationship_type="exit",
+                        )
+                    except Exception as e:
+                        print(f"[Signal] WARNING: exit trade_signal_link save failed: {e}", flush=True)
+
+                # ── Register exit fill in central lifecycle ──
+                if success:
+                    lifecycle_trade = self._lifecycle.get_trade(position.position_id)
+                    if lifecycle_trade:
+                        self._lifecycle.register_exit_fill(
+                            trade_id=lifecycle_trade.trade_id,
+                            fill_id=fill.fill_id,
+                            price=fill.price,
+                            timestamp=fill.timestamp or time.time(),
+                            exit_signal_id=signal_id or "",
+                            exit_type=lifecycle_trade.exit_type,
+                            exit_reason=exit_reason,
+                        )
+                        # Close the trade in lifecycle with real P&L from TradeCloseManager
+                        pnl_gross = close_result.get("gross_pnl", 0.0) if isinstance(close_result, dict) else 0.0
+                        pnl_charges = close_result.get("charges", 0.0) if isinstance(close_result, dict) else 0.0
+                        pnl_net = close_result.get("net_pnl", 0.0) if isinstance(close_result, dict) else 0.0
+                        self._lifecycle.close_trade(
+                            trade_id=lifecycle_trade.trade_id,
+                            gross_pnl=pnl_gross,
+                            charges=pnl_charges,
+                            net_pnl=pnl_net,
+                        )
+
                 if not success:
                     print(f"[TradeClose] CRITICAL: Atomic close failed for {position.position_id}", flush=True)
                     self.safe_mode.enter_safe_mode("persistence_failure", f"Trade close persistence failed: {position.position_id}")
@@ -1388,6 +1569,7 @@ strat_snap, strat_acct_snap,
                 self.position_manager.close_position(
                     position_id=position.position_id, fill=fill,
                     reason=position.exit_reason or exit_reason,
+                    exit_signal_id=signal_id,
                 )
                 if strat_account:
                     strat_account.update_realized_pnl(net_pnl, charges)
@@ -1741,6 +1923,8 @@ strat_snap, strat_acct_snap,
                 },
                 "risk": self.risk_engine.snapshot(),
                 "execution": self.execution_engine.snapshot(),
+                # Central trade lifecycle — single source of truth for all trade identity
+                "lifecycle": self._lifecycle.snapshot(),
                 # NOTE: indicator & HTF (candle-derived) state is intentionally
                 # NOT persisted — it is always recomputed from a fresh Dhan REST
                 # series at startup (_warmup_from_rest).
@@ -1791,12 +1975,174 @@ strat_snap, strat_acct_snap,
                     self.account_engine.starting_capital
                     + self.account_engine.realized_pnl
                 )
+            # Restore central trade lifecycle from DB — rebuilds all identity maps
+            self._lifecycle.restore_from_db()
+            # Heal positions whose trades are already closed in DB.  This
+            # catches the crash-desync case where _on_fill persisted the trade
+            # close to DB but position_manager.close_position() failed silently
+            # (exception caught by TradeCloseManager) — the position is still
+            # open in memory while the DB says closed.
+            self._heal_closed_trades()
+            # Reconcile strategy state with position manager: if a strategy
+            # was saved as flat but its position is still open (desync from
+            # a crash/snapshot-race), restore the strategy to match.
+            self._reconcile_strategy_positions()
             # Reconcile the analytics trade ledger against restored open
             # positions so a carried-over / crash-restored open position can
             # NEVER be missing from analytics.db (BUG-1 fix: previously the
             # ledger/event writes only ran at fresh-open time, so a position
             # restored from state had no trades_analytics row / entry leg).
             self._backfill_ledger_for_open_positions()
+
+    def _heal_closed_trades(self) -> None:
+        """Close positions whose trades are already closed in DB.
+
+        Catches the crash-desync: _on_fill persisted the trade close to DB
+        but position_manager.close_position() failed silently (exception
+        caught by TradeCloseManager).  The position is still open in memory
+        while the DB says closed.  This method heals the desync by closing
+        the position in memory using the DB trade data.
+        """
+        if not self._persistence:
+            print("[Heal] Skipped: no persistence manager", flush=True)
+            return
+        import sqlite3
+        try:
+            conn = sqlite3.connect(f"file:{self._persistence.db_path}?mode=ro", uri=True)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute(
+                    "SELECT trade_id, strategy_id, instrument, exit_price, "
+                    "exit_reason, net_pnl, charges, multiplier "
+                    "FROM trades WHERE status = 'closed'"
+                ).fetchall()
+                closed_trades = {r["trade_id"]: dict(r) for r in rows}
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[Heal] WARNING: could not read closed trades from DB: {e}", flush=True)
+            return
+
+        open_positions = list(self.position_manager.open_positions)
+        open_ids = {p.position_id for p in open_positions}
+        print(f"[Heal] DB closed_trades={len(closed_trades)}, "
+              f"open_positions={len(open_positions)}", flush=True)
+        if closed_trades:
+            print(f"[Heal] DB closed trade_ids: {list(closed_trades.keys())}", flush=True)
+        if open_ids:
+            print(f"[Heal] Memory position_ids: {list(open_ids)}", flush=True)
+
+        healed = 0
+        for pos in open_positions:
+            trade_id = pos.position_id
+            if trade_id not in closed_trades:
+                continue
+            trade = closed_trades[trade_id]
+            print(f"[Heal] Healing position {trade_id} ({trade['strategy_id']} "
+                  f"{trade['instrument']}): trade is closed in DB but position "
+                  f"still open in memory", flush=True)
+
+            strategy_id = trade["strategy_id"]
+            multiplier = trade.get("multiplier", 1.0)
+            net_pnl = trade.get("net_pnl", 0.0) or 0.0
+            charges = trade.get("charges", 0.0) or 0.0
+            exit_price = trade.get("exit_price", 0.0) or 0.0
+            exit_reason = trade.get("exit_reason", "healed_closed_trade")
+
+            # Create a synthetic exit fill for position_manager.close_position()
+            exit_fill = Fill(
+                fill_id=f"heal-{trade_id}",
+                order_id="",
+                instrument=pos.instrument,
+                side="SELL" if pos.is_long else "BUY",
+                quantity=pos.quantity,
+                price=exit_price,
+                timestamp=time.time(),
+                strategy_id=strategy_id,
+                multiplier=multiplier,
+            )
+
+            # Close position in memory
+            try:
+                self.position_manager.close_position(
+                    position_id=trade_id,
+                    fill=exit_fill,
+                    reason=exit_reason,
+                )
+            except Exception as e:
+                print(f"[Heal] CRITICAL: close_position failed for {trade_id}: {e}", flush=True)
+                print(f"[Heal]   pos_keys_in_dict: {list(self.position_manager._positions.keys())[:5]}", flush=True)
+                continue
+
+            # Release margin
+            strat_account = self.account_engines.get(strategy_id)
+            if strat_account:
+                strat_account.release_margin(pos.margin)
+            if self.account_engine:
+                self.account_engine.release_margin(pos.margin)
+
+            # NOTE: Do NOT record P&L here — the P&L was already recorded
+            # during the original session and persisted in system_state.json.
+            # The heal only needs to close the position in memory, release
+            # margin, and fix strategy state.  Recording P&L again would
+            # double-count (visible as PNLEngine.realized_net = 2x DB sum
+            # and trade_count = 2x DB count in reconciliation).
+
+            # Fix strategy state: set to FLAT (pending_entry will be re-armed
+            # by _reconcile_strategy_positions if a SHORT signal was detected)
+            strat = self.strategies.get(strategy_id)
+            if strat:
+                strat.state = StrategyState.FLAT
+                strat.position_side = None
+                strat.stop_price = None
+                strat.last_exit_reason = exit_reason
+
+            print(f"[Heal] CLOSED position {trade_id}: {strategy_id} P&L={net_pnl:.2f}", flush=True)
+            healed += 1
+
+        # Recalculate used_margin from actual open positions to fix
+        # the desync where state file saved used_margin=0 but positions
+        # still have margin allocated.
+        for strat_id, account in self.account_engines.items():
+            used_margin = 0.0
+            for p in self.position_manager.open_positions:
+                if p.strategy_id == strat_id:
+                    used_margin += p.margin
+            account.used_margin = used_margin
+        if self.account_engine:
+            self.account_engine.used_margin = sum(
+                p.margin for p in self.position_manager.open_positions
+            )
+
+        if healed:
+            print(f"[Heal] Healed {healed} position(s) from DB closed trades", flush=True)
+        else:
+            print(f"[Heal] No positions need healing", flush=True)
+
+    def _reconcile_strategy_positions(self) -> None:
+        """Sync strategy state with position manager after restore.
+
+        If a strategy was persisted as flat but the position manager has an
+        open position for it (desync from crash/snapshot-race), restore the
+        strategy to the correct state so the position is not orphaned.
+        """
+        from strategies.types import StrategyState
+        for strat in self.strategies.values():
+            if strat.state == StrategyState.FLAT:
+                positions = self.position_manager.get_positions_by_strategy(strat.strategy_id)
+                open_pos = [p for p in positions if p.is_open]
+                if open_pos:
+                    pos = open_pos[0]
+                    strat.position_side = "LONG" if pos.side.value == "LONG" else "SHORT"
+                    strat.stop_price = pos.stop_price
+                    strat.state = (
+                        StrategyState.LONG_POSITION if pos.side.value == "LONG"
+                        else StrategyState.SHORT_POSITION
+                    )
+                    print(f"[Restore] RECONCILE: {strat.strategy_id} was FLAT but has open "
+                          f"{pos.side.value} position @ {pos.average_entry} — "
+                          f"restored to {strat.state.value}, stop={strat.stop_price}",
+                          flush=True)
 
     def _backfill_ledger_for_open_positions(self) -> None:
         """Ensure every restored/open position has an analytics trade record.

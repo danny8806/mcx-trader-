@@ -112,7 +112,7 @@ def test_five_day_replay_all_closed_reconcile(env):
             tcm._pnl_engines[strat] = pnl
             ok = tcm.close_position(fill=ext, position=pos, strategy_id=strat,
                                     multiplier=mult, exit_reason="replay_close")
-            assert ok is True
+            assert ok is not False and ok is not None
             total_net += _expected_net(side, entry, exitp, qty, mult)
             ts += 500
 
