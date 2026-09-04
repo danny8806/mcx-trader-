@@ -299,12 +299,12 @@ class ReconciliationEngine:
         db_trades: list[dict],
         result: ReconciliationResult,
     ) -> None:
-        """Trades are position-anchored 1:1: the DB trade row for a close uses
-        the position_id as trade_id. Match on that linkage, never on the weak
-        strategy:instrument key (which collides across sequential positions on
-        the same instrument and caused false reconciliation failures).
+        """Compare positions and trades through the explicit child link.
+
+        Position IDs are never used as trade identity. A missing link is an
+        integrity error and cannot be repaired by a latest-object lookup.
         """
-        open_position_ids = {p.position_id for p in open_positions}
+        open_trade_ids = {p.trade_id for p in open_positions if p.trade_id}
         db_trade_ids = {t.get("trade_id") for t in db_trades if t.get("trade_id")}
 
         # A persisted "closed" trade row whose trade_id is still an open position
@@ -312,7 +312,7 @@ class ReconciliationEngine:
         # not closed (e.g. crash between persist and memory update).
         for trade in db_trades:
             tid = trade.get("trade_id")
-            if tid and trade.get("status") == "closed" and tid in open_position_ids:
+            if tid and trade.get("status") == "closed" and tid in open_trade_ids:
                 result.add_error(
                     f"Trade {tid} is closed in DB but position is still open in memory "
                     f"for {trade.get('instrument')} ({trade.get('strategy_id')})"
@@ -321,7 +321,7 @@ class ReconciliationEngine:
         # A recently closed in-memory position with no DB trade row means the
         # close was never persisted. trade_close persists BEFORE closing in
         # memory, so a closed in-memory position must always have its row.
-        missing = [p.position_id for p in closed_positions if p.position_id not in db_trade_ids]
+        missing = [p.position_id for p in closed_positions if p.trade_id not in db_trade_ids]
         if missing:
             result.add_error(
                 f"{len(missing)} closed position(s) have no trade row in DB: "

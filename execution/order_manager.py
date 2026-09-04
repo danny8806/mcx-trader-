@@ -30,7 +30,12 @@ class OrderManager:
         self._fills_to_notify: list[Fill] = []
         self._lock = threading.Lock()
 
-    def submit_signal(self, signal: Any, multiplier: float = 1.0) -> Optional[Order]:
+    def submit_signal(
+        self,
+        signal: Any,
+        multiplier: float = 1.0,
+        trade_id: str = "",
+    ) -> Optional[Order]:
         """Submit a trading signal for execution.
         
         Args:
@@ -42,6 +47,8 @@ class OrderManager:
             Fills produced by the order are collected and MUST be drained (and
             the order persisted BEFORE them) by the caller via drain_fills().
         """
+        if not trade_id:
+            raise ValueError("trade_id is required to submit a signal")
         fills_to_notify = []
         with self._lock:
             # Check for duplicate signals
@@ -59,7 +66,9 @@ class OrderManager:
                 del self._pending_signals[k]
 
             # Create order
-            order = self.execution_engine.create_order(signal, multiplier=multiplier)
+            order = self.execution_engine.create_order(
+                signal, multiplier=multiplier, trade_id=trade_id
+            )
             self._active_orders[order.order_id] = order
 
             # Execute

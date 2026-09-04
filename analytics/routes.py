@@ -59,16 +59,11 @@ def set_default_starting_equity(value: Optional[float] = None):
         _default_starting_equity = float(value)
 
 
-def init(db_path: str = "analytics.db", strategy_ids: Optional[list[str]] = None):
+def init(db_path: str = "trading.db", strategy_ids: Optional[list[str]] = None):
     """Initialize analytics routes with database path and optional strategy list."""
     global _event_store, _trade_ledger, _performance_engine, _db_path, _STRATEGY_IDS
     _db_path = db_path
     _STRATEGY_IDS = list(strategy_ids) if strategy_ids else None
-    try:
-        from .schema import init_analytics_db
-        init_analytics_db(db_path)
-    except Exception:
-        pass
     try:
         from .event_store import EventStore
         _event_store = EventStore(db_path)

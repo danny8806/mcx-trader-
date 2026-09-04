@@ -100,7 +100,7 @@ class PerformanceEngine:
     RISK_FREE_RATE = 0.0
     ANNUALIZATION_FACTOR = 252
 
-    def __init__(self, db_path: str = "analytics.db"):
+    def __init__(self, db_path: str = "trading.db"):
         self._db_path = db_path
 
     def get_closed_trades(self, strategy_id: Optional[str] = None,

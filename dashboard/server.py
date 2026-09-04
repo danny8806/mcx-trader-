@@ -31,11 +31,10 @@ from dashboard.routes import reconciliation, alerts, settings, audit_log, indica
 # Analytics routes
 try:
     from analytics import routes as analytics_routes
-    from analytics.schema import init_analytics_db
-    _analytics_db = str(Path(__file__).resolve().parent.parent / "data" / "db" / "analytics.db")
-    init_analytics_db(_analytics_db)
-    analytics_routes.init(_analytics_db)
-    print(f"[Analytics] Initialized with db: {_analytics_db}", file=sys.stderr, flush=True)
+    from config import Config
+    _canonical_db = Config.resolve_path(Config.get("system.db_path", "data/db/trading.db"))
+    analytics_routes.init(_canonical_db)
+    print(f"[Analytics] Initialized from canonical db: {_canonical_db}", file=sys.stderr, flush=True)
 except Exception as e:
     print(f"[Analytics] Init failed: {e}", file=sys.stderr, flush=True)
     analytics_routes = None

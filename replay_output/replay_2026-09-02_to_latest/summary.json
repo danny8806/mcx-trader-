@@ -1,0 +1,39 @@
+{
+  "status": "BLOCKED",
+  "replay_start": "2026-09-02T09:00:00+05:30",
+  "replay_end": null,
+  "system_time": "2026-09-04T18:59:42.113695+05:30",
+  "reason": "DATA_ACQUISITION_BLOCKED: DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+  "strategies": {
+    "gold_01": {
+      "metal": "GOLDM",
+      "base": 5,
+      "mid": 15,
+      "htf": 60,
+      "multiplier": 10.0
+    },
+    "gold_02": {
+      "metal": "GOLDM",
+      "base": 15,
+      "mid": 15,
+      "htf": 60,
+      "multiplier": 10.0
+    },
+    "silver_01": {
+      "metal": "SILVERM",
+      "base": 5,
+      "mid": 15,
+      "htf": 60,
+      "multiplier": 5.0
+    },
+    "silver_02": {
+      "metal": "SILVERM",
+      "base": 15,
+      "mid": 15,
+      "htf": 60,
+      "multiplier": 5.0
+    }
+  },
+  "reference": "C:\\Users\\pc\\Desktop\\nifty dema backtest\\project\\core\\dema_mtf.py",
+  "database_used_as_expected_input": false
+}

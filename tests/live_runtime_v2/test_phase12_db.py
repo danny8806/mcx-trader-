@@ -30,6 +30,36 @@ def tmp_db(tmp_path):
 class TestDatabaseRealWriteRead:
     """Phase 12: Verify actual DB write/read operations."""
 
+    @staticmethod
+    def _seed_lineage(tmp_db, trade_id, signal_id, order_id):
+        tmp_db.save_signal({
+            "signal_id": signal_id,
+            "strategy_id": "gold_01",
+            "instrument": "GOLDM",
+            "side": "LONG",
+            "signal_type": "entry",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        tmp_db.save_trade({
+            "trade_id": trade_id,
+            "strategy_id": "gold_01",
+            "instrument": "GOLDM",
+            "side": "LONG",
+            "entry_signal_id": signal_id,
+            "status": "OPEN",
+        })
+        tmp_db.save_order({
+            "order_id": order_id,
+            "strategy_id": "gold_01",
+            "instrument": "GOLDM",
+            "side": "BUY",
+            "quantity": 1,
+            "order_type": "MARKET",
+            "state": "filled",
+            "trade_id": trade_id,
+            "entry_signal_id": signal_id,
+        })
+
     def test_save_trade_and_read_back(self, tmp_db):
         """Save a trade and read it back field-by-field."""
         trade = {
@@ -46,7 +76,9 @@ class TestDatabaseRealWriteRead:
             "net_pnl": 9920.0,
             "exit_reason": "signal_exit",
             "status": "closed",
+            "entry_signal_id": "SIG_TEST_TRADE_001",
         }
+        tmp_db.save_signal({"signal_id": "SIG_TEST_TRADE_001", "strategy_id": "gold_01", "instrument": "GOLDM"})
         tmp_db.save_trade(trade)
         trades = tmp_db.get_trades("gold_01")
         assert len(trades) >= 1, "Trade should be in DB"
@@ -62,6 +94,7 @@ class TestDatabaseRealWriteRead:
 
     def test_save_fill_and_read_back(self, tmp_db):
         """Save a fill and read it back."""
+        self._seed_lineage(tmp_db, "TRADE_FILL_001", "SIG_FILL_001", "TEST_ORDER_001")
         fill = {
             "fill_id": "TEST_FILL_001",
             "order_id": "TEST_ORDER_001",
@@ -71,6 +104,7 @@ class TestDatabaseRealWriteRead:
             "quantity": 1,
             "price": 150000.0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "trade_id": "TRADE_FILL_001",
         }
         tmp_db.save_fill(fill)
         result = tmp_db.get_fill("TEST_FILL_001")
@@ -80,6 +114,8 @@ class TestDatabaseRealWriteRead:
 
     def test_save_order_and_read_back(self, tmp_db):
         """Save an order and read it back."""
+        tmp_db.save_signal({"signal_id": "SIG_ORDER_001", "strategy_id": "gold_01", "instrument": "GOLDM"})
+        tmp_db.save_trade({"trade_id": "TRADE_ORDER_001", "strategy_id": "gold_01", "instrument": "GOLDM", "side": "LONG", "entry_signal_id": "SIG_ORDER_001", "status": "OPEN"})
         order = {
             "order_id": "TEST_ORDER_001",
             "strategy_id": "gold_01",
@@ -93,6 +129,8 @@ class TestDatabaseRealWriteRead:
             "average_fill_price": 150000.0,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
+            "trade_id": "TRADE_ORDER_001",
+            "entry_signal_id": "SIG_ORDER_001",
         }
         tmp_db.save_order(order)
         # Verify order is persisted
@@ -109,6 +147,7 @@ class TestDatabaseRealWriteRead:
 
     def test_fill_upsert_is_idempotent(self, tmp_db):
         """Saving same fill twice doesn't create duplicate."""
+        self._seed_lineage(tmp_db, "TRADE_IDEM", "SIG_IDEM", "TEST_ORDER_IDEM")
         fill = {
             "fill_id": "TEST_FILL_IDEM",
             "order_id": "TEST_ORDER_IDEM",
@@ -118,6 +157,7 @@ class TestDatabaseRealWriteRead:
             "quantity": 1,
             "price": 150000.0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "trade_id": "TRADE_IDEM",
         }
         tmp_db.save_fill(fill)
         tmp_db.save_fill(fill)  # Second save
@@ -127,6 +167,7 @@ class TestDatabaseRealWriteRead:
     def test_trade_and_fill_relationship(self, tmp_db):
         """Trade has matching fill record."""
         trade_id = "TEST_RELATION_001"
+        tmp_db.save_signal({"signal_id": "SIG_RELATION_001", "strategy_id": "gold_01", "instrument": "GOLDM"})
         tmp_db.save_trade({
             "trade_id": trade_id,
             "strategy_id": "gold_01",
@@ -141,7 +182,9 @@ class TestDatabaseRealWriteRead:
             "net_pnl": 9920.0,
             "exit_reason": "signal_exit",
             "status": "closed",
+            "entry_signal_id": "SIG_RELATION_001",
         })
+        tmp_db.save_order({"order_id": "TEST_RELATION_ORDER", "strategy_id": "gold_01", "instrument": "GOLDM", "side": "BUY", "quantity": 1, "state": "filled", "trade_id": trade_id, "entry_signal_id": "SIG_RELATION_001"})
         tmp_db.save_fill({
             "fill_id": "TEST_RELATION_FILL",
             "order_id": "TEST_RELATION_ORDER",
@@ -151,6 +194,8 @@ class TestDatabaseRealWriteRead:
             "quantity": 1,
             "price": 150000.0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "trade_id": trade_id,
+            "order_id": "TEST_RELATION_ORDER",
         })
         trades = tmp_db.get_trades("gold_01")
         assert any(t["trade_id"] == trade_id for t in trades)

@@ -116,8 +116,11 @@ class PaperExecutionEngine:
         self,
         signal: Signal,
         multiplier: float = 1.0,
+        trade_id: str = "",
     ) -> Order:
         """Create a new order from a signal."""
+        if not trade_id:
+            raise ValueError("trade_id is required to create an order")
         # Determine order side: REVERSAL signals carry explicit side ("LONG"/"SHORT")
         if signal.signal_type == SignalType.REVERSAL and signal.side:
             order_side = "BUY" if signal.side == "LONG" else "SELL"
@@ -136,6 +139,7 @@ class PaperExecutionEngine:
             created_at=self._now(),
             updated_at=self._now(),
             entry_signal_id=signal.signal_id,
+            trade_id=trade_id,
         )
         self._orders[order.order_id] = order
         return order
@@ -191,6 +195,7 @@ class PaperExecutionEngine:
             strategy_id=order.strategy_id,
             multiplier=order.multiplier,
             entry_signal_id=order.entry_signal_id,
+            trade_id=order.trade_id,
         )
         self._fills.append(fill)
         # Prune old fills to prevent unbounded growth

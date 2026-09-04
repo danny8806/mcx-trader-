@@ -77,11 +77,13 @@ def test_trade_close_manager_closes_only_linked_ledger_trade(tmp_path):
     from core.trade_close import TradeCloseManager
 
     tl = TradeLedger(db_path=_init(tmp_path, "analytics.db"))
-    for pid in ("pos_1", "pos_2"):
+    for trade_id, position_id in (("trade_1", "pos_1"), ("trade_2", "pos_2")):
         tl.create_trade(strategy_id="gold_01", instrument="GOLDM", side="LONG",
                         entry_quantity=1, signal_time=1000.0, trigger_price=100.0,
-                        stop_price=95.0, multiplier=10.0, trade_id=pid, position_id=pid)
-        tl.record_fill(pid, f"{pid}-entry", f"{pid}-ord", "BUY", 1, 100.0, 1001.0, is_entry=True)
+                        stop_price=95.0, multiplier=10.0,
+                        trade_id=trade_id, position_id=position_id)
+        tl.record_fill(trade_id, f"{position_id}-entry", f"{position_id}-ord",
+                       "BUY", 1, 100.0, 1001.0, is_entry=True)
 
     pm = PositionManager()
     for pid in ("pos_1", "pos_2"):
@@ -89,6 +91,7 @@ def test_trade_close_manager_closes_only_linked_ledger_trade(tmp_path):
             position_id=pid, strategy_id="gold_01", instrument="GOLDM",
             side=PositionSide.LONG, quantity=1, average_entry=100.0,
             entry_timestamp=1001.0, entry_fill_ids=[f"{pid}-entry"],
+            trade_id=f"trade_{pid[-1]}",
         )
         pm._positions[pid] = pos
 
@@ -102,8 +105,8 @@ def test_trade_close_manager_closes_only_linked_ledger_trade(tmp_path):
     mgr.close_position(fill=exit_fill, position=pm._positions["pos_1"],
                        strategy_id="gold_01", multiplier=10.0)
 
-    assert tl.get_trade("pos_1").status == "CLOSED"
-    assert tl.get_trade("pos_2").status == "OPEN"
+    assert tl.get_trade("trade_1").status == "CLOSED"
+    assert tl.get_trade("trade_2").status == "OPEN"
 
 
 def test_order_rejected_event_type_accepted(tmp_path):
@@ -115,17 +118,16 @@ def test_order_rejected_event_type_accepted(tmp_path):
     assert es.get_event_by_id(ev_id)["event_type"] == "ORDER_REJECTED"
 
 
-def test_create_trade_without_explicit_id_generates_one(tmp_path):
+def test_create_trade_without_explicit_id_is_rejected(tmp_path):
     tl = TradeLedger(db_path=_init(tmp_path, "analytics.db"))
-    trade = tl.create_trade(
-        strategy_id="gold_01", instrument="GOLDM", side="LONG",
-        entry_quantity=1, signal_time=1000.0, trigger_price=100.0, stop_price=95.0,
-    )
-    assert trade.trade_id
-    assert trade.trade_id != "pos_unknown"
+    with pytest.raises(ValueError, match="trade_id is required"):
+        tl.create_trade(
+            strategy_id="gold_01", instrument="GOLDM", side="LONG",
+            entry_quantity=1, signal_time=1000.0, trigger_price=100.0, stop_price=95.0,
+        )
 
 
-def test_close_position_when_ledger_missing_creates_and_closes_exact_trade(tmp_path):
+def test_close_position_when_ledger_missing_does_not_invent_projection(tmp_path):
     """BUG-2 regression: closing a position whose analytics trade record is
     missing must create that exact position-anchored trade (entry+exit legs)
     and close it, rather than leaving a ghost OPEN or closing unrelated trades.
@@ -141,12 +143,14 @@ def test_close_position_when_ledger_missing_creates_and_closes_exact_trade(tmp_p
             position_id=pid, strategy_id="gold_01", instrument="GOLDM",
             side=PositionSide.LONG, quantity=1, average_entry=price,
             entry_timestamp=1001.0, entry_fill_ids=[f"{pid}-entry"], multiplier=5.0,
+            trade_id=f"trade_{pid[-1]}",
         )
     # pos_2 DOES have an open ledger trade -> must remain OPEN.
     tl.create_trade(strategy_id="gold_01", instrument="GOLDM", side="LONG",
                     entry_quantity=1, signal_time=1001.0, trigger_price=200.0,
-                    stop_price=195.0, multiplier=5.0, trade_id="pos_2", position_id="pos_2")
-    tl.record_fill("pos_2", "pos_2-entry", "pos_2-ord", "BUY", 1, 200.0, 1001.0, is_entry=True)
+                    stop_price=195.0, multiplier=5.0,
+                    trade_id="trade_2", position_id="pos_2")
+    tl.record_fill("trade_2", "pos_2-entry", "pos_2-ord", "BUY", 1, 200.0, 1001.0, is_entry=True)
 
     exit_fill = Fill(fill_id="x1", order_id="o3", instrument="GOLDM", side="SELL",
                      quantity=1, price=110.0, timestamp=2000.0, strategy_id="gold_01")
@@ -158,15 +162,11 @@ def test_close_position_when_ledger_missing_creates_and_closes_exact_trade(tmp_p
     mgr.close_position(fill=exit_fill, position=pm._positions["pos_1"],
                        strategy_id="gold_01", multiplier=5.0)
 
-    # pos_1 now present + CLOSED with both legs
-    t1 = tl.get_trade("pos_1")
-    assert t1 is not None and t1.status == "CLOSED"
-    assert t1.average_entry_price == 100.0
-    assert t1.exit_price == 110.0
-    legs1 = tl.get_legs_for_trade("pos_1")
-    assert len(legs1) == 2
+    # A missing derived projection is an error; the close path must not invent
+    # lifecycle state from position fields.
+    assert tl.get_trade("trade_1") is None
     # pos_2 untouched + still OPEN
-    assert tl.get_trade("pos_2").status == "OPEN"
+    assert tl.get_trade("trade_2").status == "OPEN"
 
 
 def test_backfill_logic_creates_missing_open_trade(tmp_path):

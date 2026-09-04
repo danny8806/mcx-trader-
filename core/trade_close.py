@@ -113,12 +113,20 @@ class TradeCloseManager:
 
         # ── Resolve effective exit_signal_id ──
         effective_exit_signal_id = exit_signal_id or getattr(position, 'exit_signal_id', None)
+        trade_id = getattr(position, "trade_id", None)
+        if not trade_id:
+            print(
+                f"[TradeClose] CRITICAL: position {position.position_id} "
+                "has no explicit trade_id",
+                flush=True,
+            )
+            return False
 
         # ── Steps 2-3: Persist trade and exit fill in one transaction ──
         if self._persistence:
             try:
                 trade_record = {
-                    "trade_id": position.position_id,
+                    "trade_id": trade_id,
                     "strategy_id": strategy_id,
                     "instrument": fill.instrument,
                     "side": side,
@@ -142,7 +150,7 @@ class TradeCloseManager:
                     "side": fill.side, "quantity": fill.quantity, "price": fill.price,
                     "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
                     "entry_signal_id": getattr(position, 'entry_signal_id', None),
-                    "trade_id": position.position_id,
+                    "trade_id": trade_id,
                 }
                 if hasattr(self._persistence, "save_trade_and_fill"):
                     self._persistence.save_trade_and_fill(trade_record, fill_record)
@@ -196,15 +204,15 @@ class TradeCloseManager:
         except Exception as e:
             print(f"[TradeClose] WARNING: risk engine update failed: {e}", flush=True)
 
-        # Step 6b: Close trade in ledger (position-anchored 1:1)
+        # Step 6b: Close the derived ledger projection for the explicit trade.
         if self._trade_ledger:
             try:
                 # Record the exit fill leg on the trade linked to this position
                 # (trade_id == position_id), then sync authoritative P&L.
-                trade = self._trade_ledger.get_trade(position.position_id)
+                trade = self._trade_ledger.get_trade(trade_id)
                 if trade:
                     self._trade_ledger.record_fill(
-                        trade_id=position.position_id,
+                        trade_id=trade_id,
                         fill_id=fill.fill_id,
                         order_id=fill.order_id,
                         side=fill.side,
@@ -214,53 +222,15 @@ class TradeCloseManager:
                         is_entry=False,
                     )
                     self._trade_ledger.close_trade(
-                        position.position_id, exit_reason=exit_reason_final,
+                        trade_id, exit_reason=exit_reason_final,
                         gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
                     )
                 else:
-                    # No ledger row for this position (positions that predate
-                    # the open-time linkage, or a lost open write).  Create the
-                    # trade with the entry leg and close it so analytics.db
-                    # reflects the round trip instead of silently diverging
-                    # (BUG-2 fix: avoid leaving a ghost OPEN in analytics.db
-                    # while trading.db already has the closed record).
-                    fill_id = position.entry_fill_ids[0] if position.entry_fill_ids else None
-                    self._trade_ledger.create_trade(
-                        strategy_id=strategy_id,
-                        instrument=fill.instrument,
-                        side=side,
-                        entry_quantity=position.quantity,
-                        signal_time=position.entry_timestamp,
-                        trigger_price=position.average_entry,
-                        stop_price=position.stop_price or 0.0,
-                        multiplier=multiplier,
-                        trade_id=position.position_id,
-                        position_id=position.position_id,
-                    )
-                    if fill_id:
-                        self._trade_ledger.record_fill(
-                            trade_id=position.position_id,
-                            fill_id=fill_id,
-                            order_id="",
-                            side=position.is_long and "BUY" or "SELL",
-                            quantity=position.quantity,
-                            price=position.average_entry,
-                            timestamp=position.entry_timestamp,
-                            is_entry=True,
-                        )
-                    self._trade_ledger.record_fill(
-                        trade_id=position.position_id,
-                        fill_id=fill.fill_id,
-                        order_id=fill.order_id,
-                        side=fill.side,
-                        quantity=fill.quantity,
-                        price=fill.price,
-                        timestamp=fill.timestamp,
-                        is_entry=False,
-                    )
-                    self._trade_ledger.close_trade(
-                        position.position_id, exit_reason=exit_reason_final,
-                        gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
+                    # A missing projection is recoverable only when the
+                    # canonical trade already exists. Do not invent a second
+                    # lifecycle record from position state.
+                    raise ValueError(
+                        f"missing derived projection for canonical trade {trade_id}"
                     )
             except Exception as e:
                 print(f"[TradeClose] CRITICAL: analytics ledger close failed for {position.position_id}: {e}", flush=True)
@@ -269,7 +239,7 @@ class TradeCloseManager:
         if self._event_store:
             try:
                 self._event_store.record(
-                    trade_id=position.position_id,
+                    trade_id=trade_id,
                     strategy_id=strategy_id,
                     instrument=fill.instrument,
                     event_type="TRADE_CLOSED",
@@ -291,7 +261,7 @@ class TradeCloseManager:
         if self._event_callback:
             try:
                 self._event_callback("trade_closed", {
-                    "trade_id": position.position_id,
+                    "trade_id": trade_id,
                     "strategy_id": strategy_id,
                     "instrument": fill.instrument,
                     "side": side,
@@ -312,7 +282,7 @@ class TradeCloseManager:
                     "strategy_id": strategy_id,
                     "instrument": fill.instrument,
                     "details": {
-                        "trade_id": position.position_id,
+                        "trade_id": trade_id,
                         "side": side,
                         "net_pnl": net_pnl,
                     },

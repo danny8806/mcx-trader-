@@ -88,7 +88,7 @@ class TradeContext:
     stop_loss_price: float = 0.0
 
     # ── Position ──
-    position_id: str = ""              # = trade_id (1:1)
+    position_id: str = ""              # separate child identity
     quantity: int = 0
     multiplier: float = 1.0
     margin: float = 0.0
@@ -263,26 +263,84 @@ class TradeLifecycleManager:
 
     def resolve_trade_from_signal(self, signal_id: str) -> Optional[TradeContext]:
         trade_id = self._signal_to_trade.get(signal_id)
-        return self._trades.get(trade_id) if trade_id else None
+        if trade_id:
+            return self.get_trade(trade_id)
+        return self._load_trade_by("entry_signal_id", signal_id)
 
     def resolve_trade_from_order(self, order_id: str) -> Optional[TradeContext]:
         trade_id = self._order_to_trade.get(order_id)
-        return self._trades.get(trade_id) if trade_id else None
+        if trade_id:
+            return self.get_trade(trade_id)
+        return self._load_trade_by("entry_order_id", order_id) or self._load_trade_by(
+            "exit_order_id", order_id
+        )
 
     def resolve_trade_from_fill(self, fill_id: str) -> Optional[TradeContext]:
         trade_id = self._fill_to_trade.get(fill_id)
-        return self._trades.get(trade_id) if trade_id else None
+        if trade_id:
+            return self.get_trade(trade_id)
+        return self._load_trade_by("entry_fill_id", fill_id) or self._load_trade_by(
+            "exit_fill_id", fill_id
+        )
 
     def resolve_trade_from_position(self, position_id: str) -> Optional[TradeContext]:
         trade_id = self._position_to_trade.get(position_id)
-        return self._trades.get(trade_id) if trade_id else None
+        if trade_id:
+            return self.get_trade(trade_id)
+        return self._load_trade_by("position_id", position_id)
 
     def resolve_trade_from_pending(self, pending_order_id: str) -> Optional[TradeContext]:
         trade_id = self._pending_to_trade.get(pending_order_id)
         return self._trades.get(trade_id) if trade_id else None
 
     def get_trade(self, trade_id: str) -> Optional[TradeContext]:
-        return self._trades.get(trade_id)
+        trade = self._trades.get(trade_id)
+        if trade is not None or not self._persistence:
+            return trade
+        rows = self._persistence.get_trades()
+        for data in rows:
+            if data.get("trade_id") == trade_id:
+                return self._cache_restored_trade(data)
+        return None
+
+    def _load_trade_by(self, field: str, value: str) -> Optional[TradeContext]:
+        """Load an explicitly linked trade after a runtime-cache miss."""
+        if not self._persistence or field not in {
+            "entry_signal_id", "entry_order_id", "exit_order_id",
+            "entry_fill_id", "exit_fill_id", "position_id",
+        }:
+            return None
+        for data in self._persistence.get_trades():
+            if data.get(field) == value:
+                return self._cache_restored_trade(data)
+        return None
+
+    def _cache_restored_trade(self, data: dict) -> TradeContext:
+        trade = TradeContext.from_snapshot(data)
+        for field in ("entry_timestamp", "exit_timestamp"):
+            if isinstance(getattr(trade, field), str):
+                try:
+                    setattr(trade, field, datetime.fromisoformat(getattr(trade, field)).timestamp())
+                except (TypeError, ValueError):
+                    setattr(trade, field, 0.0)
+        self._trades[trade.trade_id] = trade
+        if trade.entry_signal_id:
+            self._signal_to_trade[trade.entry_signal_id] = trade.trade_id
+        if trade.exit_signal_id:
+            self._signal_to_trade[trade.exit_signal_id] = trade.trade_id
+        if trade.entry_order_id:
+            self._order_to_trade[trade.entry_order_id] = trade.trade_id
+        if trade.exit_order_id:
+            self._order_to_trade[trade.exit_order_id] = trade.trade_id
+        if trade.entry_fill_id:
+            self._fill_to_trade[trade.entry_fill_id] = trade.trade_id
+        if trade.exit_fill_id:
+            self._fill_to_trade[trade.exit_fill_id] = trade.trade_id
+        if trade.position_id:
+            self._position_to_trade[trade.position_id] = trade.trade_id
+        if trade.pending_order_id:
+            self._pending_to_trade[trade.pending_order_id] = trade.trade_id
+        return trade
 
     def get_open_trades(self) -> List[TradeContext]:
         return [t for t in self._trades.values() if t.status in (
@@ -367,11 +425,14 @@ class TradeLifecycleManager:
             if metadata.get("executed"):
                 trade.entry_price = metadata.get("entry_price", metadata.get("fill_price", 0.0))
                 trade.entry_timestamp = signal.timestamp
-                trade.position_id = trade.trade_id  # 1:1
 
             # Register in canonical maps
             self._trades[trade.trade_id] = trade
             self._signal_to_trade[signal.signal_id] = trade.trade_id
+
+            # Persist before emitting an event because trade_events has a
+            # foreign key to trades.trade_id.
+            self._persist_trade(trade)
 
             # Log event
             self._record_event(trade.trade_id, "TRADE_CREATED", signal_id=signal.signal_id,
@@ -462,7 +523,6 @@ class TradeLifecycleManager:
             trade.status = TradeStatus.OPEN.value
             trade.updated_at = time.time()
             self._fill_to_trade[fill_id] = trade_id
-            self._position_to_trade[trade.position_id] = trade_id
             self._record_event(trade_id, "ENTRY_FILL_RECORDED",
                                fill_id=fill_id,
                                payload={"price": price})
@@ -506,9 +566,8 @@ class TradeLifecycleManager:
     def register_position(self, trade_id: str, position_id: str) -> bool:
         """Register a position for a trade.
 
-        CRITICAL: Unifies identity. When position_id differs from trade_id,
-        migrates the trade to use position_id as the canonical trade_id.
-        This ensures DB persistence (which uses position_id) matches lifecycle.
+        A position has its own immutable identity. It references the trade but
+        never replaces the trade_id or re-keys lifecycle state.
         """
         with self._lock:
             trade = self._trades.get(trade_id)
@@ -517,41 +576,6 @@ class TradeLifecycleManager:
 
             trade.position_id = position_id
             self._position_to_trade[position_id] = trade_id
-
-            # SPLIT-BRAIN FIX: If position_id differs from trade_id,
-            # migrate the trade to use position_id as canonical trade_id.
-            if position_id != trade_id:
-                old_trade_id = trade_id
-                new_trade_id = position_id
-
-                # Update trade identity
-                trade.trade_id = new_trade_id
-
-                # Re-key the _trades dict
-                del self._trades[old_trade_id]
-                self._trades[new_trade_id] = trade
-
-                # Migrate all reverse maps from old trade_id to new trade_id
-                if trade.entry_signal_id and trade.entry_signal_id in self._signal_to_trade:
-                    if self._signal_to_trade[trade.entry_signal_id] == old_trade_id:
-                        self._signal_to_trade[trade.entry_signal_id] = new_trade_id
-
-                if trade.entry_order_id and trade.entry_order_id in self._order_to_trade:
-                    if self._order_to_trade[trade.entry_order_id] == old_trade_id:
-                        self._order_to_trade[trade.entry_order_id] = new_trade_id
-
-                if trade.entry_fill_id and trade.entry_fill_id in self._fill_to_trade:
-                    if self._fill_to_trade[trade.entry_fill_id] == old_trade_id:
-                        self._fill_to_trade[trade.entry_fill_id] = new_trade_id
-
-                # Clean up stale position map entry from register_entry_fill
-                if old_trade_id in self._position_to_trade:
-                    del self._position_to_trade[old_trade_id]
-
-                # Fix position map to point to new trade_id
-                self._position_to_trade[position_id] = new_trade_id
-
-                print(f"[Lifecycle] IDENTITY UNIFIED: {old_trade_id} -> {new_trade_id}", flush=True)
 
             self._persist_trade(trade)
             return True

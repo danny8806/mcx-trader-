@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from .database import Database
+
 
 class PersistenceManager:
     """Manages persistence of system state and trade data.
@@ -31,8 +33,10 @@ class PersistenceManager:
         # therefore be re-entrant; a plain Lock deadlocks on the first write.
         self._lock = threading.RLock()
 
-        # Initialize database schema
-        self._init_db()
+        # Initialize the canonical schema. Legacy table creation remains below
+        # only as a compatibility method for callers that invoke it directly;
+        # runtime construction always uses Database.
+        Database(self.db_path).close()
 
         # Persistent connection (created lazily)
         self._conn: Optional[sqlite3.Connection] = None
@@ -52,6 +56,7 @@ class PersistenceManager:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.execute("PRAGMA busy_timeout=30000")
+            self._conn.execute("PRAGMA foreign_keys=ON")
             return self._conn
 
     def _init_db(self) -> None:
@@ -218,13 +223,23 @@ class PersistenceManager:
         with self._lock:
             conn = self._get_conn()
             conn.execute("""
-                INSERT OR REPLACE INTO trades (
+                INSERT INTO trades (
                     trade_id, strategy_id, instrument, side,
                     entry_timestamp, entry_price, exit_timestamp, exit_price,
                     quantity, multiplier, gross_pnl, charges, net_pnl,
                     exit_reason, status, entry_signal_id, exit_signal_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+                ON CONFLICT(trade_id) DO UPDATE SET
+                    strategy_id=excluded.strategy_id, instrument=excluded.instrument,
+                    side=excluded.side, entry_timestamp=excluded.entry_timestamp,
+                    entry_price=excluded.entry_price, exit_timestamp=excluded.exit_timestamp,
+                    exit_price=excluded.exit_price, quantity=excluded.quantity,
+                    multiplier=excluded.multiplier, gross_pnl=excluded.gross_pnl,
+                    charges=excluded.charges, net_pnl=excluded.net_pnl,
+                    exit_reason=excluded.exit_reason, status=excluded.status,
+                    entry_signal_id=excluded.entry_signal_id,
+                        exit_signal_id=excluded.exit_signal_id
+                    """, (
                 trade.get("trade_id"),
                 trade.get("strategy_id"),
                 trade.get("instrument"),
@@ -250,14 +265,18 @@ class PersistenceManager:
         with self._lock:
             conn = self._get_conn()
             conn.execute("""
-                INSERT OR REPLACE INTO orders (
+                INSERT INTO orders (
                     order_id, strategy_id, instrument, side,
                     quantity, order_type, price, state,
                     filled_quantity, average_fill_price,
                     created_at, updated_at,
-                    entry_signal_id, trade_id
+                    signal_id, trade_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+                ON CONFLICT(order_id) DO UPDATE SET
+                    state=excluded.state, filled_quantity=excluded.filled_quantity,
+                    average_fill_price=excluded.average_fill_price,
+                        updated_at=excluded.updated_at
+                    """, (
                 order.get("order_id"),
                 order.get("strategy_id"),
                 order.get("instrument"),
@@ -270,7 +289,7 @@ class PersistenceManager:
                 order.get("average_fill_price"),
                 order.get("created_at"),
                 order.get("updated_at"),
-                order.get("entry_signal_id"),
+                order.get("signal_id", order.get("entry_signal_id")),
                 order.get("trade_id"),
             ))
             conn.commit()
@@ -280,11 +299,11 @@ class PersistenceManager:
         with self._lock:
             conn = self._get_conn()
             conn.execute("""
-                INSERT OR REPLACE INTO fills (
+                INSERT INTO fills (
                     fill_id, order_id, strategy_id, instrument,
-                    side, quantity, price, timestamp,
-                    entry_signal_id, trade_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    side, quantity, price, timestamp, trade_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(fill_id) DO NOTHING
             """, (
                 fill.get("fill_id"),
                 fill.get("order_id"),
@@ -294,7 +313,6 @@ class PersistenceManager:
                 fill.get("quantity"),
                 fill.get("price"),
                 fill.get("timestamp"),
-                fill.get("entry_signal_id"),
                 fill.get("trade_id"),
             ))
             conn.commit()
@@ -306,9 +324,9 @@ class PersistenceManager:
             conn.execute("""
                 INSERT OR IGNORE INTO signals (
                     signal_id, strategy_id, instrument, side, signal_type,
-                    timestamp, trigger_price, stop_price, quantity,
+                    signal_timestamp, trigger_price, stop_price, quantity,
                     candle_data, indicator_data
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 signal_data.get("signal_id"),
                 signal_data.get("strategy_id"),
@@ -351,12 +369,21 @@ class PersistenceManager:
             conn = self._get_conn()
             try:
                 conn.execute("""
-                    INSERT OR REPLACE INTO trades (
+                    INSERT INTO trades (
                         trade_id, strategy_id, instrument, side,
                         entry_timestamp, entry_price, exit_timestamp, exit_price,
                         quantity, multiplier, gross_pnl, charges, net_pnl,
                         exit_reason, status, entry_signal_id, exit_signal_id
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(trade_id) DO UPDATE SET
+                        exit_timestamp=excluded.exit_timestamp,
+                        exit_price=excluded.exit_price,
+                        gross_pnl=excluded.gross_pnl,
+                        charges=excluded.charges,
+                        net_pnl=excluded.net_pnl,
+                        exit_reason=excluded.exit_reason,
+                        status=excluded.status,
+                        exit_signal_id=excluded.exit_signal_id
                 """, (
                     trade.get("trade_id"), trade.get("strategy_id"), trade.get("instrument"),
                     trade.get("side"), trade.get("entry_timestamp"), trade.get("entry_price"),
@@ -366,16 +393,15 @@ class PersistenceManager:
                     trade.get("entry_signal_id"), trade.get("exit_signal_id"),
                 ))
                 conn.execute("""
-                    INSERT OR REPLACE INTO fills (
+                    INSERT INTO fills (
                         fill_id, order_id, strategy_id, instrument,
-                        side, quantity, price, timestamp,
-                        entry_signal_id, trade_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        side, quantity, price, timestamp, trade_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(fill_id) DO NOTHING
                 """, (
                     fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
                     fill.get("instrument"), fill.get("side"), fill.get("quantity"),
-                    fill.get("price"), fill.get("timestamp"),
-                    fill.get("entry_signal_id"), fill.get("trade_id"),
+                    fill.get("price"), fill.get("timestamp"), fill.get("trade_id"),
                 ))
                 conn.commit()
             except Exception:

@@ -101,7 +101,7 @@ class TradeLeg:
 class TradeLedger:
     """Authoritative trade lifecycle management."""
 
-    def __init__(self, db_path: str = "analytics.db"):
+    def __init__(self, db_path: str = "trading.db"):
         self._db_path = db_path
         self._lock = threading.Lock()
         self._open_trades: dict[str, TradeRecord] = {}
@@ -114,6 +114,8 @@ class TradeLedger:
         if conn is None:
             conn = sqlite3.connect(self._db_path, timeout=30)
             conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
         return conn
 
@@ -146,12 +148,11 @@ class TradeLedger:
                      **kwargs) -> TradeRecord:
         """Create a new trade record on signal/entry.
 
-        Trades are position-anchored 1:1: when opened from a live fill,
-        ``trade_id`` should be the position_id so persistence/reconciliation and
-        analytics share one identity per round trip.
+        ``trade_id`` must be supplied by the canonical lifecycle owner. The
+        ledger is only a derived projection and never invents trade identity.
         """
         if trade_id is None:
-            trade_id = str(uuid.uuid4())
+            raise ValueError("trade_id is required for a ledger projection")
         initial_risk = abs(trigger_price - stop_price) if stop_price else None
 
         trade = TradeRecord(

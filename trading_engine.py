@@ -86,24 +86,24 @@ class TradingEngine:
         self._init_monitoring()
         self._init_notifications()
 
-        # Analytics event store (writes to analytics.db).  Resolve the path
-        # against the project root (not cwd) so a different launch cwd can never
-        # silently fork a separate analytics DB.
-        db_root = Path(Config.resolve_path(self.config.get("system", {}).get("db_path", "data/db/trading.db"))).parent
-        analytics_db = str(db_root / "analytics.db")
+        # All durable lifecycle and analytics data share the configured
+        # canonical database. Analytics is a derived view, never a second DB.
+        db_path = Config.resolve_path(
+            self.config.get("system", {}).get("db_path", "data/db/trading.db")
+        )
         try:
-            self.event_store = EventStore(db_path=analytics_db)
+            self.event_store = EventStore(db_path=db_path)
         except Exception:
             self.event_store = None
 
-        # Trade ledger (rich trade lifecycle in analytics.db)
+        # Compatibility adapter for existing analytics callers. It reads and
+        # writes derived lifecycle projections in the canonical database.
         try:
-            self.trade_ledger = TradeLedger(db_path=analytics_db)
+            self.trade_ledger = TradeLedger(db_path=db_path)
         except Exception:
             self.trade_ledger = None
 
         # Fill deduplication
-        db_path = Config.resolve_path(self.config.get("system", {}).get("db_path", "trading.db"))
         self.fill_dedup = FillDeduplicator(db_path=db_path)
 
         # Safe mode manager
@@ -746,8 +746,8 @@ class TradingEngine:
                         trigger = strat.pending_entry.trigger_price
                         side = strat.pending_entry.side
                         trigger_crossed = (
-                            (side == "SHORT" and ltp <= trigger) or
-                            (side == "LONG" and ltp >= trigger)
+                            (side == "SHORT" and ltp < trigger) or
+                            (side == "LONG" and ltp > trigger)
                         )
                         if trigger_crossed:
                             self._process_deferred_exit(
@@ -1016,7 +1016,39 @@ class TradingEngine:
                     pass
             return
 
-        # Submit order
+        # Establish explicit lifecycle ownership before creating an order. An
+        # order without a trade_id is invalid and must never reach execution.
+        lifecycle_trade = None
+        if not is_exit:
+            lifecycle_trade = self._lifecycle.resolve_trade_from_signal(signal.signal_id)
+            if lifecycle_trade is None:
+                lifecycle_trade = self._lifecycle.create_trade_from_signal(
+                    signal=signal,
+                    strategy_id=signal.strategy_id,
+                    strategy_name=signal.strategy_id,
+                    instrument=signal.instrument,
+                    quantity=signal.quantity,
+                    multiplier=multiplier,
+                )
+        else:
+            open_positions = self.position_manager.get_positions_by_strategy(signal.strategy_id)
+            open_position = next(
+                (p for p in open_positions
+                 if p.instrument == signal.instrument and p.is_open),
+                None,
+            )
+            trade_id = getattr(open_position, "trade_id", None) if open_position else None
+            lifecycle_trade = (
+                self._lifecycle.get_trade(trade_id) if trade_id else None
+            )
+            if lifecycle_trade is None:
+                print(
+                    f"[Signal] REJECTED: exit signal {signal.signal_id} has no "
+                    "explicit open trade",
+                    flush=True,
+                )
+                return
+
         fill_price = metadata.get("fill_price")
         if fill_price is not None:
             fp = float(fill_price)
@@ -1028,29 +1060,18 @@ class TradingEngine:
                 # exit = next bar open).  Override the broker's LTP for THIS order
                 # only; the next order/bar re-establishes its own LTP.
                 self.execution_engine.update_price(signal.instrument, fp)
-        order = self.order_manager.submit_signal(signal, multiplier=multiplier)
+        order = self.order_manager.submit_signal(
+            signal,
+            multiplier=multiplier,
+            trade_id=lifecycle_trade.trade_id,
+        )
 
-        # ── Register trade in central lifecycle ──
-        # For non-exit signals, create a new trade context
-        if not is_exit and order:
-            # Check if a trade already exists for this signal
-            existing_trade = self._lifecycle.resolve_trade_from_signal(signal.signal_id)
-            if not existing_trade:
-                lifecycle_trade = self._lifecycle.create_trade_from_signal(
-                    signal=signal,
-                    strategy_id=signal.strategy_id,
-                    strategy_name=signal.strategy_id,
-                    instrument=signal.instrument,
-                    quantity=signal.quantity,
-                    multiplier=multiplier,
-                )
-                # Register the order with the trade
-                self._lifecycle.register_order(lifecycle_trade.trade_id, order.order_id, role="ENTRY")
-        elif is_exit and order:
-            # Exit signal — find existing trade by signal or position
-            existing_trade = self._lifecycle.resolve_trade_from_signal(signal.signal_id)
-            if existing_trade:
-                self._lifecycle.register_order(existing_trade.trade_id, order.order_id, role="EXIT")
+        if order:
+            self._lifecycle.register_order(
+                lifecycle_trade.trade_id,
+                order.order_id,
+                role="EXIT" if is_exit else "ENTRY",
+            )
 
         if order:
             # ── Persist the order row BEFORE dispensing its fills, so the DB
@@ -1073,6 +1094,7 @@ class TradingEngine:
                         "created_at": datetime.fromtimestamp(order.created_at or time.time(), tz=timezone.utc).isoformat(),
                         "updated_at": datetime.fromtimestamp(order.updated_at or time.time(), tz=timezone.utc).isoformat(),
                         "entry_signal_id": signal.signal_id,
+                        "trade_id": lifecycle_trade.trade_id,
                     })
                 except Exception as e:
                     # LOUD, not silent: the order-before-fill DB invariant is
@@ -1236,6 +1258,19 @@ class TradingEngine:
 
         if not open_pos:
             # New entry
+            lifecycle_trade = (
+                self._lifecycle.resolve_trade_from_signal(signal_id)
+                if signal_id else None
+            )
+            if lifecycle_trade is None:
+                print(
+                    f"[Fill] REJECTED: entry fill {fill.fill_id} has no "
+                    f"explicit lifecycle trade for signal {signal_id}",
+                    flush=True,
+                )
+                self.fill_dedup.mark_processed(fill.fill_id)
+                return
+            canonical_trade_id = lifecycle_trade.trade_id
             strat_account = self.account_engines.get(fill.strategy_id)
             fill_side = fill.side.value if hasattr(fill.side, 'value') else str(fill.side)
             margin = self._calculate_margin(
@@ -1267,6 +1302,7 @@ class TradingEngine:
                         stop_price=(self.strategies.get(fill.strategy_id).stop_price
                                     if fill.strategy_id in self.strategies else None),
                         entry_signal_id=signal_id,
+                        trade_id=canonical_trade_id,
                     )
                 except Exception as e:
                     # Rollback margin on position open failure
@@ -1288,7 +1324,7 @@ class TradingEngine:
                             "side": fill.side, "quantity": fill.quantity, "price": fill.price,
                             "timestamp": datetime.fromtimestamp(fill.timestamp or time.time(), tz=timezone.utc).isoformat(),
                             "entry_signal_id": signal_id,
-                            "trade_id": position.position_id,
+                            "trade_id": canonical_trade_id,
                         })
                     except Exception as exc:
                         # Fill persist failed — the in-memory position now
@@ -1313,24 +1349,18 @@ class TradingEngine:
                 print(f"[Position] Opened: {position.side.value} {fill.instrument} @ {fill.price} (strategy={fill.strategy_id})", flush=True)
 
                 # ── Register entry fill in central lifecycle ──
-                lifecycle_trade = self._lifecycle.resolve_trade_from_signal(signal_id)
-                if lifecycle_trade:
-                    self._lifecycle.register_entry_fill(
-                        trade_id=lifecycle_trade.trade_id,
-                        fill_id=fill.fill_id,
-                        price=fill.price,
-                        timestamp=fill.timestamp or time.time(),
-                    )
-                    self._lifecycle.register_position(lifecycle_trade.trade_id, position.position_id)
-                else:
-                    # Fallback: create lifecycle trade from existing position
-                    # This handles cases where signal wasn't registered earlier
-                    print(f"[Lifecycle] WARNING: no trade found for signal {signal_id}, creating lifecycle entry", flush=True)
+                self._lifecycle.register_entry_fill(
+                    trade_id=canonical_trade_id,
+                    fill_id=fill.fill_id,
+                    price=fill.price,
+                    timestamp=fill.timestamp or time.time(),
+                )
+                self._lifecycle.register_position(canonical_trade_id, position.position_id)
 
                 if self.event_store:
                     try:
                         self.event_store.record(
-                            trade_id=position.position_id, strategy_id=fill.strategy_id,
+                            trade_id=canonical_trade_id, strategy_id=fill.strategy_id,
                             instrument=fill.instrument, event_type="POSITION_OPENED",
                             payload={"side": position.side.value, "price": fill.price,
                                      "quantity": fill.quantity, "margin": margin},
@@ -1346,7 +1376,7 @@ class TradingEngine:
                 if self._persistence and signal_id:
                     try:
                         self._persistence.save_trade_signal_link(
-                            trade_id=position.position_id, signal_id=signal_id,
+                            trade_id=canonical_trade_id, signal_id=signal_id,
                             relationship_type="entry",
                         )
                     except Exception as e:
@@ -1379,7 +1409,7 @@ class TradingEngine:
                             trigger_price=fill.price,
                             stop_price=stop_price or 0.0,
                             multiplier=multiplier,
-                            trade_id=position.position_id,
+                            trade_id=canonical_trade_id,
                             position_id=position.position_id,
                             entry_dema=entry_dema,
                             entry_atr=entry_atr,
@@ -1387,7 +1417,7 @@ class TradingEngine:
                             entry_htf_value=entry_htf,
                         )
                         self.trade_ledger.record_fill(
-                            trade_id=position.position_id,
+                            trade_id=canonical_trade_id,
                             fill_id=fill.fill_id,
                             order_id=fill.order_id,
                             side=fill.side,
@@ -1460,7 +1490,7 @@ strat_snap, strat_acct_snap,
                 if success and self._persistence and signal_id:
                     try:
                         self._persistence.save_trade_signal_link(
-                            trade_id=position.position_id, signal_id=signal_id,
+                            trade_id=position.trade_id, signal_id=signal_id,
                             relationship_type="exit",
                         )
                     except Exception as e:
@@ -1468,7 +1498,7 @@ strat_snap, strat_acct_snap,
 
                 # ── Register exit fill in central lifecycle ──
                 if success:
-                    lifecycle_trade = self._lifecycle.get_trade(position.position_id)
+                    lifecycle_trade = self._lifecycle.get_trade(position.trade_id)
                     if lifecycle_trade:
                         self._lifecycle.register_exit_fill(
                             trade_id=lifecycle_trade.trade_id,
@@ -2024,7 +2054,7 @@ strat_snap, strat_acct_snap,
             return
 
         open_positions = list(self.position_manager.open_positions)
-        open_ids = {p.position_id for p in open_positions}
+        open_ids = {p.trade_id for p in open_positions if p.trade_id}
         print(f"[Heal] DB closed_trades={len(closed_trades)}, "
               f"open_positions={len(open_positions)}", flush=True)
         if closed_trades:
@@ -2034,7 +2064,13 @@ strat_snap, strat_acct_snap,
 
         healed = 0
         for pos in open_positions:
-            trade_id = pos.position_id
+            trade_id = pos.trade_id
+            if not trade_id:
+                print(
+                    f"[Heal] ERROR: position {pos.position_id} has no explicit trade_id",
+                    flush=True,
+                )
+                continue
             if trade_id not in closed_trades:
                 continue
             trade = closed_trades[trade_id]
@@ -2158,7 +2194,14 @@ strat_snap, strat_acct_snap,
             print("[Engine] Ledger backfill skipped: trade_ledger is None", flush=True)
             return
         for pos in self.position_manager.open_positions:
-            trade_id = pos.position_id
+            trade_id = pos.trade_id
+            if not trade_id:
+                print(
+                    f"[Engine] ERROR: restored position {pos.position_id} has no explicit trade_id; "
+                    "skipping ledger backfill",
+                    flush=True,
+                )
+                continue
             fill_id = pos.entry_fill_ids[0] if pos.entry_fill_ids else None
             try:
                 existing = self.trade_ledger.get_trade(trade_id)
@@ -2190,7 +2233,7 @@ strat_snap, strat_acct_snap,
                             except Exception:
                                 pass
                         self.trade_ledger.record_fill(
-                            trade_id=pos.position_id,
+                            trade_id=trade_id,
                             fill_id=fill_id,
                             order_id=order_id,
                             side="BUY" if pos.is_long else "SELL",
@@ -2224,7 +2267,7 @@ strat_snap, strat_acct_snap,
                     trigger_price=pos.average_entry,
                     stop_price=pos.stop_price or 0.0,
                     multiplier=pos.multiplier,
-                    trade_id=pos.position_id,
+                    trade_id=trade_id,
                     position_id=pos.position_id,
                     entry_dema=None,
                     entry_atr=None,
@@ -2233,7 +2276,7 @@ strat_snap, strat_acct_snap,
                 )
                 if fill_id:
                     self.trade_ledger.record_fill(
-                        trade_id=pos.position_id,
+                        trade_id=trade_id,
                         fill_id=fill_id,
                         order_id=order_id,
                         side="BUY" if pos.is_long else "SELL",
@@ -2244,7 +2287,7 @@ strat_snap, strat_acct_snap,
                     )
                 if self.event_store:
                     self.event_store.record(
-                        trade_id=pos.position_id,
+                        trade_id=trade_id,
                         strategy_id=pos.strategy_id,
                         instrument=pos.instrument,
                         event_type="POSITION_OPENED",

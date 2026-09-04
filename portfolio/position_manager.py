@@ -25,7 +25,7 @@ class PositionStatus(Enum):
 class Position:
     """Represents a trading position.
 
-    The position_id is the authoritative trade_id (1:1 mapping).
+    position_id and trade_id are separate immutable identities.
     entry_signal_id links to the Signal that triggered this trade.
     exit_signal_id links to the Signal that closed this trade (if signal-based exit).
     """
@@ -42,6 +42,7 @@ class Position:
     realized_pnl: float = 0.0
     unrealized_pnl: float = 0.0
     margin: float = 0.0
+    trade_id: Optional[str] = None
     exit_reason: Optional[str] = None
     exit_fills: list[Fill] = field(default_factory=list)
     status: PositionStatus = PositionStatus.OPEN
@@ -85,6 +86,7 @@ class Position:
             "realized_pnl": self.realized_pnl,
             "unrealized_pnl": self.unrealized_pnl,
             "margin": self.margin,
+            "trade_id": self.trade_id,
             "exit_reason": self.exit_reason,
             "exit_fills": [
                 {
@@ -127,8 +129,12 @@ class PositionManager:
         stop_price: Optional[float] = None,
         margin: float = 0.0,
         entry_signal_id: Optional[str] = None,
+        trade_id: Optional[str] = None,
     ) -> Position:
         """Open a new position from an entry fill."""
+        trade_id = trade_id or fill.trade_id
+        if not trade_id:
+            raise ValueError("trade_id is required to open a position")
         position = Position(
             position_id=str(uuid.uuid4()),
             strategy_id=fill.strategy_id,
@@ -141,6 +147,7 @@ class PositionManager:
             stop_price=stop_price,
             current_mark=fill.price,
             margin=margin,
+            trade_id=trade_id,
             multiplier=multiplier,
             entry_signal_id=entry_signal_id or fill.entry_signal_id,
         )
