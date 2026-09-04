@@ -75,7 +75,7 @@ class RegressionTests(unittest.TestCase):
         from strategies.types import Signal
         signal = Signal(SignalType.LONG, "GOLDM", "s", 1, 100, 90, 1)
         start = time.monotonic()
-        order = engine.submit_order(engine.create_order(signal))
+        order = engine.submit_order(engine.create_order(signal, trade_id="TRD-LATENCY-001"))
         self.assertGreaterEqual(time.monotonic() - start, 0.01)
         self.assertEqual(order.filled_quantity, 1)
 

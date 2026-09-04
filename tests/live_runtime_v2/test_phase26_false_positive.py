@@ -55,9 +55,9 @@ class TestFalsePositiveDetection:
         from portfolio.position_manager import PositionManager
         from execution.paper_broker import Fill
         pm = PositionManager()
-        fill1 = Fill("F_DP1", "O1", "gold_01", "GOLDM", "BUY", 1, 150000.0, time.time())
+        fill1 = Fill("F_DP1", "O1", "gold_01", "GOLDM", "BUY", 1, 150000.0, time.time(), 1.0, None, "TRD-1")
         pm.open_position(fill1, multiplier=10.0, stop_price=149000.0)
-        fill2 = Fill("F_DP2", "O2", "gold_01", "GOLDM", "BUY", 1, 150000.0, time.time())
+        fill2 = Fill("F_DP2", "O2", "gold_01", "GOLDM", "BUY", 1, 150000.0, time.time(), 1.0, None, "TRD-2")
         # Opening another position for same strategy should be tracked
         # The system allows multiple positions but risk engine limits them
         pos2 = pm.open_position(fill2, multiplier=10.0, stop_price=149000.0)

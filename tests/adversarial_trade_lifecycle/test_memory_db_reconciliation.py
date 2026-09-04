@@ -75,10 +75,16 @@ class TestMemoryVsDbLifecycle:
         print(f"  DB trades: {len(db_trades)}")
         print(f"  DB fills: {len(db_fills)}")
 
-        # Persist removed from create_trade_from_signal() — trade in memory only
-        assert len(db_trades) == 0, \
-            f"create_trade_from_signal() should not persist, got {len(db_trades)} trades"
-        print("  CONFIRMED: Trade in memory only, not in DB (persist removed from create)")
+        # CANONICAL MODEL: create_trade_from_signal() persists the trade
+        # (signal row first), so memory and DB agree on identity. This is
+        # what makes crash-window-B recovery possible (Section 37).
+        assert len(db_trades) == 1, \
+            f"create_trade_from_signal() must persist the trade, got {len(db_trades)}"
+        assert db_trades[0]["trade_id"] == mem_trade.trade_id, \
+            "DB trade_id must equal the in-memory lifecycle trade_id"
+        signals = _raw_db_query(db_path, "SELECT * FROM signals")
+        assert len(signals) == 1, "signal row must exist before the trade row"
+        print("  CONFIRMED: Trade persisted under canonical trade_id (memory == DB)")
 
     def test_position_id_independent_from_lifecycle_trade_id(self):
         """
@@ -98,11 +104,12 @@ class TestMemoryVsDbLifecycle:
             fill_id="F-001", order_id="O-001", instrument="GOLDM",
             side="BUY", quantity=1, price=100000.0, timestamp=time.time(),
             strategy_id="gold_01", multiplier=1,
-            entry_signal_id=sig.signal_id, trade_id=None,
+            entry_signal_id=sig.signal_id, trade_id=ctx.trade_id,
         )
         position = position_mgr.open_position(
             fill=fill, multiplier=1.0, margin=0.0,
             stop_price=99000.0, entry_signal_id=sig.signal_id,
+            trade_id=ctx.trade_id,
         )
 
         print(f"\n  lifecycle_trade.trade_id = {ctx.trade_id}")
@@ -140,13 +147,22 @@ class TestDbForensicIntegrity:
         assert fk_status == 0, "Foreign keys should NOT be enforced (system doesn't use them)"
 
     def test_insert_or_replace_destroys_history(self):
-        """INSERT OR REPLACE deletes the old row and creates a new one."""
+        """Inserting the same trade_id twice must NOT destroy the audit trail:
+        canonical save_trade uses ON CONFLICT DO UPDATE (row identity preserved),
+        unlike the old INSERT OR REPLACE which deleted+recreated the row."""
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
 
-        # Insert trade
+        # Seed the canonical signal so the entry-signal trigger passes.
+        persistence.save_signal({
+            "signal_id": "SIG-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(),
+        })
+
+        # Insert trade (open)
         persistence.save_trade({
             "trade_id": "TRD-001", "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "LONG",
@@ -162,7 +178,7 @@ class TestDbForensicIntegrity:
         auto_id_1 = row1["id"]
         print(f"\n  First insert: id={auto_id_1}")
 
-        # Replace with same trade_id but different data
+        # Update with same trade_id but different data (close it)
         persistence.save_trade({
             "trade_id": "TRD-001", "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "LONG",
@@ -178,66 +194,73 @@ class TestDbForensicIntegrity:
         auto_id_2 = row2["id"]
         print(f"  Second insert: id={auto_id_2}")
 
-        # INSERT OR REPLACE deletes old row, creates new — auto_id changes
-        assert auto_id_1 != auto_id_2, \
-            f"INSERT OR REPLACE should change auto_id: {auto_id_1} -> {auto_id_2}"
+        # ON CONFLICT DO UPDATE preserves the row identity (audit trail intact);
+        # the old INSERT OR REPLACE would have changed auto_id.
+        assert auto_id_1 == auto_id_2, \
+            f"canonical save_trade must preserve row identity (ON CONFLICT UPDATE): {auto_id_1} -> {auto_id_2}"
         assert row2["status"] == "closed"
         assert row2["net_pnl"] == 990.0
-        print("  CONFIRMED: INSERT OR REPLACE destroys audit trail (auto_id changed)")
+        print("  CONFIRMED: ON CONFLICT UPDATE preserves the canonical row (audit trail intact)")
 
-    def test_orphan_fill_with_no_trade(self):
-        """A fill with trade_id=NULL should be detected by orphan scan."""
+    def test_orphan_fill_with_no_trade_is_prevented(self):
+        """Canonical integrity triggers REJECT a fill that references no trade.
+        A fill with trade_id=NULL/'' must never be writable to the DB."""
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
         lifecycle = TradeLifecycleManager(persistence=persistence)
 
-        # Insert orphan fill directly via SQL
+        # Attempt to insert an orphan fill (trade_id NULL, order NULL) directly.
+        # The canonical DB rejects it at the constraint layer.
         conn = sqlite3.connect(db_path)
-        conn.execute("""
-            INSERT INTO fills (fill_id, order_id, strategy_id, instrument,
-                side, quantity, price, timestamp, entry_signal_id, trade_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("ORPHAN-F-001", "O-X", "gold_01", "GOLDM", "BUY", 1, 100000.0,
-              "2026-09-04T10:00:00", "", ""))
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("""
+                INSERT INTO fills (fill_id, order_id, strategy_id, instrument,
+                    side, quantity, price, timestamp, entry_signal_id, trade_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("ORPHAN-F-001", "O-X", "gold_01", "GOLDM", "BUY", 1, 100000.0,
+                  "2026-09-04T10:00:00", "", ""))
+            conn.commit()
+            rejected = False
+        except sqlite3.IntegrityError:
+            rejected = True
+        finally:
+            conn.close()
 
-        # Verify orphan exists in raw DB
+        # The orphan must NOT be creatable — integrity is enforced.
+        assert rejected, "DB must reject a fill lacking trade/order lineage"
         orphans = _raw_db_query(
             db_path,
             "SELECT fill_id FROM fills WHERE trade_id IS NULL OR trade_id = ''"
         )
-        print(f"\n  Orphan fills in DB: {[o['fill_id'] for o in orphans]}")
-        assert len(orphans) == 1
-        assert orphans[0]["fill_id"] == "ORPHAN-F-001"
+        assert len(orphans) == 0, "no orphan fills may exist in the canonical DB"
+        print("  CONFIRMED: orphan fill with no trade is REJECTED by integrity trigger")
 
-    def test_orphan_fill_with_nonexistent_trade(self):
-        """A fill with trade_id pointing to nonexistent trade should be detectable."""
+    def test_orphan_fill_with_nonexistent_trade_is_prevented(self):
+        """Canonical integrity triggers REJECT a fill referencing a missing trade."""
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
 
-        # Insert fill with invalid trade_id
+        # Attempt to insert a fill referencing a nonexistent trade and order.
         conn = sqlite3.connect(db_path)
-        conn.execute("""
-            INSERT INTO fills (fill_id, order_id, strategy_id, instrument,
-                side, quantity, price, timestamp, entry_signal_id, trade_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("BAD-F-001", "O-X", "gold_01", "GOLDM", "BUY", 1, 100000.0,
-              "2026-09-04T10:00:00", "", "NONEXISTENT-TRADE-ID"))
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("""
+                INSERT INTO fills (fill_id, order_id, strategy_id, instrument,
+                    side, quantity, price, timestamp, entry_signal_id, trade_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("BAD-F-001", "O-X", "gold_01", "GOLDM", "BUY", 1, 100000.0,
+                  "2026-09-04T10:00:00", "", "NONEXISTENT-TRADE-ID"))
+            conn.commit()
+            rejected = False
+        except sqlite3.IntegrityError:
+            rejected = True
+        finally:
+            conn.close()
 
-        # Verify fill exists but trade doesn't
+        assert rejected, "DB must reject a fill referencing a missing trade/order"
         fills = _raw_db_query(db_path, "SELECT * FROM fills WHERE fill_id='BAD-F-001'")
-        trades = _raw_db_query(db_path, "SELECT * FROM trades WHERE trade_id='NONEXISTENT-TRADE-ID'")
-
-        print(f"\n  Fill exists: {len(fills) == 1}")
-        print(f"  Referenced trade exists: {len(trades) == 1}")
-
-        assert len(fills) == 1
-        assert len(trades) == 0
-        print("  CONFIRMED: Orphan fill with non-existent trade_id in DB")
+        assert len(fills) == 0, "a rejected orphan fill must not be persisted"
+        print("  CONFIRMED: orphan fill with nonexistent trade is REJECTED by integrity trigger")

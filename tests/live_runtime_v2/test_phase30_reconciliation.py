@@ -18,9 +18,9 @@ import pytest
 from . import RUN_ID, SUITE_VERSION, get_evidence, REPORT_DIR
 
 
-def _mk_fill(fid, oid, inst, side, qty, px, ts, strat):
+def _mk_fill(fid, oid, inst, side, qty, px, ts, strat, trade_id="TRD-UNIT"):
     from execution.paper_broker import Fill
-    return Fill(fid, oid, inst, side, qty, px, ts, strat)
+    return Fill(fid, oid, inst, side, qty, px, ts, strat, 1.0, None, trade_id)
 
 
 class TestFinalReconciliation:

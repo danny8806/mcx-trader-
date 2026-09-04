@@ -226,12 +226,58 @@ class TradeCloseManager:
                         gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
                     )
                 else:
-                    # A missing projection is recoverable only when the
-                    # canonical trade already exists. Do not invent a second
-                    # lifecycle record from position state.
-                    raise ValueError(
-                        f"missing derived projection for canonical trade {trade_id}"
+                    # GUARDED projection heal: the derived read-model is missing
+                    # but the canonical trade already exists (persisted in
+                    # Step 2-3). Rebuild the projection entirely from canonical
+                    # data -- never invent a trade_id, never use position/analytics
+                    # as an authority for identity. Failure to heal is logged
+                    # (and classified CRITICAL below), never fatal to the close.
+                    entry_fill_id = (
+                        position.entry_fill_ids[0]
+                        if getattr(position, "entry_fill_ids", None)
+                        else ""
                     )
+                    if self._trade_ledger.create_trade(
+                        strategy_id=strategy_id,
+                        instrument=fill.instrument,
+                        side=side,
+                        entry_quantity=position.quantity,
+                        signal_time=position.entry_timestamp,
+                        trigger_price=position.average_entry,
+                        stop_price=getattr(position, "stop_price", None) or 0.0,
+                        multiplier=multiplier,
+                        entry_reason=exit_reason_final,  # projection bookkeeping only
+                        trade_id=trade_id,
+                        position_id=position.position_id,
+                    ):
+                        self._trade_ledger.record_fill(
+                            trade_id=trade_id,
+                            fill_id=entry_fill_id,
+                            order_id="",
+                            side="BUY" if position.is_long else "SELL",
+                            quantity=position.quantity,
+                            price=position.average_entry,
+                            timestamp=position.entry_timestamp,
+                            is_entry=True,
+                        )
+                        self._trade_ledger.record_fill(
+                            trade_id=trade_id,
+                            fill_id=fill.fill_id,
+                            order_id=fill.order_id,
+                            side=fill.side,
+                            quantity=fill.quantity,
+                            price=fill.price,
+                            timestamp=fill.timestamp,
+                            is_entry=False,
+                        )
+                        self._trade_ledger.close_trade(
+                            trade_id, exit_reason=exit_reason_final,
+                            gross_pnl=gross_pnl, net_pnl=net_pnl, fees=charges,
+                        )
+                    else:
+                        raise ValueError(
+                            f"failed to rebuild derived projection for canonical trade {trade_id}"
+                        )
             except Exception as e:
                 print(f"[TradeClose] CRITICAL: analytics ledger close failed for {position.position_id}: {e}", flush=True)
 

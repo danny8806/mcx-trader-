@@ -57,6 +57,7 @@ def _make_fill(
     multiplier: float = 10.0,
     timestamp: float | None = None,
     order_id: str = "o1",
+    trade_id: str | None = None,
 ) -> Fill:
     return Fill(
         fill_id=fill_id,
@@ -68,6 +69,7 @@ def _make_fill(
         timestamp=timestamp or time.time(),
         strategy_id=strategy_id,
         multiplier=multiplier,
+        trade_id=trade_id or f"TRD-{fill_id}",
     )
 
 

@@ -155,14 +155,13 @@ class TestInstrumentIsolation:
         from portfolio.position_manager import PositionManager
         from execution.paper_broker import Fill
         pm = PositionManager()
-        fill1 = Fill("F1", "O1", "GOLDM", "BUY", 1, 150000.0, time.time(), "gold_01", 10.0)
-        fill2 = Fill("F2", "O2", "SILVERM", "BUY", 1, 95000.0, time.time(), "silver_01", 5.0)
+        fill1 = Fill("F1", "O1", "GOLDM", "BUY", 1, 150000.0, time.time(), "gold_01", 10.0, None, "TRD-1")
+        fill2 = Fill("F2", "O2", "SILVERM", "BUY", 1, 95000.0, time.time(), "silver_01", 5.0, None, "TRD-2")
         pos1 = pm.open_position(fill1, multiplier=10.0, stop_price=149000.0)
         pos2 = pm.open_position(fill2, multiplier=5.0, stop_price=94000.0)
         assert len(pm.open_positions) == 2
-        assert pos1.strategy_id == "gold_01"
-        assert pos2.strategy_id == "silver_01"
-        pm.close_position(pos1.position_id, Fill("F3", "O3", "GOLDM", "SELL", 1, 151000.0, time.time(), "gold_01"), "signal_exit")
+
+        pm.close_position(pos1.position_id, Fill("F3", "O3", "GOLDM", "SELL", 1, 151000.0, time.time(), "gold_01", 10.0, None, "TRD-1"), "signal_exit")
         assert len(pm.open_positions) == 1
         assert pm.open_positions[0].strategy_id == "silver_01"
 

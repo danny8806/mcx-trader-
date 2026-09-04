@@ -83,6 +83,7 @@ def test_broker_rejects_negative_price():
         Signal(SignalType.SHORT, "SILVERM", "s0", 1.0,
                trigger_price=240000.0, stop_price=240900.0, quantity=1),
         multiplier=5.0,
+        trade_id="TRD-SENTINEL-1",
     )
     broker.submit_order(order)
     assert order.state == OrderState.REJECTED, "must reject, not fill at -1"
@@ -97,6 +98,7 @@ def test_broker_rejects_zero_and_nan_price():
             Signal(SignalType.LONG, "SILVERM", "s1", 1.0,
                    trigger_price=240000.0, stop_price=239500.0, quantity=1),
             multiplier=5.0,
+            trade_id="TRD-SENTINEL-2",
         )
         broker.submit_order(order)
         assert order.state == OrderState.REJECTED

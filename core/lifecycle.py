@@ -519,7 +519,6 @@ class TradeLifecycleManager:
             trade.entry_fill_id = fill_id
             trade.entry_price = price
             trade.entry_timestamp = timestamp or time.time()
-            trade.position_id = trade_id  # 1:1 mapping
             trade.status = TradeStatus.OPEN.value
             trade.updated_at = time.time()
             self._fill_to_trade[fill_id] = trade_id
@@ -735,11 +734,53 @@ class TradeLifecycleManager:
     # PERSISTENCE
     # ═══════════════════════════════════════════
 
+    def _persist_signal(self, trade: TradeContext) -> None:
+        """Persist the entry signal BEFORE the trade row (Section 3 invariant).
+
+        trades.entry_signal_id is enforced at the database level (trigger +
+        FK): a trade row cannot exist without its signal row.  save_signal is
+        idempotent (INSERT OR IGNORE) so repeated persists are no-ops and the
+        persisted signal candle can never be overwritten (signal immutability).
+        """
+        if not self._persistence or not trade.entry_signal_id:
+            return
+        try:
+            self._persistence.save_signal({
+                "signal_id": trade.entry_signal_id,
+                "strategy_id": trade.strategy_id,
+                "instrument": trade.instrument,
+                "side": trade.entry_side,
+                "signal_type": trade.entry_event_type,
+                "timestamp": trade.entry_timestamp,
+                "trigger_price": trade.entry_trigger_price,
+                "stop_price": trade.stop_loss_price,
+                "quantity": trade.quantity,
+                "candle_data": {
+                    "open": trade.signal_candle_open,
+                    "high": trade.signal_candle_high,
+                    "low": trade.signal_candle_low,
+                    "close": trade.signal_candle_close,
+                },
+                "indicator_data": {
+                    "htf_value": trade.signal_htf_value,
+                    "mid_value": trade.signal_mid_value,
+                    "fast_dema": trade.signal_fast_dema,
+                    "fast_atr": trade.signal_fast_atr,
+                    "reason": trade.signal_reason,
+                },
+            })
+        except Exception as e:
+            print(f"[Lifecycle] WARNING: failed to persist signal "
+                  f"{trade.entry_signal_id}: {e}", flush=True)
+
     def _persist_trade(self, trade: TradeContext):
-        """Persist canonical trade to DB."""
+        """Persist canonical trade to DB. Signal row is guaranteed first."""
         if not self._persistence:
             return
         try:
+            # The signal MUST exist before the trade row (DB trigger + FK
+            # enforce trades.entry_signal_id -> signals.signal_id).
+            self._persist_signal(trade)
             data = trade.snapshot()
             # Convert float timestamps to ISO strings for DB
             if trade.entry_timestamp:

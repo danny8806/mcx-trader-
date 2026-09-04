@@ -162,9 +162,16 @@ def test_close_position_when_ledger_missing_does_not_invent_projection(tmp_path)
     mgr.close_position(fill=exit_fill, position=pm._positions["pos_1"],
                        strategy_id="gold_01", multiplier=5.0)
 
-    # A missing derived projection is an error; the close path must not invent
-    # lifecycle state from position fields.
-    assert tl.get_trade("trade_1") is None
+    # GUARDED PROJECTION HEAL: the missing derived projection is rebuilt from
+    # canonical data (explicit position.trade_id — never invented), the exit is
+    # applied, and the projection ends CLOSED. The unrelated open trade
+    # (pos_2/trade_2) must remain OPEN and untouched.
+    healed = tl.get_trade("trade_1")
+    assert healed is not None, "missing projection must be rebuilt from canonical data"
+    assert healed.trade_id == "trade_1", "heal must use the explicit canonical trade_id"
+    assert healed.position_id == "pos_1", "position_id stays a separate identity"
+    assert healed.status == "CLOSED", "healed projection must carry the applied exit"
+    assert healed.exit_quantity == 1 and healed.exit_price == 110.0
     # pos_2 untouched + still OPEN
     assert tl.get_trade("trade_2").status == "OPEN"
 

@@ -301,8 +301,8 @@ class PersistenceManager:
             conn.execute("""
                 INSERT INTO fills (
                     fill_id, order_id, strategy_id, instrument,
-                    side, quantity, price, timestamp, trade_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    side, quantity, price, timestamp, trade_id, entry_signal_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(fill_id) DO NOTHING
             """, (
                 fill.get("fill_id"),
@@ -314,6 +314,7 @@ class PersistenceManager:
                 fill.get("price"),
                 fill.get("timestamp"),
                 fill.get("trade_id"),
+                fill.get("entry_signal_id"),
             ))
             conn.commit()
 
@@ -395,13 +396,14 @@ class PersistenceManager:
                 conn.execute("""
                     INSERT INTO fills (
                         fill_id, order_id, strategy_id, instrument,
-                        side, quantity, price, timestamp, trade_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        side, quantity, price, timestamp, trade_id, entry_signal_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(fill_id) DO NOTHING
                 """, (
                     fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
                     fill.get("instrument"), fill.get("side"), fill.get("quantity"),
                     fill.get("price"), fill.get("timestamp"), fill.get("trade_id"),
+                    fill.get("entry_signal_id"),
                 ))
                 conn.commit()
             except Exception:

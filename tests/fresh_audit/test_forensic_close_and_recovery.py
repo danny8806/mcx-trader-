@@ -44,11 +44,52 @@ def _make_engine(tmp_path, side="LONG", entry=100.0, exitp=104.0, qty=1, mult=10
     pmpos = PositionManager()
 
     pid = "pos_close_1"
+    # Production lineage: signal -> trade(open) -> orders -> fills -> close.
+    # Seed the same durable sequence the engine writes at entry time so the
+    # close path satisfies the canonical integrity triggers.
+    sig_id = "sig_close_1"
+    entry_ord = f"{pid}-ord"
+    exit_ord = f"{pid}-xe"
+    pm.save_signal({
+        "signal_id": sig_id, "strategy_id": strategy, "instrument": instrument,
+        "side": "LONG" if side == "LONG" else "SHORT",
+        "signal_type": "ENTRY_LONG" if side == "LONG" else "ENTRY_SHORT",
+        "timestamp": 1000.0, "trigger_price": entry, "stop_price": entry - 2,
+        "quantity": qty,
+    })
+    pm.save_trade({
+        "trade_id": pid, "strategy_id": strategy, "instrument": instrument,
+        "side": side, "entry_timestamp": "1970-01-01T00:16:40+00:00",
+        "entry_price": entry, "quantity": qty, "multiplier": mult,
+        "status": "open", "entry_signal_id": sig_id,
+    })
+    pm.save_order({
+        "order_id": entry_ord, "strategy_id": strategy, "instrument": instrument,
+        "side": "BUY" if side == "LONG" else "SELL", "quantity": qty,
+        "order_type": "MARKET", "price": entry, "state": "filled",
+        "filled_quantity": qty, "average_fill_price": entry,
+        "trade_id": pid, "signal_id": sig_id,
+    })
+    pm.save_fill({
+        "fill_id": f"{pid}-entry", "order_id": entry_ord,
+        "strategy_id": strategy, "instrument": instrument,
+        "side": "BUY" if side == "LONG" else "SELL", "quantity": qty,
+        "price": entry, "timestamp": "1970-01-01T00:16:41+00:00",
+        "trade_id": pid, "entry_signal_id": sig_id,
+    })
+    pm.save_order({
+        "order_id": exit_ord, "strategy_id": strategy, "instrument": instrument,
+        "side": "SELL" if side == "LONG" else "BUY", "quantity": qty,
+        "order_type": "MARKET", "price": exitp, "state": "submitted",
+        "filled_quantity": 0, "average_fill_price": 0.0,
+        "trade_id": pid,
+    })
     pos = Position(
         position_id=pid, strategy_id=strategy, instrument=instrument,
         side=PositionSide.LONG if side == "LONG" else PositionSide.SHORT,
         quantity=qty, average_entry=entry, entry_timestamp=1001.0,
         entry_fill_ids=[f"{pid}-entry"], multiplier=mult,
+        trade_id=pid, entry_signal_id=sig_id,
     )
     pmpos._positions[pid] = pos
     # ledger already has the OPEN trade + entry leg (as the engine created at open)

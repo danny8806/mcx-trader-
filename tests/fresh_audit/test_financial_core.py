@@ -129,12 +129,13 @@ def _make_fill(
     side: str = "BUY", price: float = 52000.0, qty: int = 1,
     instrument: str = "GOLDM", strategy_id: str = "gold_01",
     multiplier: float = 10.0, fill_id: str = "f1",
+    trade_id: str = "t-test",
 ) -> Fill:
     return Fill(
         fill_id=fill_id, order_id="o1", instrument=instrument,
         side=side, quantity=qty, price=price,
         timestamp=time.time(), strategy_id=strategy_id,
-        multiplier=multiplier,
+        multiplier=multiplier, trade_id=trade_id,
     )
 
 
@@ -573,7 +574,7 @@ class TestPaperBroker:
         eng = self._make_engine()
         eng.update_price("GOLDM", 52000.0)
         sig = self._make_signal("LONG")
-        order = eng.create_order(sig, multiplier=10.0)
+        order = eng.create_order(sig, multiplier=10.0, trade_id="t-test")
         assert order.side == "BUY"
         order = eng.submit_order(order)
         assert order.state == OrderState.FILLED
@@ -583,7 +584,7 @@ class TestPaperBroker:
         eng = self._make_engine()
         eng.update_price("SILVERM", 68000.0)
         sig = self._make_signal("SHORT", inst="SILVERM")
-        order = eng.create_order(sig, multiplier=30.0)
+        order = eng.create_order(sig, multiplier=30.0, trade_id="t-test")
         assert order.side == "SELL"
         order = eng.submit_order(order)
         assert order.state == OrderState.FILLED
@@ -593,7 +594,7 @@ class TestPaperBroker:
         eng = self._make_engine(slippage=3)
         eng.update_price("GOLDM", 52000.0)
         sig = self._make_signal("LONG")
-        order = eng.create_order(sig, multiplier=10.0)
+        order = eng.create_order(sig, multiplier=10.0, trade_id="t-test")
         order = eng.submit_order(order)
         assert order.average_fill_price == 52003.0
 
@@ -601,10 +602,10 @@ class TestPaperBroker:
         eng = self._make_engine()
         eng.update_price("GOLDM", 52000.0)
         sig = self._make_signal("LONG")
-        order = eng.create_order(sig, multiplier=10.0)
+        order = eng.create_order(sig, multiplier=10.0, trade_id="t-test")
         order = eng.submit_order(order)
         assert order.state == OrderState.FILLED
-        order2 = eng.create_order(sig, multiplier=10.0)
+        order2 = eng.create_order(sig, multiplier=10.0, trade_id="t-test")
         assert order2.order_id != order.order_id
 
 

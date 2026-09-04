@@ -45,7 +45,6 @@ from core.risk_engine import RiskEngine
 from core.market_status import MarketState, EngineStatus
 from core.trade_close import TradeCloseManager
 from strategies.types import Signal, SignalType
-from analytics.schema import init_analytics_db
 from reconciliation.engine import ReconciliationEngine
 from trading_engine import TradingEngine
 
@@ -191,7 +190,6 @@ class _World:
     def __init__(self, root: Path):
         self.root = root
         self.cfg_path = _write_config(root)
-        init_analytics_db(str(root / "data" / "db" / "analytics.db"))
 
     def db_path(self) -> Path:
         return self.root / "data" / "db" / "trading.db"
@@ -319,10 +317,12 @@ class TestFullLifecycle:
             assert fills[0][1] == orders[0][0], "fill must reference the persisted order"
             assert abs(fills[0][2] - 78000.0) < 1e-6
 
-            # Ledger: position-anchored open trade
-            trade = engine.trade_ledger.get_trade(pos.position_id)
+            # Ledger: trade_id-anchored open trade (trade_id is immutable and
+            # separate from position_id in the canonical model).
+            assert pos.trade_id != pos.position_id
+            trade = engine.trade_ledger.get_trade(pos.trade_id)
             assert trade is not None and trade.status == "OPEN"
-            assert trade.trade_id == pos.position_id
+            assert trade.trade_id == pos.trade_id
             assert trade.multiplier == 10.0
 
             # ── Exit ──
@@ -350,13 +350,13 @@ class TestFullLifecycle:
             trades = _readonly_sql(
                 db, "SELECT trade_id, net_pnl, charges, status FROM trades")
             assert len(trades) == 1
-            assert trades[0][0] == pos.position_id
+            assert trades[0][0] == pos.trade_id
             assert trades[0][3].upper() in ("CLOSED", "closed")
             assert abs(trades[0][1] - net) < 1e-6
             assert abs(trades[0][2] - charges) < 1e-6
 
             # Ledger: trade closed with authoritative P&L
-            trade = engine.trade_ledger.get_trade(pos.position_id)
+            trade = engine.trade_ledger.get_trade(pos.trade_id)
             assert trade.status == "CLOSED"
             assert abs(trade.net_pnl - net) < 1e-6
 
@@ -380,6 +380,10 @@ class TestRestartRecovery:
             ts = time.time()
             _process(engine1, Signal(SignalType.LONG, "GOLDM", "gold_01", ts, 78000.0, 77000.0, 1))
             pos_id = engine1.position_manager.open_positions[0].position_id
+            # Canonical identity: the persisted trade carries the immutable
+            # trade_id, which is separate from the generated position_id.
+            pos_trade_id = engine1.position_manager.open_positions[0].trade_id
+            assert pos_trade_id != pos_id
 
             state = engine1.snapshot()
             persistence1.save_state(state)
@@ -424,7 +428,7 @@ class TestRestartRecovery:
             assert len(engine2.position_manager.open_positions) == 0, "position closed by real exit signal"
             trades2 = _readonly_sql(db, "SELECT trade_id, status, exit_reason FROM trades")
             assert len(trades2) == 1
-            assert trades2[0][0] == pos_id
+            assert trades2[0][0] == pos_trade_id
             assert trades2[0][1].upper() in ("CLOSED", "closed")
             assert trades2[0][2] != "eod_close", "exit must be a real signal, not EOD close"
             result = _reconcile_result(engine2)
@@ -632,7 +636,7 @@ class TestTradeCloseAtomicity:
                      instrument="GOLDM", side="BUY", quantity=1, price=78000.0,
                      timestamp=time.time() - 3600, strategy_id="g", multiplier=10.0)
         pos = pm.open_position(fill=entry, multiplier=10.0, stop_price=77000.0,
-                               margin=1000.0)
+                               margin=1000.0, trade_id=f"TRD-{entry.fill_id}")
         return pm, pos
 
     def test_close_returns_false_when_persistence_fails(self):
@@ -679,12 +683,34 @@ class TestTradeCloseAtomicity:
         state_path = tmp_path / "state.json"
         persistence = PersistenceManager(str(state_path), str(db_path))
         try:
+            # Canonical lineage in trigger-valid order: seed the entry signal so
+            # the open trade's entry_signal_id resolves, and seed the trade +
+            # orders so the persisted exit fill references an existing order.
+            persistence.save_signal({
+                "signal_id": "sig-healthy-s", "strategy_id": "s",
+                "instrument": "SILVERM", "side": "SELL", "signal_type": "ENTRY_SHORT",
+                "timestamp": time.time(), "trigger_price": 95000.0,
+                "stop_price": 96000.0, "quantity": 1,
+            })
             pm = PositionManager()
             entry = Fill(fill_id=str(uuid.uuid4()), order_id=str(uuid.uuid4()),
                          instrument="SILVERM", side="SELL", quantity=1, price=95000.0,
                          timestamp=time.time() - 3600, strategy_id="s", multiplier=5.0)
             pos = pm.open_position(fill=entry, multiplier=5.0, stop_price=96000.0,
-                                   margin=800.0)
+                                   margin=800.0, entry_signal_id="sig-healthy-s",
+                                   trade_id=f"TRD-{entry.fill_id}")
+            assert pos.trade_id != pos.position_id
+            persistence.save_trade({
+                "trade_id": pos.trade_id, "strategy_id": "s", "instrument": "SILVERM",
+                "side": "SHORT", "entry_price": 95000.0, "quantity": 1,
+                "multiplier": 5.0, "entry_signal_id": "sig-healthy-s", "status": "open",
+            })
+            persistence.save_order({
+                "order_id": entry.order_id, "strategy_id": "s", "instrument": "SILVERM",
+                "side": "SELL", "quantity": 1, "order_type": "MARKET", "state": "filled",
+                "filled_quantity": 1, "average_fill_price": 95000.0,
+                "signal_id": "sig-healthy-s", "trade_id": pos.trade_id,
+            })
             fee_model = MCXFeeModel.from_config({
                 "brokerage_per_side": 20.0, "stt_sell_pct": 0.01,
                 "exchange_pct": 0.0026, "sebi_pct": 0.0001,
@@ -705,12 +731,18 @@ class TestTradeCloseAtomicity:
             exit_fill = Fill(fill_id=str(uuid.uuid4()), order_id=str(uuid.uuid4()),
                              instrument="SILVERM", side="BUY", quantity=1, price=94800.0,
                              timestamp=time.time(), strategy_id="s", multiplier=5.0)
+            persistence.save_order({
+                "order_id": exit_fill.order_id, "strategy_id": "s", "instrument": "SILVERM",
+                "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "submitted",
+                "filled_quantity": 0, "average_fill_price": 0.0,
+                "signal_id": "sig-healthy-s", "trade_id": pos.trade_id,
+            })
             ok = manager.close_position(fill=exit_fill, position=pos,
                                         strategy_id="s", multiplier=5.0)
             assert ok is not False and ok is not None
             assert not pos.is_open
             rows = _readonly_sql(db_path, "SELECT trade_id, status FROM trades")
-            assert len(rows) == 1 and rows[0][1] == "closed"
+            assert len(rows) == 1 and rows[0][0] == pos.trade_id and rows[0][1] == "closed"
 
             expected = indep_gross_short(95000.0, 94800.0, 1, 5.0) - indep_charges(
                 95000.0, 94800.0, 1, 5.0, "SHORT")

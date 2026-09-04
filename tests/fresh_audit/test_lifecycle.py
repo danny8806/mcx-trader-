@@ -242,12 +242,23 @@ class TestEntryFill:
         assert t.position_id == "POS-001"
 
     def test_position_id_auto_set_on_entry_fill(self):
+        # position_id must be SEPARATE identity per architecture Section 1.
+        # register_entry_fill does not auto-assign position_id; a position
+        # must be created explicitly with a distinct identity via
+        # register_position().
         mgr = TradeLifecycleManager()
         sig = _make_signal()
         ctx = mgr.create_trade_from_signal(sig, "gold_01", instrument="GOLDM")
         mgr.register_entry_fill(ctx.trade_id, "FILL-001", 100000.0)
+        # Entry fill does not auto-assign position_id
         t = mgr.get_trade(ctx.trade_id)
-        assert t.position_id == ctx.trade_id  # 1:1 mapping
+        assert t.position_id == ""  # no position until explicitly registered
+        assert t.entry_fill_id == "FILL-001"
+
+        # Position must be registered with a SEPARATE identity
+        mgr.register_position(ctx.trade_id, "POS-001")
+        assert mgr.get_trade(ctx.trade_id).position_id == "POS-001"
+        assert "POS-001" != ctx.trade_id  # position_id != trade_id
 
     def test_position_to_trade_resolution(self):
         mgr = TradeLifecycleManager()

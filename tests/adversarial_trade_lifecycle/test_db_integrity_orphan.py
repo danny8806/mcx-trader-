@@ -124,21 +124,27 @@ class TestDbOrphanScan:
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
         lifecycle = TradeLifecycleManager(persistence=persistence)
 
-        # Create a fill in DB with no trade_id (orphan)
-        persistence.save_fill({
-            "fill_id": "ORPHAN-FILL-DB", "order_id": "O-X",
-            "strategy_id": "gold_01", "instrument": "GOLDM",
-            "side": "BUY", "quantity": 1, "price": 100000.0,
-            "timestamp": "2026-09-04T10:00:00+00:00",
-            "entry_signal_id": "", "trade_id": "",
-        })
+        # Attempt to persist a fill with no trade_id and an order that does not
+        # exist. The canonical DB MUST reject this at the constraint layer.
+        import pytest as _pytest
+        with _pytest.raises(Exception):
+            persistence.save_fill({
+                "fill_id": "ORPHAN-FILL-DB", "order_id": "O-X",
+                "strategy_id": "gold_01", "instrument": "GOLDM",
+                "side": "BUY", "quantity": 1, "price": 100000.0,
+                "timestamp": "2026-09-04T10:00:00+00:00",
+                "entry_signal_id": "", "trade_id": "",
+            })
 
         # Create a valid trade to avoid empty-state edge case
         sig = _make_signal()
         lifecycle.create_trade_from_signal(sig, "gold_01", "Gold 01", "GOLDM", 1, 1.0)
 
-        report = lifecycle.orphan_scan()
-        orphan_fill_ids = [o.get("fill_id") for o in report.get("orphan_fills", [])]
-        print(f"\n  DB orphan fills: {orphan_fill_ids}")
-        assert "ORPHAN-FILL-DB" in orphan_fill_ids, \
-            f"Should detect DB orphan fill ORPHAN-FILL-DB"
+        # The orphan must not exist in the DB.
+        conn = sqlite3.connect(db_path)
+        orphans = conn.execute(
+            "SELECT fill_id FROM fills WHERE fill_id='ORPHAN-FILL-DB'"
+        ).fetchall()
+        conn.close()
+        assert len(orphans) == 0, \
+            "canonical DB must reject an orphan fill (no trade/order lineage)"

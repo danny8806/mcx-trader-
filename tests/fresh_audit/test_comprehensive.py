@@ -804,10 +804,11 @@ class TestPositionLifecycle:
 
     def _make_fill(self, side="BUY", price=100.0, qty=1, strat="gold_01", inst="GOLDM"):
         from execution.paper_broker import Fill
+        fill_id = str(uuid.uuid4())
         return Fill(
-            fill_id=str(uuid.uuid4()), order_id="o1", instrument=inst,
+            fill_id=fill_id, order_id="o1", instrument=inst,
             side=side, quantity=qty, price=price, timestamp=time.time(),
-            strategy_id=strat, multiplier=10.0,
+            strategy_id=strat, multiplier=10.0, trade_id=f"TRD-{fill_id}",
         )
 
     def test_position_add_long(self, pm):
@@ -905,7 +906,30 @@ class TestTradeClose:
         )
 
         entry = Fill("f_entry", "o1", "GOLDM", "BUY", 1, 100.0, time.time() - 100, "gold_01", 10.0)
-        pos = pm.open_position(entry, multiplier=10.0, margin=65000)
+        # Seed the canonical lineage in trigger-valid order: signal -> trade ->
+        # order before any close is persisted (entry_signal_id / trade_id are
+        # compulsory canonical identities; trade_id is separate from position_id).
+        pers.save_signal({
+            "signal_id": "SIG-f_entry", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(), "trigger_price": 100.0,
+            "stop_price": 95.0, "quantity": 1,
+        })
+        pos = pm.open_position(entry, multiplier=10.0, margin=65000,
+                               entry_signal_id="SIG-f_entry", trade_id="TRD-f_entry")
+        assert pos.trade_id != pos.position_id  # immutable trade_id is separate
+        pers.save_trade({
+            "trade_id": pos.trade_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "LONG", "entry_price": 100.0,
+            "quantity": 1, "multiplier": 10.0,
+            "entry_signal_id": "SIG-f_entry", "status": "open",
+        })
+        pers.save_order({
+            "order_id": "o1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 100.0,
+            "trade_id": pos.trade_id, "signal_id": "SIG-f_entry",
+        })
         exit_ = Fill("f_exit", "o1", "GOLDM", "SELL", 1, 110.0, time.time(), "gold_01", 10.0)
 
         result = tcm.close_position(fill=exit_, position=pos, strategy_id="gold_01", multiplier=10.0)
@@ -933,7 +957,7 @@ class TestPaperBroker:
             signal_type=SignalType.LONG, instrument="GOLDM", strategy_id="gold_01",
             timestamp=time.time(), trigger_price=100.0, stop_price=95.0, quantity=1,
         )
-        order = engine.create_order(signal, multiplier=10.0)
+        order = engine.create_order(signal, multiplier=10.0, trade_id="TRD-buy")
         assert order.side == "BUY"
         order = engine.submit_order(order)
         assert order.state == OrderState.FILLED
@@ -948,7 +972,7 @@ class TestPaperBroker:
             signal_type=SignalType.SHORT, instrument="GOLDM", strategy_id="gold_01",
             timestamp=time.time(), trigger_price=100.0, stop_price=105.0, quantity=1,
         )
-        order = engine.create_order(signal, multiplier=10.0)
+        order = engine.create_order(signal, multiplier=10.0, trade_id="TRD-sell")
         assert order.side == "SELL"
         order = engine.submit_order(order)
         assert order.state == OrderState.FILLED
@@ -1131,11 +1155,19 @@ class TestAdditionalCoverage:
     def test_persistence_save_load_trade(self, tmp_db):
         from persistence.manager import PersistenceManager
         pers = PersistenceManager(state_path=str(tmp_db + ".json"), db_path=tmp_db)
+        # Seed the entry signal first: every trade references its entry signal
+        # (canonical write order: signal -> trade).
+        pers.save_signal({
+            "signal_id": "sig-t1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1,
+        })
         trade = {
             "trade_id": "t1", "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "LONG", "entry_price": 100.0, "exit_price": 110.0,
             "quantity": 1, "multiplier": 10.0, "gross_pnl": 100.0,
             "charges": 50.0, "net_pnl": 50.0, "exit_reason": "signal_exit",
+            "entry_signal_id": "sig-t1", "status": "closed",
         }
         pers.save_trade(trade)
         trades = pers.get_trades("gold_01")
@@ -1146,11 +1178,29 @@ class TestAdditionalCoverage:
     def test_persistence_save_fill(self, tmp_db):
         from persistence.manager import PersistenceManager
         pers = PersistenceManager(state_path=str(tmp_db + ".json"), db_path=tmp_db)
+        # Seed the canonical lineage in trigger-valid order: signal -> trade ->
+        # order -> fill (every fill references trade_id and order_id).
+        pers.save_signal({
+            "signal_id": "sig-f1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1,
+        })
+        pers.save_trade({
+            "trade_id": "t-f1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "entry_price": 100.0, "quantity": 1,
+            "multiplier": 10.0, "entry_signal_id": "sig-f1", "status": "open",
+        })
+        pers.save_order({
+            "order_id": "o1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "quantity": 1, "order_type": "MARKET", "price": 100.0,
+            "state": "filled", "signal_id": "sig-f1", "trade_id": "t-f1",
+        })
         fill = {
             "fill_id": "fill_test_1", "order_id": "o1",
             "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "BUY", "quantity": 1, "price": 100.0,
             "timestamp": "2025-01-01T09:00:00Z",
+            "trade_id": "t-f1", "entry_signal_id": "sig-f1",
         }
         pers.save_fill(fill)
         pers.close()
@@ -1158,10 +1208,22 @@ class TestAdditionalCoverage:
     def test_persistence_save_order(self, tmp_db):
         from persistence.manager import PersistenceManager
         pers = PersistenceManager(state_path=str(tmp_db + ".json"), db_path=tmp_db)
+        # Canonical lineage: entry signal -> open trade -> order(trade_id).
+        pers.save_signal({
+            "signal_id": "sig-o1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1,
+        })
+        pers.save_trade({
+            "trade_id": "t-o1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "entry_price": 100.0, "quantity": 1,
+            "multiplier": 10.0, "entry_signal_id": "sig-o1", "status": "open",
+        })
         order = {
             "order_id": "order_test_1", "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "BUY", "quantity": 1,
             "order_type": "MARKET", "price": 100.0, "state": "filled",
+            "signal_id": "sig-o1", "trade_id": "t-o1",
         }
         pers.save_order(order)
         pers.close()
@@ -1329,7 +1391,7 @@ class TestAdditionalCoverage:
             signal_type=SignalType.LONG, instrument="GOLDM", strategy_id="gold_01",
             timestamp=time.time(), trigger_price=100.0, stop_price=95.0, quantity=1,
         )
-        order = engine.create_order(signal, multiplier=10.0)
+        order = engine.create_order(signal, multiplier=10.0, trade_id="TRD-no-mkt")
         order = engine.submit_order(order)
         assert order.state == OrderState.REJECTED
 
@@ -1448,7 +1510,7 @@ class TestAdditionalCoverage:
         from execution.paper_broker import Fill
         pm = PositionManager()
         f = Fill("f1", "o1", "GOLDM", "BUY", 1, 100.0, time.time(), "gold_01", 10.0)
-        pm.open_position(f, multiplier=10.0)
+        pm.open_position(f, multiplier=10.0, trade_id=f"TRD-{f.fill_id}")
         assert len(pm.get_positions_by_strategy("gold_01")) == 1
         assert len(pm.get_positions_by_strategy("gold_02")) == 0
 
@@ -1457,7 +1519,7 @@ class TestAdditionalCoverage:
         from execution.paper_broker import Fill
         pm = PositionManager()
         f = Fill("f1", "o1", "GOLDM", "BUY", 1, 100.0, time.time(), "gold_01", 10.0)
-        pm.open_position(f, multiplier=10.0)
+        pm.open_position(f, multiplier=10.0, trade_id=f"TRD-{f.fill_id}")
         assert len(pm.get_positions_by_instrument("GOLDM")) == 1
         assert len(pm.get_positions_by_instrument("SILVERM")) == 0
 

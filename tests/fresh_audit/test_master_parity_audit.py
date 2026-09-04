@@ -594,6 +594,11 @@ class TestStatePersistence:
             state_path=os.path.join(tmpdir, "state.json"),
             db_path=os.path.join(tmpdir, "trading.db"),
         )
+        pm.save_signal({
+            "signal_id": "SIG-T1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": 1000.0,
+            "trigger_price": 150000.0, "stop_price": 149000.0, "quantity": 1,
+        })
         trade = {
             "trade_id": "T001", "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "LONG", "entry_timestamp": "2026-09-01T10:00:00",
@@ -601,6 +606,7 @@ class TestStatePersistence:
             "exit_price": 150100.0, "quantity": 1, "multiplier": 10.0,
             "gross_pnl": 1000.0, "charges": 80.0, "net_pnl": 920.0,
             "exit_reason": "stop_loss_hit", "status": "closed",
+            "entry_signal_id": "SIG-T1",
         }
         pm.save_trade(trade)
         trades = pm.get_trades("gold_01")
@@ -616,10 +622,27 @@ class TestStatePersistence:
             state_path=os.path.join(tmpdir, "state.json"),
             db_path=os.path.join(tmpdir, "trading.db"),
         )
+        pm.save_signal({
+            "signal_id": "SIG-F1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": 1000.0,
+            "trigger_price": 150000.0, "stop_price": 149000.0, "quantity": 1,
+        })
+        pm.save_trade({
+            "trade_id": "TRD-F1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "entry_price": 150000.0, "quantity": 1,
+            "multiplier": 10.0, "entry_signal_id": "SIG-F1", "status": "open",
+        })
+        pm.save_order({
+            "order_id": "O001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 150000.0,
+            "trade_id": "TRD-F1",
+        })
         fill = {
             "fill_id": "F001", "order_id": "O001", "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "LONG", "quantity": 1,
             "price": 150000.0, "timestamp": "2026-09-01T10:00:00",
+            "trade_id": "TRD-F1",
         }
         pm.save_fill(fill)
         fetched = pm.get_fill("F001")
@@ -685,10 +708,15 @@ class TestIdempotency:
             db_path=os.path.join(tmpdir, "trading.db"),
         )
         def write_trade(i):
+            pm.save_signal({
+                "signal_id": f"SIG_CONC_{i}", "strategy_id": "gold_01",
+                "instrument": "GOLDM", "side": "BUY", "signal_type": "ENTRY_LONG",
+                "timestamp": 1000.0 + i,
+            })
             pm.save_trade({
                 "trade_id": f"T_CONC_{i}", "strategy_id": "gold_01",
                 "instrument": "GOLDM", "side": "LONG", "net_pnl": float(i),
-                "status": "closed",
+                "status": "closed", "entry_signal_id": f"SIG_CONC_{i}",
             })
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
             list(ex.map(write_trade, range(50)))
@@ -748,8 +776,11 @@ class TestRestartRecovery:
             quantity=1,
             price=150000.0,
             timestamp=time.time(),
+            trade_id="TRD_Roundtrip_001",
         )
-        pos = pm.open_position(fill, multiplier=10.0, stop_price=149000.0, margin=100000.0)
+        pos = pm.open_position(fill, multiplier=10.0, stop_price=149000.0,
+                               margin=100000.0, trade_id="TRD_Roundtrip_001")
+        assert pos.position_id != pos.trade_id, "position_id must differ from trade_id"
         snap = pm.snapshot()
         pm2 = PositionManager()
         pm2.restore(snap)
@@ -759,6 +790,8 @@ class TestRestartRecovery:
         assert restored.instrument == "GOLDM"
         assert restored.side == PositionSide.LONG
         assert restored.average_entry == 150000.0
+        assert restored.trade_id == "TRD_Roundtrip_001"
+        assert restored.trade_id != restored.position_id
 
 
 # ---------------------------------------------------------------------------

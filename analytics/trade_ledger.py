@@ -215,14 +215,27 @@ class TradeLedger:
                 is_entry=is_entry,
             )
             self._save_leg(leg)
+            # The in-memory cache is NEVER authoritative. If this trade is not
+            # cached (e.g. lost on restart, heal, or a projection that was never
+            # loaded), load the canonical aggregate from the DB and continue so
+            # the exit accounting / P&L is applied to the persistent copy rather
+            # than silently dropped (the baa04bef divergence pattern).
             trade = self._open_trades.get(trade_id)
-            if trade:
+            if trade is None:
+                trade = self._get_db_trade(trade_id)
+            if trade is not None:
                 if is_entry:
                     self._update_entry_fill(trade, leg)
                 else:
                     self._update_exit_fill(trade, leg)
                 trade.updated_at = time.time()
                 self._save_trade(trade)
+                # Keep the open-trades cache faithful to the DB aggregate
+                # (OPEN/PARTIALLY_CLOSED stay cached; CLOSED is evicted).
+                if trade.status == "CLOSED":
+                    self._open_trades.pop(trade_id, None)
+                else:
+                    self._open_trades[trade_id] = trade
             return leg
 
     def _get_leg_fill_id(self, fill_id: str) -> TradeLeg | None:

@@ -1,10 +1,10 @@
 """Reconciliation position-linkage tests.
 
-Trades in the persistence DB are position-anchored 1:1 (trade_id ==
-position_id). The reconciliation check must match on that linkage, never on the
-weak strategy:instrument key, which collides across sequential positions on the
-same instrument and produced false startup reconciliation failures (sending the
-engine into safe mode).
+Canonical identity: trade_id is immutable and separate from position_id
+(position_id != trade_id). The reconciliation check must match on the explicit
+trade_id child-link, never on the weak strategy:instrument key, which collides
+across sequential positions on the same instrument and produced false startup
+reconciliation failures (sending the engine into safe mode).
 """
 from __future__ import annotations
 
@@ -29,9 +29,11 @@ def tmp_db(tmp_path):
     return str(tmp_path / "test_recon.db")
 
 
-def _open_position(position_id: str, strategy: str = "gold_01", instrument: str = "GOLDM") -> Position:
+def _open_position(position_id: str, strategy: str = "gold_01", instrument: str = "GOLDM",
+                   trade_id: str | None = None) -> Position:
     return Position(
         position_id=position_id,
+        trade_id=trade_id or f"TRD-{position_id}",
         strategy_id=strategy,
         instrument=instrument,
         side=PositionSide.LONG,
@@ -42,8 +44,9 @@ def _open_position(position_id: str, strategy: str = "gold_01", instrument: str 
     )
 
 
-def _closed_position(position_id: str, strategy: str = "gold_01", instrument: str = "GOLDM") -> Position:
-    pos = _open_position(position_id, strategy, instrument)
+def _closed_position(position_id: str, strategy: str = "gold_01", instrument: str = "GOLDM",
+                     trade_id: str | None = None) -> Position:
+    pos = _open_position(position_id, strategy, instrument, trade_id=trade_id)
     pos.exit_fills = [
         Fill(
             fill_id=f"{position_id}-exit",
@@ -88,8 +91,8 @@ def test_old_false_positive_is_gone():
     eng = _engine(None)
     open_pos = _open_position("P2", "gold_01", "GOLDM")
     db_trades = [
-        {"trade_id": "P1", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"},
-        {"trade_id": "P1b", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"},
+        {"trade_id": "TRD-P1", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"},
+        {"trade_id": "TRD-P1b", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"},
     ]
     res = ReconciliationResult()
     eng._check_positions_vs_trades([open_pos], [], db_trades, res)
@@ -101,10 +104,10 @@ def test_closed_in_db_but_open_in_memory_is_error():
     inconsistency and must be flagged."""
     eng = _engine(None)
     open_pos = _open_position("P9")
-    db_trades = [{"trade_id": "P9", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"}]
+    db_trades = [{"trade_id": open_pos.trade_id, "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"}]
     res = ReconciliationResult()
     eng._check_positions_vs_trades([open_pos], [], db_trades, res)
-    assert any("P9" in e and "still open in memory" in e for e in res.errors)
+    assert any(open_pos.trade_id in e and "still open in memory" in e for e in res.errors)
 
 
 def test_closed_position_missing_db_row_is_error():
@@ -121,7 +124,7 @@ def test_consistent_state_passes():
     """Closed position has its DB row, no open positions, no false positives."""
     eng = _engine(None)
     closed_pos = _closed_position("P4")
-    db_trades = [{"trade_id": "P4", "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"}]
+    db_trades = [{"trade_id": closed_pos.trade_id, "strategy_id": "gold_01", "instrument": "GOLDM", "status": "closed"}]
     res = ReconciliationResult()
     eng._check_positions_vs_trades([], [closed_pos], db_trades, res)
     assert res.errors == []
@@ -139,35 +142,81 @@ def test_state_after_a_round_trip_is_consistent(tmp_db):
     pers = PersistenceManager(state_path=str(tmp_db) + ".json", db_path=tmp_db)
     pm = PositionManager()
     pnl_eng = PNLEngine(fee_model=MCXFeeModel())
+    ts = time.time()
 
-    # Simulate the exact DB row trade_close writes (trade_id == position_id).
+    # Canonical lineage (signal -> trade[entry_signal_id] -> order[trade_id] ->
+    # fill[trade_id, order_id]). trade_id and position_id are separate, immutable
+    # identities: the persisted trade row carries the explicit trade_id.
+    sig1 = "SIG-1"
     p1 = pm.open_position(
         Fill(fill_id="f1", order_id="o1", instrument="GOLDM", side="BUY",
-             quantity=1, price=100.0, timestamp=time.time(), strategy_id="gold_01"),
+             quantity=1, price=100.0, timestamp=ts, strategy_id="gold_01",
+             entry_signal_id=sig1),
         multiplier=10.0,
+        entry_signal_id=sig1,
+        trade_id="TRD-1",
     )
+    assert p1.trade_id != p1.position_id
+    pers.save_signal({
+        "signal_id": sig1, "strategy_id": "gold_01", "instrument": "GOLDM",
+        "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": ts,
+        "trigger_price": 100.0,
+    })
+    pers.save_trade({
+        "trade_id": p1.trade_id, "strategy_id": "gold_01", "instrument": "GOLDM",
+        "side": "LONG", "entry_price": 100.0, "quantity": 1, "multiplier": 10.0,
+        "entry_signal_id": sig1, "status": "open",
+    })
+    pers.save_order({
+        "order_id": "o1", "strategy_id": "gold_01", "instrument": "GOLDM",
+        "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "filled",
+        "filled_quantity": 1, "average_fill_price": 100.0, "trade_id": p1.trade_id,
+    })
+    pers.save_fill({
+        "fill_id": "f1", "order_id": "o1", "strategy_id": "gold_01",
+        "instrument": "GOLDM", "side": "BUY", "quantity": 1, "price": 100.0,
+        "timestamp": "1970-01-01T00:00:00+00:00", "trade_id": p1.trade_id,
+    })
+
     pm.close_position(
         p1.position_id,
         Fill(fill_id="f2", order_id="o2", instrument="GOLDM", side="SELL",
-             quantity=1, price=110.0, timestamp=time.time(), strategy_id="gold_01"),
+             quantity=1, price=110.0, timestamp=ts + 100, strategy_id="gold_01",
+             entry_signal_id=sig1, trade_id=p1.trade_id),
         "signal_exit",
     )
     trade_record = {
-        "trade_id": p1.position_id,
+        "trade_id": p1.trade_id,
         "strategy_id": "gold_01",
         "instrument": "GOLDM",
         "side": "LONG",
         "exit_reason": "signal_exit",
         "status": "closed",
+        "entry_signal_id": sig1,
     }
     pers.save_trade(trade_record)
 
     # New position re-opens the same strategy:instrument (old false positive).
+    sig2 = "SIG-2"
     p2 = pm.open_position(
         Fill(fill_id="f3", order_id="o3", instrument="GOLDM", side="BUY",
-             quantity=1, price=112.0, timestamp=time.time(), strategy_id="gold_01"),
+             quantity=1, price=112.0, timestamp=ts + 200, strategy_id="gold_01",
+             entry_signal_id=sig2),
         multiplier=10.0,
+        entry_signal_id=sig2,
+        trade_id="TRD-2",
     )
+    assert p2.trade_id != p2.position_id
+    pers.save_signal({
+        "signal_id": sig2, "strategy_id": "gold_01", "instrument": "GOLDM",
+        "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": ts + 200,
+        "trigger_price": 112.0,
+    })
+    pers.save_trade({
+        "trade_id": p2.trade_id, "strategy_id": "gold_01", "instrument": "GOLDM",
+        "side": "LONG", "entry_price": 112.0, "quantity": 1, "multiplier": 10.0,
+        "entry_signal_id": sig2, "status": "open",
+    })
 
     exec_engine = MagicMock()
     exec_engine._orders = {}

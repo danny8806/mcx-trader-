@@ -119,7 +119,7 @@ _SCHEMA_DDL: list[str] = [
         status TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT,
-        entry_signal_id TEXT,
+        entry_signal_id TEXT NOT NULL,
         exit_signal_id TEXT,
         entry_order_id TEXT,
         exit_order_id TEXT,
@@ -132,8 +132,8 @@ _SCHEMA_DDL: list[str] = [
     """
     CREATE TABLE IF NOT EXISTS trade_signal_link (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        trade_id TEXT NOT NULL,
-        signal_id TEXT NOT NULL,
+        trade_id TEXT NOT NULL REFERENCES trades(trade_id),
+        signal_id TEXT NOT NULL REFERENCES signals(signal_id),
         relationship_type TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(trade_id, signal_id, relationship_type)
@@ -159,7 +159,7 @@ _SCHEMA_DDL: list[str] = [
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id TEXT UNIQUE NOT NULL,
-        trade_id TEXT,
+        trade_id TEXT REFERENCES trades(trade_id),
         pending_order_id TEXT,
         signal_id TEXT,
         broker_order_id TEXT,
@@ -182,8 +182,8 @@ _SCHEMA_DDL: list[str] = [
     CREATE TABLE IF NOT EXISTS fills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         fill_id TEXT UNIQUE NOT NULL,
-        trade_id TEXT,
-        order_id TEXT,
+        trade_id TEXT NOT NULL REFERENCES trades(trade_id),
+        order_id TEXT REFERENCES orders(order_id),
         broker_fill_id TEXT,
         position_id TEXT,
         strategy_id TEXT NOT NULL,
@@ -192,7 +192,8 @@ _SCHEMA_DDL: list[str] = [
         quantity INTEGER,
         price REAL,
         timestamp TEXT,
-        fill_type TEXT
+        fill_type TEXT,
+        entry_signal_id TEXT
     )
     """,
     # ── canonical: positions (separate identity from trade) ──

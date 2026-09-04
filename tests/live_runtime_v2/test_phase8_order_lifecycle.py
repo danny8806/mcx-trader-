@@ -25,7 +25,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         assert order is not None
         # Order should have transitioned through CREATED -> SUBMITTED -> FILLED
         assert order.state == OrderState.FILLED
@@ -41,7 +41,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         assert order is None, "Order should be rejected (no market price)"
 
     def test_order_slippage_buy(self):
@@ -56,7 +56,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         assert order is not None
         fills = mgr.drain_fills()
         assert fills[0].price == 150001.0, f"Expected 150001 (150000+1 tick), got {fills[0].price}"
@@ -73,7 +73,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.SHORT, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=151000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         assert order is not None
         fills = mgr.drain_fills()
         assert fills[0].price == 149999.0, f"Expected 149999 (150000-1 tick), got {fills[0].price}"
@@ -90,7 +90,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         fills = mgr.drain_fills()
         fill = fills[0]
         assert fill.fill_id, "fill_id must not be empty"
@@ -114,7 +114,7 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(sig, multiplier=10.0)
+        order = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD")
         assert order is not None
         assert order.state == OrderState.FILLED
         # Already filled — cancel returns False
@@ -135,9 +135,9 @@ class TestOrderLifecycle:
         sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                      trigger_price=150000.0, stop_price=149000.0, quantity=1)
         sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order1 = mgr.submit_signal(sig, multiplier=10.0)
+        order1 = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD1")
         assert order1 is not None
         assert order1.state.value == "filled"
         # After fill, the pending signal is pruned — same signal can be re-submitted
-        order2 = mgr.submit_signal(sig, multiplier=10.0)
+        order2 = mgr.submit_signal(sig, multiplier=10.0, trade_id="TRD-ORD2")
         assert order2 is not None, "Same signal should be allowed after fill cleanup"

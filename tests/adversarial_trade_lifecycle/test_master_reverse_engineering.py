@@ -477,7 +477,11 @@ class TestCrashRecovery:
     """Simulate crash at various lifecycle stages, verify recovery."""
 
     def test_crash_after_trade_creation(self):
-        """Trade exists in memory, not in DB (persist broken). Restart = trade lost."""
+        """CRASH WINDOW B — after trade creation: trade IS durable.
+
+        create_trade_from_signal() persists the trade (signal row persisted
+        first). A restart must reconstruct the SAME trade_id from the DB.
+        """
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
@@ -492,14 +496,21 @@ class TestCrashRecovery:
         # Verify trade exists in memory
         assert lifecycle.get_trade(ctx.trade_id) is not None
 
+        # The trade (and its signal) MUST be durable at creation — a crash
+        # here must not lose the trade identity.
+        trades = _raw_query(db_path, "SELECT * FROM trades")
+        assert len(trades) == 1, "create_trade_from_signal() must persist the trade"
+        assert trades[0]["trade_id"] == ctx.trade_id
+        signals = _raw_query(db_path, "SELECT * FROM signals")
+        assert len(signals) == 1, "signal row must exist before the trade row"
+
         # Simulate restart: new lifecycle from same DB
         lifecycle2 = TradeLifecycleManager(persistence=persistence)
         lifecycle2.restore_from_db()
-
-        # Persist removed from create_trade_from_signal() — trade in memory only
-        # until register_position() unifies identity and persists
-        trades = _raw_query(db_path, "SELECT * FROM trades")
-        assert len(trades) == 0, "create_trade_from_signal() should not persist (persist removed)"
+        restored = lifecycle2.get_trade(ctx.trade_id)
+        assert restored is not None, "restart must reconstruct the trade from DB"
+        assert restored.trade_id == ctx.trade_id, "trade_id must be stable across restart"
+        assert restored.entry_signal_id == sig.signal_id
 
     def test_crash_after_close_preserves_trade_close_manager_data(self):
         """TradeCloseManager persists atomically. After restart, DB has the trade."""
@@ -508,7 +519,32 @@ class TestCrashRecovery:
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
 
-        # Simulate a TradeCloseManager write
+        # Seed the canonical lineage so strict integrity triggers pass.
+        persistence.save_signal({
+            "signal_id": "SIG-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(),
+        })
+        persistence.save_signal({
+            "signal_id": "SIG-002", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "SELL", "signal_type": "EXIT",
+            "timestamp": time.time(),
+        })
+        persistence.save_trade({
+            "trade_id": "TRD-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "LONG", "entry_price": 100000.0,
+            "quantity": 1, "multiplier": 1.0,
+            "entry_signal_id": "SIG-001", "status": "open",
+        })
+        persistence.save_order({
+            "order_id": "O-EXIT-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "SELL", "quantity": 1,
+            "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 101000.0,
+            "trade_id": "TRD-001",
+        })
+
+        # Simulate a TradeCloseManager write (trade + exit fill atomically)
         persistence.save_trade_and_fill(
             {
                 "trade_id": "TRD-001", "strategy_id": "gold_01",
@@ -549,6 +585,31 @@ class TestAtomicity:
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
+
+        # Seed the canonical lineage so strict integrity triggers pass.
+        persistence.save_signal({
+            "signal_id": "SIG-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(),
+        })
+        persistence.save_signal({
+            "signal_id": "SIG-002", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "SELL", "signal_type": "EXIT",
+            "timestamp": time.time(),
+        })
+        persistence.save_trade({
+            "trade_id": "TRD-ATOMIC-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "LONG", "entry_price": 100000.0,
+            "quantity": 1, "multiplier": 1.0,
+            "entry_signal_id": "SIG-001", "status": "open",
+        })
+        persistence.save_order({
+            "order_id": "O-ATOMIC-001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "SELL", "quantity": 1,
+            "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 101000.0,
+            "trade_id": "TRD-ATOMIC-001",
+        })
 
         # Save trade + fill atomically
         persistence.save_trade_and_fill(

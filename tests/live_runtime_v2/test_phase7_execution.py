@@ -135,7 +135,7 @@ class TestSignalToExecution:
         signal = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0,
                        trigger_price=150000.0, stop_price=149000.0, quantity=1)
         signal.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-        order = mgr.submit_signal(signal, multiplier=10.0)
+        order = mgr.submit_signal(signal, multiplier=10.0, trade_id="TRD-E1")
         assert order is not None, "Order should be created"
         fills = mgr.drain_fills()
         assert len(fills) >= 1, f"Expected at least 1 fill, got {len(fills)}"
@@ -155,7 +155,7 @@ class TestSignalToExecution:
             sig = Signal(SignalType.LONG, "GOLDM", "gold_01", 1000.0 + i,
                         trigger_price=150000.0, stop_price=149000.0, quantity=1)
             sig.metadata = {"fill_price": 150000.0, "executed": True, "market": True}
-            order = mgr.submit_signal(sig, multiplier=10.0)
+            order = mgr.submit_signal(sig, multiplier=10.0, trade_id=f"TRD-{i}")
             assert order is not None, f"Order {i} should be created"
             ids.add(order.order_id)
         assert len(ids) == 10, f"All order IDs should be unique, got {len(ids)} unique out of 10"

@@ -10,9 +10,9 @@ import pytest
 from . import RUN_ID, SUITE_VERSION, get_evidence
 
 
-def _mk_fill(fid, oid, inst, side, qty, px, ts, strat, mult=1.0):
+def _mk_fill(fid, oid, inst, side, qty, px, ts, strat, mult=1.0, trade_id="TRD-UNIT"):
     from execution.paper_broker import Fill
-    return Fill(fid, oid, inst, side, qty, px, ts, strat, mult)
+    return Fill(fid, oid, inst, side, qty, px, ts, strat, mult, None, trade_id)
 
 
 class TestPositionLifecycle:

@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-from analytics.schema import init_analytics_db
 from analytics.trade_ledger import TradeLedger
 from strategies.types import Signal, SignalType
 from trading_engine import Bar
@@ -83,7 +82,6 @@ def _engine(tmp_path, monkeypatch):
     from tests.fresh_audit import test_full_deep_architecture as harness
     monkeypatch.setattr("trading_engine.DhanDataAdapter", harness.MockDhanAdapter)
     cfg_path = _write_config(tmp_path)
-    init_analytics_db(str(tmp_path / "data" / "db" / "analytics.db"))
 
     from persistence.manager import PersistenceManager
     from trading_engine import TradingEngine
@@ -93,6 +91,15 @@ def _engine(tmp_path, monkeypatch):
     )
     engine = TradingEngine(config_path=str(cfg_path))
     engine.set_persistence(persistence)
+    # Wire the central lifecycle manager exactly as production start() does so
+    # _persist_trade actually writes the trade row (the canonical FK trigger
+    # "order references missing trade" otherwise aborts order/fill persistence).
+    from core.lifecycle import TradeLifecycleManager
+    engine._lifecycle = TradeLifecycleManager(
+        persistence=persistence,
+        event_store=engine.event_store,
+        trade_ledger=engine.trade_ledger,
+    )
 
     from core.market_status import MarketState, EngineStatus
     ws = engine.data_adapter.ws

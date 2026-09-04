@@ -885,6 +885,12 @@ class TradingEngine:
             metadata={"exit": True, "exit_reason": strat.pending_exit_reason,
                       "source": "next_open", "fill_price": exit_price},
         )
+        if strat.pending_entry is not None:
+            # HARD RULE: a reversal uses ONE strategy signal. The synthetic
+            # execution exit signal must carry the SAME signal_id as the armed
+            # reversal signal, so the closed trade's exit_signal_id equals the
+            # new trade's entry_signal_id (SIG-X = old EXIT + new ENTRY).
+            exit_signal.signal_id = strat.pending_entry.signal.signal_id
         self._process_signal(exit_signal)
         return True
 
@@ -1556,6 +1562,7 @@ strat_snap, strat_acct_snap,
                                 stop_price=pen.signal.stop_price,
                                 quantity=pen.signal.quantity,
                                 side=pen.side,
+                                signal_id=pen.signal.signal_id,  # HARD RULE: same signal = old EXIT + new ENTRY
                                 metadata={
                                     **dict(pen.signal.metadata or {}),
                                     "entry_price": fill.price,
@@ -2101,7 +2108,7 @@ strat_snap, strat_acct_snap,
             # Close position in memory
             try:
                 self.position_manager.close_position(
-                    position_id=trade_id,
+                    position_id=pos.position_id,
                     fill=exit_fill,
                     reason=exit_reason,
                 )

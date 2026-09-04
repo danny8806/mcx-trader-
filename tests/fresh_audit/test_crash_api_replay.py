@@ -52,7 +52,8 @@ def _htf(val, prev=None):
 def _fill(fid, oid, strat, inst, side, qty, price, ts=None):
     from execution.paper_broker import Fill
     return Fill(fill_id=fid, order_id=oid, strategy_id=strat, instrument=inst,
-                side=side, quantity=qty, price=price, timestamp=ts or time.time())
+                side=side, quantity=qty, price=price, timestamp=ts or time.time(),
+                entry_signal_id=f"SIG-{fid}", trade_id=f"TRD-{fid}")
 
 
 def _make_engine_tmp():
@@ -187,11 +188,42 @@ class TestIdempotencyPhase24:
             telegram=None, event_callback=None, trade_ledger=None,
         )
         exit_fill = _fill("F_EXIT_001", "O_002", "gold_01", "GOLDM", "SELL", 1, 151000.0)
+        # Seed the canonical lineage so the strict integrity triggers (signal ->
+        # trade -> orders -> fill) are satisfied, matching the production flow
+        # where the signal, open trade, and both orders already exist in DB
+        # before a close is persisted.
+        pm.save_signal({
+            "signal_id": "SIG-F_ENTRY_001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(),
+        })
+        pm.save_trade({
+            "trade_id": pos.trade_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "LONG", "entry_price": 150000.0,
+            "quantity": 1, "multiplier": 10.0,
+            "entry_signal_id": "SIG-F_ENTRY_001", "status": "open",
+        })
+        pm.save_order({
+            "order_id": "O_001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 150000.0,
+            "trade_id": pos.trade_id,
+        })
+        pm.save_order({
+            "order_id": "O_002", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "SELL", "quantity": 1, "order_type": "MARKET", "state": "submitted",
+            "filled_quantity": 0, "average_fill_price": 0.0,
+            "trade_id": pos.trade_id,
+        })
         result = tcm.close_position(exit_fill, pos, "gold_01", 10.0, "signal_exit")
         assert result is not False and result is not None
         trades = pm.get_trades("gold_01")
         assert len(trades) == 1
-        assert trades[0]["trade_id"] == pos.position_id
+        # Canonical identity: the persisted trade carries the explicit trade_id
+        # (not the position_id). trade_id and position_id are separate immutable
+        # identities and must never be conflated.
+        assert trades[0]["trade_id"] == pos.trade_id
+        assert pos.trade_id != pos.position_id
         assert trades[0]["exit_price"] == 151000.0
         assert pos.status.value == "closed"
 
@@ -298,18 +330,34 @@ class TestCrashRecoveryPhase27:
         posmgr = PositionManager()
         entry = _fill("F_CRASH_001", "O_001", "gold_01", "GOLDM", "BUY", 1, 150000.0)
         pos = posmgr.open_position(entry, multiplier=10.0, stop_price=149000.0, margin=100000.0)
+        # Seed the canonical lineage in trigger-valid order: signal -> trade ->
+        # order -> fill. This mirrors production where the DB has the closed
+        # trade while the in-memory position is still open (crash window).
+        pm.save_signal({
+            "signal_id": "SIG-F_CRASH_001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": time.time(),
+        })
         pm.save_trade({
-            "trade_id": pos.position_id, "strategy_id": "gold_01",
+            "trade_id": pos.trade_id, "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "LONG", "entry_price": 150000.0,
             "exit_price": 151000.0, "quantity": 1, "multiplier": 10.0,
             "gross_pnl": 10000.0, "charges": 80.0, "net_pnl": 9920.0,
             "exit_reason": "crash_test", "status": "closed",
+            "entry_signal_id": "SIG-F_CRASH_001",
+        })
+        pm.save_order({
+            "order_id": "O_001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "quantity": 1, "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 150000.0,
+            "trade_id": pos.trade_id,
         })
         pm.save_fill({
             "fill_id": "F_CRASH_001", "order_id": "O_001",
             "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "BUY", "quantity": 1, "price": 150000.0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "trade_id": pos.trade_id,
         })
         exec_eng = PaperExecutionEngine(slippage_ticks=0, latency_ms=0, partial_fill_probability=0.0)
         order_mgr = OrderManager(execution_engine=exec_eng)

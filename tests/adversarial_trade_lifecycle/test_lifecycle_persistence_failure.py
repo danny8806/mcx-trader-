@@ -134,12 +134,13 @@ class TestLifecyclePersistenceBroken:
 
 class TestDualPersistenceConflict:
     """
-    PROVE: When both trade_close_manager AND lifecycle persist, they write
-    to DIFFERENT trade_id rows, creating split-brain in DB.
+    PROVE (canonical model): trade_close_manager and lifecycle BOTH persist under
+    the SAME canonical trade_id — no split-brain, exactly one DB row per trade.
     """
 
-    def test_two_persistence_paths_create_two_rows(self):
-        """Simulate the real flow: trade_close_manager + lifecycle both persist."""
+    def test_two_persistence_paths_create_one_row(self):
+        """Simulate the real flow: trade_close_manager + lifecycle both persist
+        the SAME canonical trade under the SAME trade_id, yielding one DB row."""
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
@@ -148,39 +149,62 @@ class TestDualPersistenceConflict:
         position_mgr = PositionManager()
 
         sig = _make_signal()
+        persistence.save_signal({
+            "signal_id": sig.signal_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": sig.timestamp,
+        })
         lifecycle_trade = lifecycle.create_trade_from_signal(
             sig, "gold_01", "Gold 01", "GOLDM", 1, 1.0
         )
+        canonical_trade_id = lifecycle_trade.trade_id
 
-        # Simulate position creation
+        # Simulate position creation (propagate canonical trade_id explicitly)
         from execution.paper_broker import Fill
         fill = Fill(
             fill_id="F-ENTRY", order_id="O-ENTRY", instrument="GOLDM",
             side="BUY", quantity=1, price=100000.0, timestamp=time.time(),
             strategy_id="gold_01", multiplier=1,
-            entry_signal_id=sig.signal_id, trade_id=None,
+            entry_signal_id=sig.signal_id, trade_id=canonical_trade_id,
         )
         position = position_mgr.open_position(
             fill=fill, multiplier=1.0, margin=0.0,
             stop_price=99000.0, entry_signal_id=sig.signal_id,
+            trade_id=canonical_trade_id,
         )
+        assert canonical_trade_id != position.position_id
 
         # Register in lifecycle
         lifecycle.register_entry_fill(
-            trade_id=lifecycle_trade.trade_id,
+            trade_id=canonical_trade_id,
             fill_id=fill.fill_id, price=fill.price, timestamp=fill.timestamp,
         )
-        lifecycle.register_position(lifecycle_trade.trade_id, position.position_id)
+        lifecycle.register_position(canonical_trade_id, position.position_id)
 
-        # PATH 1: trade_close_manager persists using position.position_id
-        # (simulating what trade_close.py does)
+        # Seed the OPEN canonical trade (signal already present).
+        persistence.save_trade({
+            "trade_id": canonical_trade_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "LONG", "entry_price": 100000.0,
+            "quantity": 1, "multiplier": 1.0,
+            "entry_signal_id": sig.signal_id, "status": "open",
+        })
+        # Seed the entry order so the fill trigger references a real order.
+        persistence.save_order({
+            "order_id": fill.order_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "quantity": 1,
+            "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 100000.0,
+            "trade_id": canonical_trade_id,
+        })
+
+        # PATH 1: entry fill persisted under the CANONICAL trade_id.
         persistence.save_fill({
             "fill_id": fill.fill_id, "order_id": fill.order_id,
             "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "BUY", "quantity": 1, "price": 100000.0,
             "timestamp": datetime.fromtimestamp(fill.timestamp, tz=timezone.utc).isoformat(),
             "entry_signal_id": sig.signal_id,
-            "trade_id": position.position_id,
+            "trade_id": canonical_trade_id,
         })
 
         from execution.paper_broker import Fill as FillCls
@@ -188,12 +212,19 @@ class TestDualPersistenceConflict:
             fill_id="F-EXIT", order_id="O-EXIT", instrument="GOLDM",
             side="SELL", quantity=1, price=101000.0, timestamp=time.time(),
             strategy_id="gold_01", multiplier=1,
-            entry_signal_id=None, trade_id=None,
+            entry_signal_id=None, trade_id=canonical_trade_id,
         )
-
-        # trade_close_manager persists trade with position.position_id
+        # Seed the exit order so the exit fill triggers reference a real order.
+        persistence.save_order({
+            "order_id": "O-EXIT", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "SELL", "quantity": 1,
+            "order_type": "MARKET", "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 101000.0,
+            "trade_id": canonical_trade_id,
+        })
+        # PATH 1 (close): trade_close_manager persists under canonical trade_id.
         persistence.save_trade({
-            "trade_id": position.position_id,
+            "trade_id": canonical_trade_id,
             "strategy_id": "gold_01", "instrument": "GOLDM", "side": "LONG",
             "entry_timestamp": datetime.fromtimestamp(fill.timestamp, tz=timezone.utc).isoformat(),
             "entry_price": 100000.0,
@@ -204,15 +235,22 @@ class TestDualPersistenceConflict:
             "exit_reason": "signal_exit", "status": "closed",
             "entry_signal_id": sig.signal_id, "exit_signal_id": "",
         })
+        persistence.save_fill({
+            "fill_id": exit_fill.fill_id, "order_id": exit_fill.order_id,
+            "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "SELL", "quantity": 1, "price": 101000.0,
+            "timestamp": datetime.fromtimestamp(exit_fill.timestamp, tz=timezone.utc).isoformat(),
+            "entry_signal_id": "", "trade_id": canonical_trade_id,
+        })
 
-        # PATH 2: lifecycle persists (this will fail silently due to missing 'side')
+        # PATH 2: lifecycle.close_trade persists the SAME canonical trade_id.
         lifecycle.register_exit_fill(
-            trade_id=lifecycle_trade.trade_id,
+            trade_id=canonical_trade_id,
             fill_id=exit_fill.fill_id, price=exit_fill.price,
             timestamp=exit_fill.timestamp,
         )
         lifecycle.close_trade(
-            trade_id=lifecycle_trade.trade_id,
+            trade_id=canonical_trade_id,
             gross_pnl=1000.0, charges=10.0, net_pnl=990.0,
         )
 
@@ -227,43 +265,37 @@ class TestDualPersistenceConflict:
         for f in db_fills:
             print(f"    fill_id={f['fill_id']}, trade_id={f['trade_id']}")
 
-        # Expected if lifecycle persist works: 2 trade rows
-        # Expected if lifecycle persist fails: 1 trade row
-        lifecycle_key_exists = any(t["trade_id"] == lifecycle_trade.trade_id for t in db_trades)
-        position_key_exists = any(t["trade_id"] == position.position_id for t in db_trades)
-
-        print(f"\n  lifecycle_trade.trade_id in DB: {lifecycle_key_exists}")
-        print(f"  position.position_id in DB: {position_key_exists}")
-        print(f"  lifecycle_trade.trade_id = {lifecycle_trade.trade_id}")
-        print(f"  position.position_id     = {position.position_id}")
-        print(f"  Are they the same? {lifecycle_trade.trade_id == position.position_id}")
-
-        if lifecycle_trade.trade_id != position.position_id:
-            if lifecycle_key_exists and position_key_exists:
-                print("\n  CONFIRMED SPLIT-BRAIN: Two different trades in DB")
-            elif position_key_exists and not lifecycle_key_exists:
-                print("\n  LIFECYCLE PERSIST BROKEN: Only position trade in DB")
-                print("  Lifecycle in-memory state cannot be recovered from DB on restart")
-
-
+        # CANONICAL: exactly ONE trade row, keyed by trade_id; position_id never
+        # appears as a trade_id.
+        assert len(db_trades) == 1, \
+            "two persistence paths sharing one trade_id must yield one DB row"
+        assert db_trades[0]["trade_id"] == canonical_trade_id
+        assert not any(t["trade_id"] == position.position_id for t in db_trades), \
+            "position_id must never be a trade_id"
+        # Every fill links to the canonical trade_id.
+        assert all(f["trade_id"] == canonical_trade_id for f in db_fills)
 class TestRestoreFromDbIdentityMismatch:
     """
-    PROVE: After restart, restore_from_db() reads trades with position.position_id
-    as trade_id. But the lifecycle's identity maps were built from lifecycle.trade_id.
-    This means restore creates TradeContext objects with trade_id = position.position_id,
-    NOT lifecycle.trade_id.
+    PROVE (canonical model): restore_from_db() reads trades keyed by their
+    canonical trade_id (never position_id) and can resolve by entry_signal_id.
     """
 
-    def test_restore_uses_position_id_as_trade_id(self):
-        """DB stores position.position_id as trade_id. Restore reads that."""
+    def test_restore_uses_canonical_trade_id(self):
+        """DB stores trades under canonical trade_id. Restore reads that."""
         db_dir = tempfile.mkdtemp()
         db_path = os.path.join(db_dir, "test.db")
         state_path = os.path.join(db_dir, "state.json")
         persistence = PersistenceManager(state_path=state_path, db_path=db_path)
 
-        # Manually persist a trade using position.position_id (as trade_close_manager does)
-        test_trade_id = "POSITION-ID-TEST-001"
-        test_signal_id = "SIGNAL-TEST-001"
+        # Seed the canonical signal (the trade's entry signal must exist).
+        test_trade_id = "TRADE-CANONICAL-001"
+        test_signal_id = "SIGNAL-CANONICAL-001"
+        persistence.save_signal({
+            "signal_id": test_signal_id, "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "signal_type": "LONG",
+            "timestamp": datetime(2026, 9, 4, 10, 0, 0, tzinfo=timezone.utc).timestamp(),
+        })
+        # Persist a trade under its CANONICAL trade_id.
         persistence.save_trade({
             "trade_id": test_trade_id,
             "strategy_id": "gold_01", "instrument": "GOLDM", "side": "LONG",

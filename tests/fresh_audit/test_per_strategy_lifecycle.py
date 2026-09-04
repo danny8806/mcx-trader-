@@ -1,7 +1,9 @@
 """DEEP PER-STRATEGY VERIFICATION — full lifecycle for EACH of the 4 strategies,
 proving the SL-exit ledger fix is correct independently per strategy, and that:
 
-  1) An entry fills -> an OPEN trade lands in analytics.db (1:1, trade_id=position_id)
+  1) An entry fills -> an OPEN trade lands in trading.db (canonical ledger:
+     the position's trade_id anchors the ledger trade; position_id is a
+     SEPARATE identity, never equal to trade_id)
   2) An SL exit closes that trade and it is PURGED from the open-trades cache
      (the deployed fix, verified independently for every strategy)
   3) The SL exit does NOT auto-generate a new opposite trade: the strategy goes
@@ -15,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-from analytics.schema import init_analytics_db
 from analytics.trade_ledger import TradeLedger
 from strategies.types import Signal, SignalType
 
@@ -82,8 +83,6 @@ def _engine(tmp_path, monkeypatch):
     from tests.fresh_audit import test_full_deep_architecture as harness
     monkeypatch.setattr("trading_engine.DhanDataAdapter", harness.MockDhanAdapter)
     cfg_path = _write_config(tmp_path)
-    analytics_db = str(tmp_path / "data" / "db" / "analytics.db")
-    init_analytics_db(analytics_db)
 
     from persistence.manager import PersistenceManager
     from trading_engine import TradingEngine
@@ -93,9 +92,15 @@ def _engine(tmp_path, monkeypatch):
     )
     engine = TradingEngine(config_path=str(cfg_path))
     engine.set_persistence(persistence)
-    # Keep the event_store a real EventStore so TRADE_CLOSED lands in analytics.db
-    # (mirrors production). engine.event_store is created in __init__ already.
-    engine._analytics_db_path = analytics_db
+    # Wire the central lifecycle manager exactly as production start() does so
+    # _persist_trade actually writes the trade row (the canonical FK trigger
+    # "order references missing trade" otherwise aborts order/fill persistence).
+    from core.lifecycle import TradeLifecycleManager
+    engine._lifecycle = TradeLifecycleManager(
+        persistence=persistence,
+        event_store=engine.event_store,
+        trade_ledger=engine.trade_ledger,
+    )
 
     from core.market_status import MarketState, EngineStatus
     ws = engine.data_adapter.ws
@@ -122,7 +127,7 @@ def _engine(tmp_path, monkeypatch):
         event_callback=engine._event_callback,
         trade_ledger=engine.trade_ledger,
     )
-    # The fresh TradingEngine created its own EventStore against analytics.db;
+    # The fresh TradingEngine created its own EventStore against trading.db;
     # used by both the engine and the TradeCloseManager above.
     yield engine
     try:
@@ -167,7 +172,8 @@ def _rejections(engine, sid):
 
 # ---------------------------------------------------------------------------
 # 1) For EACH strategy: entry fills -> exactly ONE matching OPEN trade in
-#    analytics.db with trade_id == position_id (1:1 anchoring)
+#    trading.db, anchored to the position's trade_id. Position identity is
+#    SEPARATE from the trade identity (position_id != trade_id).
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("sid", ALL4)
 def test_entry_creates_one_open_trade_per_strategy(_engine, sid):
@@ -176,16 +182,19 @@ def test_entry_creates_one_open_trade_per_strategy(_engine, sid):
     open_pos = [p for p in positions if p.is_open]
     assert len(open_pos) == 1, f"{sid}: expected exactly 1 open position, got {len(open_pos)}"
 
-    # Must have created a ledger trade through the same analytics.db path
+    # Must have created a ledger trade through the same trading.db path
     tl = _engine.trade_ledger
     open_trades = tl.get_open_trades(strategy_id=sid)
     assert len(open_trades) == 1, f"{sid}: exactly 1 open ledger trade expected, got {len(open_trades)}"
     t = open_trades[0]
     assert t.strategy_id == sid
     assert t.status == "OPEN"
-    assert t.trade_id == open_pos[0].position_id, "trade_id must be anchored to position_id"
+    # Canonical identity contract: the ledger trade anchors the position via
+    # trade_id (trade_id == position.trade_id), and position_id is SEPARATE.
+    assert t.trade_id == open_pos[0].trade_id, "ledger trade must anchor to position.trade_id"
+    assert t.trade_id != open_pos[0].position_id, "position_id must stay separate from trade_id"
 
-    # And only ONE trade row for the strategy in analytics.db (no dupes)
+    # And only ONE trade row for the strategy in trading.db (no dupes)
     assert tl.count_trades(strategy_id=sid) == 1
 
 

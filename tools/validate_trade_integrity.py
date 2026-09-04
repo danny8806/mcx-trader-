@@ -22,10 +22,30 @@ def validate(db_path: str | Path) -> tuple[bool, dict[str, list]]:
         "trade_signal_link": {"trade_id", "signal_id"},
     }
     report["SCHEMA CONTRACTS"] = []
+    # Legacy tables (orders, fills, trade_signal_link) enforce lineage via
+    # triggers (see persistence/database.py "dual enforcement" design) rather
+    # than declared FK constraints.  Accept either the declared FK or a matching
+    # enforcement trigger as satisfying the lineage contract.
+    enforced_triggers = {r["name"] for r in db.query("SELECT name FROM sqlite_master WHERE type='trigger'")}
+    trigger_contract = {
+        "orders": {"trade_id": {"trg_orders_trade_required", "trg_orders_trade_exists"}},
+        "fills": {"trade_id": {"trg_fills_trade_exists"}, "order_id": {"trg_fills_order_exists"}},
+        "positions": {"trade_id": set()},
+        "trade_events": {"trade_id": set()},
+        "trade_signal_link": {
+            "trade_id": {"trg_trade_signal_link_trade_exists"},
+            "signal_id": {"trg_trade_signal_link_signal_exists"},
+        },
+    }
     for table, columns in required_fks.items():
         declared = {row["from"] for row in db.query(f"PRAGMA foreign_key_list({table})")}
         for column in sorted(columns - declared):
-            report["SCHEMA CONTRACTS"].append({"table": table, "missing_fk": column})
+            ok_triggers = trigger_contract.get(table, {}).get(column, set())
+            if not (ok_triggers & enforced_triggers):
+                report["SCHEMA CONTRACTS"].append(
+                    {"table": table, "missing_fk": column,
+                     "note": "no declared FK and no enforcement trigger found"}
+                )
     report["INVALID STATES"] = []
     report["P&L MISMATCHES"] = []
 

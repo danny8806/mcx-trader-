@@ -160,7 +160,8 @@ class TestPartialFillGuard:
         eng = PaperExecutionEngine(partial_fill_probability=0.0)
         eng.update_price("GOLDM", 100.0)
         order = eng.submit_order(eng.create_order(
-            Signal(SignalType.LONG, "GOLDM", "s", 1, 100.0, 95.0, 4)))
+            Signal(SignalType.LONG, "GOLDM", "s", 1, 100.0, 95.0, 4),
+            trade_id="t-test"))
         assert order.filled_quantity == order.quantity
         # the execution OrderState enum stores lowercase values, consistently
         # used by broker -> DB (state column) -> /api/orders
@@ -195,13 +196,43 @@ class TestIdempotency:
 
     def test_persistence_fill_upsert_is_idempotent(self, tmp_path):
         pm = PersistenceManager(str(tmp_path / "state.json"), str(tmp_path / "trading.db"))
+        # Seed the canonical signal + trade + order required by FK/triggers
+        pm.save_signal({"signal_id": "sig-f1", "strategy_id": "s", "instrument": "GOLDM",
+                        "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": 1000.0,
+                        "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1})
+        pm.save_trade({"trade_id": "t1", "strategy_id": "s", "instrument": "GOLDM",
+                       "side": "LONG", "entry_price": 100.0, "quantity": 1,
+                       "multiplier": 10.0, "gross_pnl": 0.0, "charges": 0.0,
+                       "net_pnl": 0.0, "entry_signal_id": "sig-f1", "status": "OPEN"})
+        pm.save_order({"order_id": "o1", "trade_id": "t1", "strategy_id": "s",
+                       "instrument": "GOLDM", "side": "BUY", "quantity": 1,
+                       "order_type": "ENTRY_LONG", "price": 100.0, "state": "FILLED"})
         rec = {"fill_id": "f1", "order_id": "o1", "strategy_id": "s", "instrument": "GOLDM",
                "side": "BUY", "quantity": 1, "price": 100.0,
-               "timestamp": "2026-01-01T00:00:00+00:00"}
+               "timestamp": "2026-01-01T00:00:00+00:00", "trade_id": "t1",
+               "entry_signal_id": "sig-f1"}
         pm.save_fill(rec)
         pm.save_fill(rec)  # INSERT OR REPLACE -> still one row
         conn = sqlite3.connect(str(tmp_path / "trading.db"))
         n = conn.execute("SELECT COUNT(*) FROM fills WHERE fill_id='f1'").fetchone()[0]
+        conn.close()
+        assert n == 1
+        pm.close()
+
+    def test_save_trade_upsert_preserves_single_row(self, tmp_path):
+        """Test that save_trade uses upsert (idempotent) and keeps one row."""
+        pm = PersistenceManager(str(tmp_path / "state.json"), str(tmp_path / "trading.db"))
+        # Seed a canonical signal so the trade's entry_signal_id FK resolves
+        pm.save_signal({"signal_id": "sig-u1", "strategy_id": "s", "instrument": "GOLDM",
+                        "side": "LONG", "signal_type": "ENTRY_LONG", "timestamp": 1000.0,
+                        "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1})
+        for _ in range(2):
+            pm.save_trade({"trade_id": "u1", "strategy_id": "s", "instrument": "GOLDM",
+                           "side": "LONG", "entry_price": 100.0, "exit_price": 104.0,
+                           "quantity": 1, "multiplier": 10.0, "net_pnl": 35.0,
+                           "entry_signal_id": "sig-u1", "status": "closed"})
+        conn = sqlite3.connect(str(tmp_path / "trading.db"))
+        n = conn.execute("SELECT COUNT(*) FROM trades WHERE trade_id='u1'").fetchone()[0]
         conn.close()
         assert n == 1
         pm.close()
@@ -213,33 +244,32 @@ class TestIdempotency:
 class TestDbTransactionAtomicity:
     def test_save_trade_and_fill_rolls_back_on_failure(self, tmp_path):
         pm = PersistenceManager(str(tmp_path / "state.json"), str(tmp_path / "trading.db"))
+        # Seed canonical signal + order required by FK/triggers
+        pm.save_signal({"signal_id": "sig-t1", "strategy_id": "s", "instrument": "GOLDM",
+                        "side": "LONG", "signal_type": "ENTRY_LONG", "timestamp": 1000.0,
+                        "trigger_price": 100.0, "stop_price": 95.0, "quantity": 1})
+        pm.save_trade({"trade_id": "t1", "strategy_id": "s", "instrument": "GOLDM",
+                       "side": "LONG", "entry_price": 100.0, "quantity": 1,
+                       "multiplier": 10.0, "entry_signal_id": "sig-t1", "status": "OPEN"})
+        pm.save_order({"order_id": "ox", "trade_id": "t1", "strategy_id": "s",
+                       "instrument": "GOLDM", "side": "SELL", "quantity": 1,
+                       "order_type": "EXIT_LONG", "price": 104.0, "state": "FILLED"})
         trade = {"trade_id": "t1", "strategy_id": "s", "instrument": "GOLDM", "side": "LONG",
                  "entry_timestamp": "2026-01-01T00:00:00+00:00", "entry_price": 100.0,
                  "exit_timestamp": "2026-01-01T01:00:00+00:00", "exit_price": 104.0,
                  "quantity": 1, "multiplier": 10.0, "gross_pnl": 40.0, "charges": 5.0,
                  "net_pnl": 35.0, "exit_reason": "test", "status": "closed",
-                 "created_at": "2026-01-01T00:00:00+00:00"}
+                 "entry_signal_id": "sig-t1", "created_at": "2026-01-01T00:00:00+00:00"}
         fill = {"fill_id": "fx", "order_id": "ox", "strategy_id": "s", "instrument": "GOLDM",
-                "side": "SELL", "quantity": 1, "price": 104.0, "timestamp": "2026-01-01T01:00:00+00:00"}
+                "side": "SELL", "quantity": 1, "price": 104.0,
+                "timestamp": "2026-01-01T01:00:00+00:00", "trade_id": "t1",
+                "entry_signal_id": "sig-t1"}
         pm.save_trade_and_fill(trade, fill)
         conn = sqlite3.connect(str(tmp_path / "trading.db"))
         n_t = conn.execute("SELECT COUNT(*) FROM trades WHERE trade_id='t1'").fetchone()[0]
         n_f = conn.execute("SELECT COUNT(*) FROM fills WHERE fill_id='fx'").fetchone()[0]
         conn.close()
         assert (n_t, n_f) == (1, 1)
-        pm.close()
-
-    def test_unique_trade_id_insert_or_replace_no_dup(self, tmp_path):
-        pm = PersistenceManager(str(tmp_path / "state.json"), str(tmp_path / "trading.db"))
-        for _ in range(2):
-            pm.save_trade({"trade_id": "u1", "strategy_id": "s", "instrument": "GOLDM",
-                           "side": "LONG", "entry_price": 100.0, "exit_price": 104.0,
-                           "quantity": 1, "multiplier": 10.0, "net_pnl": 35.0,
-                           "status": "closed"})
-        conn = sqlite3.connect(str(tmp_path / "trading.db"))
-        n = conn.execute("SELECT COUNT(*) FROM trades WHERE trade_id='u1'").fetchone()[0]
-        conn.close()
-        assert n == 1
         pm.close()
 
 

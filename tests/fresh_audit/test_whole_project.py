@@ -540,7 +540,6 @@ class TestDatabase:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
         self.db_path = str(tmp_path / "test_trading.db")
-        self.analytics_path = str(tmp_path / "test_analytics.db")
 
     def test_trading_db_exists(self):
         from persistence.manager import PersistenceManager
@@ -560,20 +559,26 @@ class TestDatabase:
         assert "orders" in tables
         assert "fills" in tables
 
-    def test_analytics_db_exists(self):
-        from analytics.schema import init_analytics_db
-        init_analytics_db(self.analytics_path)
-        assert Path(self.analytics_path).exists()
+    def test_no_separate_analytics_db(self):
+        """ONE canonical trading.db only: the system never creates a separate
+        analytics.db file at runtime."""
+        from persistence.manager import PersistenceManager
+        pm = PersistenceManager(state_path=str(Path(self.db_path).parent / "state.json"),
+                                db_path=self.db_path)
+        assert Path(self.db_path).exists()
+        assert not Path(self.db_path).with_name("analytics.db").exists()
 
-    def test_analytics_db_schema(self):
-        from analytics.schema import init_analytics_db
-        init_analytics_db(self.analytics_path)
-        conn = sqlite3.connect(self.analytics_path)
+    def test_analytics_tables_live_inside_trading_db(self):
+        """Derived analytics tables live INSIDE trading.db (not analytics.db)."""
+        from persistence.manager import PersistenceManager
+        pm = PersistenceManager(state_path=str(Path(self.db_path).parent / "state.json"),
+                                db_path=self.db_path)
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in cursor.fetchall()}
         conn.close()
-        assert len(tables) > 0
-        assert "trade_events" in tables
+        for t in ("trades_analytics", "trade_legs", "trade_events"):
+            assert t in tables
 
     def test_trading_db_insert_and_query_trade(self):
         from persistence.manager import PersistenceManager
@@ -581,10 +586,15 @@ class TestDatabase:
                                 db_path=self.db_path)
         conn = sqlite3.connect(self.db_path)
         conn.execute("""
-            INSERT INTO trades (trade_id, strategy_id, instrument, side, entry_price,
-                                exit_price, quantity, net_pnl, status)
+            INSERT INTO signals (signal_id, strategy_id, instrument, side, signal_type,
+                                 signal_timestamp, trigger_price, stop_price, quantity)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("T001", "gold_01", "GOLDM", "LONG", 72000.0, 72500.0, 1, 5000.0, "closed"))
+        """, ("SIG_T001", "gold_01", "GOLDM", "BUY", "LONG", time.time(), 72000.0, 71900.0, 1))
+        conn.execute("""
+            INSERT INTO trades (trade_id, strategy_id, instrument, side, entry_price,
+                                exit_price, quantity, net_pnl, status, entry_signal_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("T001", "gold_01", "GOLDM", "LONG", 72000.0, 72500.0, 1, 5000.0, "closed", "SIG_T001"))
         conn.commit()
         cursor = conn.execute("SELECT trade_id FROM trades WHERE trade_id='T001'")
         row = cursor.fetchone()
@@ -598,10 +608,20 @@ class TestDatabase:
                                 db_path=self.db_path)
         conn = sqlite3.connect(self.db_path)
         conn.execute("""
+            INSERT INTO signals (signal_id, strategy_id, instrument, side, signal_type,
+                                 signal_timestamp, trigger_price, stop_price, quantity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("SIG_O001", "gold_01", "GOLDM", "BUY", "LONG", time.time(), 72000.0, 71900.0, 1))
+        conn.execute("""
+            INSERT INTO trades (trade_id, strategy_id, instrument, side, entry_price,
+                                quantity, status, entry_signal_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("TO001", "gold_01", "GOLDM", "LONG", 72000.0, 1, "open", "SIG_O001"))
+        conn.execute("""
             INSERT INTO orders (order_id, strategy_id, instrument, side, quantity,
-                                order_type, state, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, ("O001", "gold_01", "GOLDM", "BUY", 1, "MARKET", "filled"))
+                                order_type, state, trade_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, ("O001", "gold_01", "GOLDM", "BUY", 1, "MARKET", "filled", "TO001"))
         conn.commit()
         cursor = conn.execute("SELECT order_id FROM orders WHERE order_id='O001'")
         row = cursor.fetchone()
@@ -614,10 +634,25 @@ class TestDatabase:
                                 db_path=self.db_path)
         conn = sqlite3.connect(self.db_path)
         conn.execute("""
-            INSERT INTO fills (fill_id, order_id, strategy_id, instrument, side,
-                               quantity, price, timestamp)
+            INSERT INTO signals (signal_id, strategy_id, instrument, side, signal_type,
+                                 signal_timestamp, trigger_price, stop_price, quantity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("SIG_F001", "gold_01", "GOLDM", "BUY", "LONG", time.time(), 72000.0, 71900.0, 1))
+        conn.execute("""
+            INSERT INTO trades (trade_id, strategy_id, instrument, side, entry_price,
+                                quantity, status, entry_signal_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("F001", "O001", "gold_01", "GOLDM", "BUY", 1, 72000.0, time.time()))
+        """, ("TF001", "gold_01", "GOLDM", "LONG", 72000.0, 1, "open", "SIG_F001"))
+        conn.execute("""
+            INSERT INTO orders (order_id, strategy_id, instrument, side, quantity,
+                                order_type, state, trade_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, ("OF001", "gold_01", "GOLDM", "BUY", 1, "MARKET", "filled", "TF001"))
+        conn.execute("""
+            INSERT INTO fills (fill_id, order_id, strategy_id, instrument, side,
+                               quantity, price, timestamp, trade_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("F001", "OF001", "gold_01", "GOLDM", "BUY", 1, 72000.0, time.time(), "TF001"))
         conn.commit()
         cursor = conn.execute("SELECT fill_id FROM fills WHERE fill_id='F001'")
         row = cursor.fetchone()
@@ -630,15 +665,20 @@ class TestDatabase:
                                 db_path=self.db_path)
         conn = sqlite3.connect(self.db_path)
         conn.execute("""
-            INSERT INTO trades (trade_id, strategy_id, instrument, side, net_pnl, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, ("T_DUP", "gold_01", "GOLDM", "LONG", 0, "closed"))
+            INSERT INTO signals (signal_id, strategy_id, instrument, side, signal_type,
+                                 signal_timestamp, trigger_price, stop_price, quantity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("SIG_TDUP", "gold_01", "GOLDM", "BUY", "LONG", time.time(), 72000.0, 71900.0, 1))
+        conn.execute("""
+            INSERT INTO trades (trade_id, strategy_id, instrument, side, net_pnl, status, entry_signal_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("T_DUP", "gold_01", "GOLDM", "LONG", 0, "closed", "SIG_TDUP"))
         conn.commit()
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute("""
-                INSERT INTO trades (trade_id, strategy_id, instrument, side, net_pnl, status)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ("T_DUP", "gold_01", "GOLDM", "LONG", 0, "closed"))
+                INSERT INTO trades (trade_id, strategy_id, instrument, side, net_pnl, status, entry_signal_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, ("T_DUP", "gold_01", "GOLDM", "LONG", 0, "closed", "SIG_TDUP"))
             conn.commit()
         conn.close()
 
@@ -1070,10 +1110,14 @@ class TestWebSocketAndMisc:
             fill_id="f1", order_id="o1", instrument="GOLDM",
             side="BUY", quantity=1, price=72000.0,
             timestamp=time.time(), strategy_id="gold_01", multiplier=10.0,
+            entry_signal_id="SIG-P1",
         )
-        pos = pm.open_position(fill, multiplier=10.0)
+        pos = pm.open_position(fill, multiplier=10.0, entry_signal_id="SIG-P1", trade_id="TRD-P1")
         assert pos is not None
         assert pos.is_long
+        # canonical identity: trade_id is explicit and distinct from position_id
+        assert pos.trade_id == "TRD-P1"
+        assert pos.trade_id != pos.position_id
         snap = pm.snapshot()
         assert len(snap.get("open_positions", {})) == 1
 
@@ -1111,9 +1155,11 @@ class TestWebSocketAndMisc:
             stop_price=71500.0,
             quantity=1,
         )
-        order = pe.create_order(signal, multiplier=10.0)
+        order = pe.create_order(signal, multiplier=10.0, trade_id="TRD-ORDER-1")
         assert order is not None
         assert order.state == OrderState.CREATED
+        # canonical lineage: every order carries its explicit trade_id
+        assert order.trade_id == "TRD-ORDER-1"
 
     def test_dhan_adapter_instantiation(self):
         """Verify adapter can be constructed with minimal config."""

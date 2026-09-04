@@ -3,11 +3,12 @@
 Simulates ~5 trading sessions for two strategies (gold_01 on GOLDM,
 silver_01 on SILVERM) with LONG and SHORT trades opening and closing each
 day. Verifies with the REAL collaborators (PersistenceManager + TradeLedger +
-TradeCloseManager):
+TradeCloseManager) on ONE canonical trading.db:
 
 - every closed trade is written to trading.db with P&L that recomputes
   independently to the same values;
-- every trade is recorded exactly once in analytics.db (open then closed);
+- every trade is recorded exactly once as a derived analytics row
+  (trades_analytics/trade_legs live INSIDE trading.db - open then closed);
 - each trade has exactly one entry leg and one exit leg (no dupes across
   the replay, even if a fill is replayed);
 - final gross/net reconcile to the per-trade sums.
@@ -25,7 +26,6 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from analytics.trade_ledger import TradeLedger
-from analytics.schema import init_analytics_db
 from portfolio.position_manager import PositionManager, Position, PositionSide
 from portfolio.pnl import PNLEngine
 from execution.paper_broker import Fill
@@ -66,10 +66,9 @@ def _scenario():
 
 @pytest.fixture()
 def env(tmp_path):
-    tl_db = str(tmp_path / "analytics.db")
-    init_analytics_db(tl_db)
-    tl = TradeLedger(db_path=tl_db)
-    pm = PersistenceManager(str(tmp_path / "state.json"), str(tmp_path / "trading.db"))
+    trading_db = str(tmp_path / "trading.db")
+    pm = PersistenceManager(str(tmp_path / "state.json"), trading_db)
+    tl = TradeLedger(db_path=trading_db)
     pnl = PNLEngine(fee_model=MCXFeeModel())
     posmgr = PositionManager()
 
@@ -92,22 +91,61 @@ def test_five_day_replay_all_closed_reconcile(env):
         for (tid, strat, inst, side, entry, exitp, mult, qty) in day:
             assert tid not in trade_ids
             trade_ids.add(tid)
-            # ---- OPEN ----
+            trade_id = f"TRD-{tid}"
+            sig = f"SIG-{tid}"
+            entry_ord = f"{tid}-o"
+            exit_ord = f"{tid}-xo"
+            entry_side = "BUY" if side == "LONG" else "SELL"
+            exit_side = "SELL" if side == "LONG" else "BUY"
+            # Canonical write order: signal -> trade(entry_signal_id) -> order(trade_id)
+            # -> fill(trade_id, order_id). trade_id is distinct from position_id.
+            pm.save_signal({
+                "signal_id": sig, "strategy_id": strat, "instrument": inst,
+                "side": entry_side, "signal_type": "ENTRY_LONG" if side == "LONG" else "ENTRY_SHORT",
+                "timestamp": ts, "trigger_price": entry, "stop_price": entry - 100,
+                "quantity": qty,
+            })
+            pm.save_trade({
+                "trade_id": trade_id, "strategy_id": strat, "instrument": inst,
+                "side": side, "entry_price": entry, "quantity": qty,
+                "multiplier": mult, "entry_signal_id": sig, "status": "open",
+            })
+            pm.save_order({
+                "order_id": entry_ord, "trade_id": trade_id, "strategy_id": strat,
+                "instrument": inst, "side": entry_side, "quantity": qty,
+                "order_type": "MARKET", "price": entry, "state": "filled",
+                "filled_quantity": qty, "average_fill_price": entry,
+            })
+            pm.save_fill({
+                "fill_id": f"{tid}-e", "order_id": entry_ord, "strategy_id": strat,
+                "instrument": inst, "side": entry_side, "quantity": qty,
+                "price": entry, "timestamp": ts + 1, "trade_id": trade_id,
+                "entry_signal_id": sig,
+            })
+            pm.save_order({
+                "order_id": exit_ord, "trade_id": trade_id, "strategy_id": strat,
+                "instrument": inst, "side": exit_side, "quantity": qty,
+                "order_type": "MARKET", "price": exitp, "state": "submitted",
+                "filled_quantity": 0, "average_fill_price": 0.0,
+            })
+            # Derived ledger projection of the open trade + entry leg.
             tl.create_trade(strategy_id=strat, instrument=inst, side=side,
                             entry_quantity=qty, signal_time=ts, trigger_price=entry,
                             stop_price=entry - 100, multiplier=mult,
-                            trade_id=tid, position_id=tid)
-            tl.record_fill(tid, f"{tid}-e", f"{tid}-o", "BUY" if side == "LONG" else "SELL",
-                           qty, entry, ts + 1, is_entry=True)
+                            trade_id=trade_id, position_id=tid)
+            tl.record_fill(trade_id, f"{tid}-e", entry_ord,
+                           entry_side, qty, entry, ts + 1, is_entry=True)
             pos = Position(position_id=tid, strategy_id=strat, instrument=inst,
                            side=PositionSide.LONG if side == "LONG" else PositionSide.SHORT,
                            quantity=qty, average_entry=entry, entry_timestamp=ts + 1,
-                           entry_fill_ids=[f"{tid}-e"], multiplier=mult)
+                           entry_fill_ids=[f"{tid}-e"], multiplier=mult,
+                           trade_id=trade_id, entry_signal_id=sig)
+            assert pos.trade_id != pos.position_id
             posmgr._positions[tid] = pos
             # ---- CLOSE via the real manager this time ----
             tcm = make_tcm()
-            ext = Fill(fill_id=f"{tid}-x", order_id=f"{tid}-xo", instrument=inst,
-                       side="SELL" if side == "LONG" else "BUY", quantity=qty,
+            ext = Fill(fill_id=f"{tid}-x", order_id=exit_ord, instrument=inst,
+                       side=exit_side, quantity=qty,
                        price=exitp, timestamp=ts + 300, strategy_id=strat, multiplier=mult)
             tcm._pnl_engines[strat] = pnl
             ok = tcm.close_position(fill=ext, position=pos, strategy_id=strat,
@@ -124,18 +162,19 @@ def test_five_day_replay_all_closed_reconcile(env):
     closed = {r[0]: (r[1], r[2], r[3]) for r in rows if r[4] == "closed"}
     assert len(closed) == 20
     for (tid, strat, inst, side, entry, exitp, mult, qty) in [x for d in days for x in d]:
-        g, net, ch = closed[tid]
+        g, net, ch = closed[f"TRD-{tid}"]
         exp_net = _expected_net(side, entry, exitp, qty, mult)
         exp_gross = (exitp - entry) * qty * mult if side == "LONG" else (entry - exitp) * qty * mult
         assert net == pytest.approx(exp_net)
         assert g == pytest.approx(exp_gross)
         assert ch == pytest.approx(exp_gross - exp_net)  # charges = gross - net
 
-    # analytics: all closed, one entry + one exit leg each
+    # analytics (derived tables in trading.db): all closed, one entry + one exit leg each
     for tid in trade_ids:
-        t = tl.get_trade(tid)
+        trade_id = f"TRD-{tid}"
+        t = tl.get_trade(trade_id)
         assert t.status == "CLOSED"
-        legs = tl.get_legs_for_trade(tid)
+        legs = tl.get_legs_for_trade(trade_id)
         assert len(legs) == 2
         assert len([l for l in legs if l.is_entry]) == 1
         assert len([l for l in legs if not l.is_entry]) == 1

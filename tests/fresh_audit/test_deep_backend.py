@@ -1097,12 +1097,19 @@ class TestPersistence:
         """PersistenceManager save_trade persists to SQLite."""
         state_path = str(Path(tmp_db).parent / "state.json")
         pm = PersistenceManager(state_path=state_path, db_path=tmp_db)
+        # Seed the entry signal first: every trade references its entry signal
+        # (canonical write order: signal -> trade).
+        pm.save_signal({
+            "signal_id": "sig-T001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 96000, "stop_price": 95500, "quantity": 1,
+        })
         trade = {
             "trade_id": "T001", "strategy_id": "gold_01", "instrument": "GOLDM",
             "side": "LONG", "entry_timestamp": "2026-01-01T10:00:00", "entry_price": 96000,
             "exit_timestamp": "2026-01-01T11:00:00", "exit_price": 96500,
             "quantity": 1, "multiplier": 10.0, "gross_pnl": 5000, "charges": 100, "net_pnl": 4900,
-            "exit_reason": "signal_exit", "status": "closed",
+            "exit_reason": "signal_exit", "status": "closed", "entry_signal_id": "sig-T001",
         }
         pm.save_trade(trade)
         trades = pm.get_trades(strategy_id="gold_01")
@@ -1114,10 +1121,29 @@ class TestPersistence:
         """PersistenceManager save_fill persists to SQLite."""
         state_path = str(Path(tmp_db).parent / "state.json")
         pm = PersistenceManager(state_path=state_path, db_path=tmp_db)
+        # Seed the canonical lineage in trigger-valid order: signal -> trade ->
+        # order -> fill (every fill references trade_id and order_id).
+        pm.save_signal({
+            "signal_id": "sig-F001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "BUY", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 96000, "stop_price": 95500, "quantity": 1,
+        })
+        pm.save_trade({
+            "trade_id": "td-F001", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "entry_price": 96000, "quantity": 1,
+            "multiplier": 10.0, "entry_signal_id": "sig-F001", "status": "open",
+        })
+        pm.save_order({
+            "order_id": "O001", "signal_id": "sig-F001", "strategy_id": "gold_01",
+            "instrument": "GOLDM", "side": "BUY", "quantity": 1,
+            "order_type": "MARKET", "price": 96000, "state": "filled",
+            "filled_quantity": 1, "average_fill_price": 96000, "trade_id": "td-F001",
+        })
         fill = {
             "fill_id": "F001", "order_id": "O001", "strategy_id": "gold_01",
             "instrument": "GOLDM", "side": "BUY", "quantity": 1, "price": 96000,
             "timestamp": "2026-01-01T10:00:00",
+            "trade_id": "td-F001", "entry_signal_id": "sig-F001",
         }
         pm.save_fill(fill)
         # Verify via direct SQL
@@ -1146,10 +1172,23 @@ class TestPersistence:
         """PersistenceManager get_trades without strategy_id returns all."""
         state_path = str(Path(tmp_db).parent / "state.json")
         pm = PersistenceManager(state_path=state_path, db_path=tmp_db)
+        # Every trade references its entry signal (canonical signal -> trade).
+        pm.save_signal({
+            "signal_id": "sig-T1", "strategy_id": "gold_01", "instrument": "GOLDM",
+            "side": "LONG", "signal_type": "ENTRY_LONG", "timestamp": time.time(),
+            "trigger_price": 96000, "stop_price": 95500, "quantity": 1,
+        })
         pm.save_trade({"trade_id": "T1", "strategy_id": "gold_01", "instrument": "GOLDM",
-                        "side": "LONG", "net_pnl": 100, "status": "closed"})
+                        "side": "LONG", "net_pnl": 100, "status": "closed",
+                        "entry_signal_id": "sig-T1"})
+        pm.save_signal({
+            "signal_id": "sig-T2", "strategy_id": "silver_01", "instrument": "SILVERM",
+            "side": "SHORT", "signal_type": "ENTRY_SHORT", "timestamp": time.time(),
+            "trigger_price": 80000, "stop_price": 80500, "quantity": 1,
+        })
         pm.save_trade({"trade_id": "T2", "strategy_id": "silver_01", "instrument": "SILVERM",
-                        "side": "SHORT", "net_pnl": -50, "status": "closed"})
+                        "side": "SHORT", "net_pnl": -50, "status": "closed",
+                        "entry_signal_id": "sig-T2"})
         all_trades = pm.get_trades()
         assert len(all_trades) >= 2
 
