@@ -770,7 +770,7 @@ class TestStrategyLogic:
     def test_silver_01_config(self):
         s = SilverStrategy01(strategy_id="silver_01", instrument="SILVERM")
         assert s.instrument == "SILVERM"
-        assert s.fast_timeframe == "5m"
+        assert s.fast_timeframe == "15m"
 
     def test_silver_02_config(self):
         s = SilverStrategy02(strategy_id="silver_02", instrument="SILVERM")

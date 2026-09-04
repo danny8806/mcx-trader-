@@ -6,21 +6,7 @@ import requests
 
 sys.path.insert(0, ".")
 
-from pathlib import Path
-_ROOT = Path(__file__).resolve().parent
-_token_file = _ROOT / "data" / "dhan_token.json"
-try:
-    from config import Config
-    _cfg = Config()
-    _cfg.load()
-    _tf = _cfg.get("dhan.token_file", "").strip()
-    if _tf:
-        _cand = (_ROOT / _tf)
-        if _cand.exists():
-            _token_file = _cand
-except Exception:
-    pass
-with open(_token_file) as f:
+with open("data/dhan_token.json") as f:
     TOKEN = json.load(f)["access_token"]
 
 def api_call(payload):
@@ -40,7 +26,7 @@ print("=" * 70)
 print("EXACT LIVE SYSTEM REPLICATION: %s" % day)
 print("=" * 70)
 
-instruments = {"GOLDM": "569003", "SILVERM": "483080"}
+instruments = {"GOLDM": "563946", "SILVERM": "483080"}
 session_open = "09:00"
 
 for inst_name, sec_id in instruments.items():

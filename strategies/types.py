@@ -5,7 +5,8 @@ It only uses Python standard library types.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import uuid as _uuid
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
@@ -45,7 +46,12 @@ class OrderState(Enum):
 
 @dataclass
 class Signal:
-    """Strategy signal output."""
+    """Strategy signal output.
+
+    Every signal gets a unique signal_id (UUID) that travels through the
+    entire lifecycle: Signal -> Order -> Fill -> Position -> Trade.
+    This provides complete signal lineage for audit and reconciliation.
+    """
     signal_type: 'SignalType'
     instrument: str
     strategy_id: str
@@ -55,6 +61,7 @@ class Signal:
     quantity: int
     side: Optional[str] = None  # "LONG" or "SHORT" — used for REVERSAL to determine order direction
     metadata: Optional[dict] = None
+    signal_id: str = field(default_factory=lambda: str(_uuid.uuid4()))
 
 
 @dataclass

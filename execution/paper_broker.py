@@ -41,6 +41,8 @@ class Order:
     updated_at: float = field(default_factory=time.time)
     reason: Optional[str] = None
     multiplier: float = 1.0
+    entry_signal_id: Optional[str] = None
+    trade_id: Optional[str] = None
 
 
 @dataclass
@@ -55,6 +57,8 @@ class Fill:
     timestamp: float
     strategy_id: str
     multiplier: float = 1.0
+    entry_signal_id: Optional[str] = None
+    trade_id: Optional[str] = None
 
     @property
     def gross_value(self) -> float:
@@ -131,6 +135,7 @@ class PaperExecutionEngine:
             multiplier=multiplier,
             created_at=self._now(),
             updated_at=self._now(),
+            entry_signal_id=signal.signal_id,
         )
         self._orders[order.order_id] = order
         return order
@@ -185,6 +190,7 @@ class PaperExecutionEngine:
             timestamp=self._now(),
             strategy_id=order.strategy_id,
             multiplier=order.multiplier,
+            entry_signal_id=order.entry_signal_id,
         )
         self._fills.append(fill)
         # Prune old fills to prevent unbounded growth
@@ -246,6 +252,8 @@ class PaperExecutionEngine:
                     "created_at": o.created_at,
                     "updated_at": o.updated_at,
                     "reason": o.reason,
+                    "entry_signal_id": o.entry_signal_id,
+                    "trade_id": o.trade_id,
                 }
                 for o in self._orders.values()
             ],
@@ -261,6 +269,8 @@ class PaperExecutionEngine:
                     "multiplier": f.multiplier,
                     "timestamp": f.timestamp,
                     "gross_value": f.gross_value,
+                    "entry_signal_id": f.entry_signal_id,
+                    "trade_id": f.trade_id,
                 }
                 for f in self._fills
             ],
@@ -293,6 +303,8 @@ class PaperExecutionEngine:
                 quantity=f_data["quantity"],
                 multiplier=f_data.get("multiplier", 1),
                 timestamp=f_data["timestamp"],
+                entry_signal_id=f_data.get("entry_signal_id"),
+                trade_id=f_data.get("trade_id"),
             )
             self._fills.append(fill)
         # Restore orders
@@ -309,6 +321,8 @@ class PaperExecutionEngine:
                 average_fill_price=o_data.get("average_fill_price", 0.0),
                 fill_ids=list(o_data.get("fill_ids", [])),
                 reason=o_data.get("reason"),
+                entry_signal_id=o_data.get("entry_signal_id"),
+                trade_id=o_data.get("trade_id"),
             )
             order.state = OrderState(o_data["state"])
             order.created_at = o_data.get("created_at", 0)

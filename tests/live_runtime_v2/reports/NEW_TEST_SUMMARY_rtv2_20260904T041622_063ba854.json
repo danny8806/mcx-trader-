@@ -1,0 +1,142 @@
+{
+  "run_id": "rtv2_20260904T041622_063ba854",
+  "suite_version": "2.0.0",
+  "total_tests": 19,
+  "phases": {
+    "phase12": {
+      "pass": 1,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "save_trade_read",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase16": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "old_candle_after_new",
+          "result": "PASS"
+        },
+        {
+          "test": "duplicate_ltp",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase1": {
+      "pass": 5,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "discover_entrypoints",
+          "result": "PASS"
+        },
+        {
+          "test": "discover_modules",
+          "result": "PASS"
+        },
+        {
+          "test": "discover_config",
+          "result": "PASS"
+        },
+        {
+          "test": "manifest_generation",
+          "result": "PASS"
+        },
+        {
+          "test": "critical_classes",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase2": {
+      "pass": 3,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "config_loads",
+          "result": "PASS"
+        },
+        {
+          "test": "engine_init",
+          "result": "PASS"
+        },
+        {
+          "test": "boot_components",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase30": {
+      "pass": 1,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "trade_lifecycle_calc",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase3": {
+      "pass": 1,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "config_loads",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase4": {
+      "pass": 4,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "incremental_matches_batch",
+          "result": "PASS"
+        },
+        {
+          "test": "snapshot_restore",
+          "result": "PASS"
+        },
+        {
+          "test": "warmup_behavior",
+          "result": "PASS"
+        },
+        {
+          "test": "factor_affects_band",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase6": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "long_cross_formula",
+          "result": "PASS"
+        },
+        {
+          "test": "short_cross_formula",
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  "verdict": "SYSTEM_VERIFIED",
+  "failures": [],
+  "unverified": []
+}

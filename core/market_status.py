@@ -85,7 +85,12 @@ class MarketStatus:
         self._data_status = DataStatus.NO_DATA
         self._last_transition: Optional[datetime] = None
         self._last_tick_time: float = 0.0
-        self._stale_threshold: float = 60.0  # seconds
+        self._rest_last_tick_time: float = 0.0
+        self._stale_threshold: float = 60.0  # seconds (WebSocket tick freshness)
+        # REST candles close every 5 minutes; treat a REST confirmation as fresh
+        # for ~8 minutes so trading does not flap within the candle gap, while
+        # still halting after the REST API itself stops confirming live data.
+        self._rest_stale_threshold: float = 480.0
         self._session_date: Optional[str] = None
         self._warmup_done_today: bool = False
         self._reconcile_done_today: bool = False
@@ -116,7 +121,37 @@ class MarketStatus:
     def is_trading_allowed(self) -> bool:
         return (self.state == MarketState.LIVE_TRADING
                 and self._engine_status == EngineStatus.TRADING
-                and self._data_status == DataStatus.CONNECTED)
+                and self.has_live_market_data)
+
+    @property
+    def has_live_market_data(self) -> bool:
+        """Market data is confirmed live from either feed.
+
+        The WebSocket is the fast LTP display feed; REST candles are the
+        authoritative source of truth for signals. Trading may proceed as long
+        as EITHER is delivering fresh data, so a silent WebSocket (Dhan MCX
+        tick feed intermittently delivers nothing) does not stall the engine
+        while REST candles keep confirming real live prices.
+        """
+        if self._data_status == DataStatus.CONNECTED:
+            return True
+        return (time.time() - self._rest_last_tick_time) <= self._rest_stale_threshold
+
+    def _rest_data_fresh(self) -> bool:
+        return (time.time() - self._rest_last_tick_time) <= self._rest_stale_threshold
+
+    def mark_rest_data_fresh(self) -> None:
+        """Record that REST candle data was successfully confirmed flowing.
+
+        Candles are the authoritative signal source, so a fresh REST fetch is
+        treated as confirmed live market data (used by has_live_market_data).
+        """
+        with self._lock:
+            now = time.time()
+            self._rest_last_tick_time = now
+            if self._data_status in (DataStatus.NO_DATA, DataStatus.DISCONNECTED):
+                self._data_status = DataStatus.CONNECTED
+                self._last_tick_time = now
 
     @property
     def is_session_active(self) -> bool:
@@ -154,10 +189,17 @@ class MarketStatus:
                 print(f"[Market] Engine: {old.value} -> {status.value}", flush=True)
 
     def update_data_status(self, connected: bool, last_tick_time: float = 0.0) -> None:
-        """Update data status from WebSocket state."""
+        """Update data status from WebSocket state.
+
+        When REST candle data is freshly confirmed (authoritative signal source),
+        the market is still considered live even if the WebSocket LTP feed is
+        momentarily silent, so we avoid downgrading an existing CONNECTED state.
+        """
         with self._lock:
             self._last_tick_time = last_tick_time
             now = time.time()
+            if self._data_status == DataStatus.CONNECTED and self._rest_data_fresh():
+                return
             if not connected:
                 self._data_status = DataStatus.DISCONNECTED
             elif last_tick_time == 0:
@@ -203,7 +245,11 @@ class MarketStatus:
             current_state = self._force_state_override or self._market_state
             return {
                 "market_state": current_state.value,
-                "force_state_override": self._force_state_override.value if self._force_state_override else None,
+                # Don't persist force_state_override — it is transient and
+                # should NOT survive restarts.  Persisting it causes safe_mode
+                # to lock the engine permanently after any transient trigger
+                # (e.g. brief WS disconnect).
+                "force_state_override": None,
                 "engine_status": self._engine_status.value,
                 "data_status": self._data_status.value,
                 "last_transition": self._last_transition.isoformat() if self._last_transition else None,
@@ -233,15 +279,10 @@ class MarketStatus:
                 ds = data.get("data_status")
                 if ds:
                     self._data_status = DataStatus(ds)
-                # Restore the explicit force-override (e.g. SAFE_MODE) so the
-                # same safety guard survives a same-day restart; otherwise
-                # state() falls back to the time-based transition and the
-                # override is silently lost.
-                fso = data.get("force_state_override")
-                if fso:
-                    self._force_state_override = MarketState(fso)
-                else:
-                    self._force_state_override = None
+                # Don't restore force_state_override from persistence — it is
+                # transient and should not survive restarts.  Safe mode is
+                # re-entered on fresh conditions if needed.
+                self._force_state_override = None
             self._session_date = data.get("session_date")
 
     def force_state(self, state: MarketState) -> None:

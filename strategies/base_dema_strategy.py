@@ -462,9 +462,9 @@ class BaseDEMAStrategy:
             # engine normally consumes it in the same bar as the reversal
             # exit). Fire it immediately instead of waiting for a breakout.
             triggered = True
-        elif pen.side == "LONG" and bar.high > pen.trigger_price:
+        elif pen.side == "LONG" and bar.high >= pen.trigger_price:
             triggered = True
-        elif pen.side == "SHORT" and bar.low < pen.trigger_price:
+        elif pen.side == "SHORT" and bar.low <= pen.trigger_price:
             triggered = True
 
         if triggered:
@@ -603,9 +603,9 @@ class BaseDEMAStrategy:
         pen = self.pending_entry
         triggered = False
 
-        if pen.side == "LONG" and ltp > pen.trigger_price:
+        if pen.side == "LONG" and ltp >= pen.trigger_price:
             triggered = True
-        elif pen.side == "SHORT" and ltp < pen.trigger_price:
+        elif pen.side == "SHORT" and ltp <= pen.trigger_price:
             triggered = True
 
         if triggered:
@@ -671,6 +671,18 @@ class BaseDEMAStrategy:
                 "stop_price": self.pending_entry.signal.stop_price if self.pending_entry.signal else 0,
                 "bars_pending": self.pending_entry.bars_pending,
                 "immediate": getattr(self.pending_entry, "immediate", False),
+                "created_at": getattr(self.pending_entry, "created_at", 0),
+                "instrument": self.pending_entry.signal.instrument if self.pending_entry.signal else self.instrument,
+                "strategy_id": self.pending_entry.signal.strategy_id if self.pending_entry.signal else self.strategy_id,
+                "quantity": self.pending_entry.signal.quantity if self.pending_entry.signal else self.quantity,
+                "signal_candle_start": (self.pending_entry.signal.metadata or {}).get("signal_candle_start"),
+                "signal_candle_open": (self.pending_entry.signal.metadata or {}).get("signal_candle_open"),
+                "signal_candle_high": (self.pending_entry.signal.metadata or {}).get("signal_candle_high"),
+                "signal_candle_low": (self.pending_entry.signal.metadata or {}).get("signal_candle_low"),
+                "signal_candle_close": (self.pending_entry.signal.metadata or {}).get("signal_candle_close"),
+                "signal_htf_dema_atr": (self.pending_entry.signal.metadata or {}).get("signal_htf_dema_atr"),
+                "signal_mid_dema_atr": (self.pending_entry.signal.metadata or {}).get("signal_mid_dema_atr"),
+                "signal_fast_dema_atr": (self.pending_entry.signal.metadata or {}).get("signal_fast_dema_atr"),
             } if self.pending_entry else None,
             "last_exit_reason": self.last_exit_reason,
             "pending_exit_at_open": self.pending_exit_at_open,
@@ -701,6 +713,17 @@ class BaseDEMAStrategy:
         self.pending_exit_bar_start = data.get("pending_exit_bar_start")
         if data.get("pending_entry"):
             pe = data["pending_entry"]
+            sig_metadata = {
+                "signal_candle_start": pe.get("signal_candle_start"),
+                "signal_candle_open": pe.get("signal_candle_open"),
+                "signal_candle_high": pe.get("signal_candle_high"),
+                "signal_candle_low": pe.get("signal_candle_low"),
+                "signal_candle_close": pe.get("signal_candle_close"),
+                "signal_htf_dema_atr": pe.get("signal_htf_dema_atr"),
+                "signal_mid_dema_atr": pe.get("signal_mid_dema_atr"),
+                "signal_fast_dema_atr": pe.get("signal_fast_dema_atr"),
+                "signal_side": pe.get("side"),
+            }
             self.pending_entry = PendingEntry(
                 signal=Signal(
                     signal_type=SignalType.LONG if pe["side"] == "LONG" else SignalType.SHORT,
@@ -710,10 +733,11 @@ class BaseDEMAStrategy:
                     trigger_price=pe["trigger_price"],
                     stop_price=pe.get("stop_price", 0),
                     quantity=self.quantity,
+                    metadata=sig_metadata,
                 ),
                 trigger_price=pe["trigger_price"],
                 side=pe["side"],
-                created_at=time.time(),
+                created_at=pe.get("created_at", time.time()),
                 bars_pending=pe.get("bars_pending", 0),
                 immediate=pe.get("immediate", False),
             )

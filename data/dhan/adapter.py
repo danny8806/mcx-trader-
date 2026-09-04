@@ -48,17 +48,22 @@ class DhanDataAdapter:
             totp_secret=totp_secret,
         )
 
-        # Auto-login on startup: renew token if missing/expiring + start scheduler
-        self.rest.ensure_token()
+        # Auto-login on startup: ALWAYS mint a freshly auto-generated token via
+        # PIN+TOTP (never reuse a possibly stale/expired cached token). This
+        # guarantees both REST and the WebSocket connect with a brand-new token
+        # after every start/restart, avoiding silent feed stalls caused by a
+        # server-side-invalidated but JWT-looking-valid cached token.
+        self.rest.renew_token()
         self.rest.start_scheduler()
 
-        # WebSocket client (for live LTP only)
+        # WebSocket client (for live LTP only) — connect with the fresh token.
+        # token_loader re-mints if the connection is ever restarted/stale.
         self.ws = DhanWebSocketClient(
             client_id=client_id,
             token=self.rest.load_token(),
             on_tick=self._process_tick,
             on_status=on_status,
-            token_loader=self.rest.ensure_token,
+            token_loader=self.rest.renew_token,
         )
 
         # Instrument registry
@@ -126,6 +131,16 @@ class DhanDataAdapter:
                     self._instrument_ticks.get(tick["instrument"], 0) + 1
                 )
 
+                # DEBUG: log first 20 ticks per instrument to trace pipeline
+                inst = tick["instrument"]
+                cnt = self._instrument_ticks[inst]
+                if cnt <= 20:
+                    print(f"[dhan_adapter] TICK {inst} #{cnt} ltp={tick['ltp']:.1f} sid={tick['security_id']}", flush=True)
+
+                # DEBUG: periodic tick distribution log (every 50 total ticks)
+                if self._tick_count % 50 == 0:
+                    print(f"[dhan_adapter] TICK_DIST total={self._tick_count} per_instrument={dict(self._instrument_ticks)}", flush=True)
+
                 # Update live LTP cache
                 with self._ltp_lock:
                     self._live_ltp[tick["instrument"]] = {
@@ -145,10 +160,16 @@ class DhanDataAdapter:
         security_id = raw.get("security_id", "")
         symbol = self._security_to_symbol.get(security_id)
         if not symbol:
+            # DEBUG: log dropped tick when security_id not found
+            if self._tick_count < 500:
+                print(f"[dhan_adapter] DROPPED unknown sid={security_id} known_sids={list(self._security_to_symbol.keys())}", flush=True)
             return None
 
         meta = self._instruments.get(symbol)
         if not meta:
+            # DEBUG: log dropped tick when instrument not found
+            if self._tick_count < 500:
+                print(f"[dhan_adapter] DROPPED no meta for symbol={symbol}", flush=True)
             return None
 
         # Convert LTT (IST wall-clock epoch) to UTC timestamp

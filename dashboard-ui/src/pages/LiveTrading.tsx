@@ -17,6 +17,15 @@ export default function LiveTrading() {
   const goldStrats = strategies.filter((s: any) => s.instrument === "GOLDM");
   const silverStrats = strategies.filter((s: any) => s.instrument === "SILVERM");
 
+  // Collect all pending entries from strategies
+  const pendingEntries = strategies
+    .filter((s: any) => s.pending_entry)
+    .map((s: any) => ({
+      strategy_id: s.strategy_id,
+      instrument: s.instrument,
+      ...s.pending_entry,
+    }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       <div className="split-grid-2">
@@ -70,6 +79,66 @@ export default function LiveTrading() {
               </div>
             ))}
           </>
+        )}
+      </div>
+
+      <div className="lift" style={panelStyle}>
+        <div style={{ ...header, display: "flex", justifyContent: "space-between" }}>
+          <span>PENDING ENTRIES ({pendingEntries.length})</span>
+          {pendingEntries.length > 0 && <span style={{ color: "var(--amber)", fontWeight: 600, fontSize: "9px" }}>WAITING FOR TRIGGER</span>}
+        </div>
+        {pendingEntries.length === 0 ? (
+          <div className="animate-fade-in-up" style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: "10px" }}>No pending entries</div>
+        ) : (
+          pendingEntries.map((pe: any) => {
+            const isShort = pe.side === "SHORT";
+            const exitAction = isShort ? "SELL (Exit Long)" : "BUY (Exit Short)";
+            const enterAction = isShort ? "SELL (Enter Short)" : "BUY (Enter Long)";
+            return (
+              <div key={pe.strategy_id} style={{ borderBottom: "1px solid var(--border-subtle)", padding: "10px 12px" }}>
+                {/* Header row */}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--amber)", animation: "pulse 2s infinite" }} />
+                    <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "11px" }}>{pe.instrument}</span>
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>{pe.strategy_id}</span>
+                  <span style={{ color: isShort ? "var(--red)" : "var(--green)", fontWeight: 700, fontSize: "11px" }}>{pe.side} REVERSAL</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: "9px", marginLeft: "auto" }}>Qty: {pe.quantity}</span>
+                </div>
+                {/* Actions on trigger */}
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "4px", fontSize: "9px", color: "var(--red)" }}>
+                    <span style={{ fontWeight: 600 }}>1.</span> {exitAction} @ ₹{pe.trigger_price?.toLocaleString("en-IN")}
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "4px", fontSize: "9px", color: "var(--green)" }}>
+                    <span style={{ fontWeight: 600 }}>2.</span> {enterAction} @ ₹{pe.trigger_price?.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                {/* Signal candle details */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px", fontSize: "9px", background: "var(--bg-table-header)", padding: "6px 8px", borderRadius: "4px", marginBottom: "6px" }}>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Signal Time: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_candle_start ? formatTimestamp(pe.signal_candle_start) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Created: </span><span style={{ color: "var(--text-secondary)" }}>{pe.created_at ? formatTimestamp(pe.created_at) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Trigger: </span><span style={{ color: "var(--amber)", fontWeight: 600 }}>{safeINR(pe.trigger_price)}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>SL: </span><span style={{ color: "var(--text-secondary)" }}>{pe.stop_price ? safeINR(pe.stop_price) : "—"}</span></div>
+                </div>
+                {/* Signal candle OHLC */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: "4px", fontSize: "9px", padding: "4px 8px" }}>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Open: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_candle_open ? safeINR(pe.signal_candle_open) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>High: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_candle_high ? safeINR(pe.signal_candle_high) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Low: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_candle_low ? safeINR(pe.signal_candle_low) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Close: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_candle_close ? safeINR(pe.signal_candle_close) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>HTF DEMA-ATR: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_htf_dema_atr ? safeINR(pe.signal_htf_dema_atr) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Mid DEMA-ATR: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_mid_dema_atr ? safeINR(pe.signal_mid_dema_atr) : "—"}</span></div>
+                  <div><span style={{ color: "var(--text-disabled)" }}>Fast DEMA-ATR: </span><span style={{ color: "var(--text-secondary)" }}>{pe.signal_fast_dema_atr ? safeINR(pe.signal_fast_dema_atr) : "—"}</span></div>
+                </div>
+                {/* Bars pending */}
+                <div style={{ fontSize: "9px", color: "var(--text-muted)", padding: "4px 8px" }}>
+                  Bars waiting: <span style={{ color: "var(--amber)" }}>{pe.bars_pending ?? 0}</span>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 

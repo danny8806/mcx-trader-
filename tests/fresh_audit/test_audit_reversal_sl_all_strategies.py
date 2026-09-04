@@ -63,7 +63,7 @@ def _write_config(root: Path) -> Path:
             "gold_02": {"instrument": "GOLDM", "fast_timeframe": "15m",
                         "mid_timeframe": "1h", "htf_timeframe": "1h",
                         "quantity": 1, "capital": 500000, "enabled": True},
-            "silver_01": {"instrument": "SILVERM", "fast_timeframe": "5m",
+            "silver_01": {"instrument": "SILVERM", "fast_timeframe": "15m",
                           "mid_timeframe": "15m", "htf_timeframe": "1h",
                           "quantity": 1, "capital": 500000, "enabled": True},
             "silver_02": {"instrument": "SILVERM", "fast_timeframe": "5m",

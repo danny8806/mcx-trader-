@@ -23,7 +23,12 @@ class PositionStatus(Enum):
 
 @dataclass
 class Position:
-    """Represents a trading position."""
+    """Represents a trading position.
+
+    The position_id is the authoritative trade_id (1:1 mapping).
+    entry_signal_id links to the Signal that triggered this trade.
+    exit_signal_id links to the Signal that closed this trade (if signal-based exit).
+    """
     position_id: str
     strategy_id: str
     instrument: str
@@ -41,6 +46,8 @@ class Position:
     exit_fills: list[Fill] = field(default_factory=list)
     status: PositionStatus = PositionStatus.OPEN
     multiplier: float = 1.0
+    entry_signal_id: Optional[str] = None
+    exit_signal_id: Optional[str] = None
 
     @property
     def is_long(self) -> bool:
@@ -96,6 +103,8 @@ class Position:
             "status": self.status.value,
             "is_open": self.is_open,
             "multiplier": self.multiplier,
+            "entry_signal_id": self.entry_signal_id,
+            "exit_signal_id": self.exit_signal_id,
         }
 
 
@@ -117,6 +126,7 @@ class PositionManager:
         multiplier: float = 1.0,
         stop_price: Optional[float] = None,
         margin: float = 0.0,
+        entry_signal_id: Optional[str] = None,
     ) -> Position:
         """Open a new position from an entry fill."""
         position = Position(
@@ -132,6 +142,7 @@ class PositionManager:
             current_mark=fill.price,
             margin=margin,
             multiplier=multiplier,
+            entry_signal_id=entry_signal_id or fill.entry_signal_id,
         )
         with self._lock:
             self._positions[position.position_id] = position
@@ -142,6 +153,7 @@ class PositionManager:
         position_id: str,
         fill: Fill,
         reason: str,
+        exit_signal_id: Optional[str] = None,
     ) -> Position:
         """Close an existing position with an exit fill."""
         with self._lock:
@@ -152,6 +164,8 @@ class PositionManager:
             position.exit_fills.append(fill)
             position.exit_reason = reason
             position.status = PositionStatus.CLOSED
+            if exit_signal_id:
+                position.exit_signal_id = exit_signal_id
 
             # Calculate realized P&L
             if position.is_long:
@@ -224,8 +238,8 @@ class PositionManager:
         with self._lock:
             return {
                 "open_positions": {
-                    pid: pos.snapshot()
-                    for pid, pos in self._positions.items()
+                    pos.position_id: pos.snapshot()
+                    for pos in self._positions.values()
                 },
                 "closed_positions": [pos.snapshot() for pos in self._closed_positions],
             }
@@ -238,7 +252,12 @@ class PositionManager:
             self._positions.clear()
             self._closed_positions.clear()
 
-            # Restore open positions
+            # Restore open positions.
+            # BUG FIX: Always key by pos.position_id (the UUID), NOT by
+            # the dict key (pid) from the state file.  Older state files
+            # used strategy names (e.g. "silver_02") as dict keys, but
+            # close_position() looks up by position_id (UUID).  Using the
+            # wrong key causes "Position not found" in heal/reconciliation.
             for pid, pos_data in data.get("open_positions", {}).items():
                 exit_fills = []
                 for f_data in pos_data.get("exit_fills", []):
@@ -271,8 +290,10 @@ class PositionManager:
                     exit_fills=exit_fills,
                     status=PositionStatus(pos_data.get("status", "open")),
                     multiplier=pos_data.get("multiplier", 1.0),
+                    entry_signal_id=pos_data.get("entry_signal_id"),
+                    exit_signal_id=pos_data.get("exit_signal_id"),
                 )
-                self._positions[pid] = pos
+                self._positions[pos.position_id] = pos
 
             # Restore closed positions (A11) — ensures reconciliation has
             # exit-fill linkage after restart, eliminating the spurious
@@ -309,5 +330,7 @@ class PositionManager:
                     exit_fills=exit_fills,
                     status=PositionStatus(cp_data.get("status", "closed")),
                     multiplier=cp_data.get("multiplier", 1.0),
+                    entry_signal_id=cp_data.get("entry_signal_id"),
+                    exit_signal_id=cp_data.get("exit_signal_id"),
                 )
                 self._closed_positions.append(pos)

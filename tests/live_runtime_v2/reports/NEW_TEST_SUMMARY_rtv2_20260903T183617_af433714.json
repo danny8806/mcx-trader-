@@ -1,0 +1,107 @@
+{
+  "run_id": "rtv2_20260903T183617_af433714",
+  "suite_version": "2.0.0",
+  "total_tests": 9,
+  "phases": {
+    "phase12": {
+      "pass": 1,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "save_trade_read",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase16": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "old_candle_after_new",
+          "result": "PASS"
+        },
+        {
+          "test": "duplicate_ltp",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase2": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "engine_init",
+          "result": "PASS"
+        },
+        {
+          "test": "boot_components",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase4": {
+      "pass": 1,
+      "fail": 1,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "incremental_matches_independent",
+          "result": "FAIL"
+        },
+        {
+          "test": "snapshot_restore",
+          "result": "PASS"
+        }
+      ]
+    },
+    "phase6": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "long_cross_formula",
+          "result": "PASS"
+        },
+        {
+          "test": "short_cross_formula",
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  "verdict": "SYSTEM_NOT_VERIFIED",
+  "failures": [
+    {
+      "run_id": "rtv2_20260903T183617_af433714",
+      "timestamp": 1788460578.58788,
+      "elapsed": 0.9477241039276123,
+      "phase": "phase4",
+      "test": "incremental_matches_independent",
+      "result": "FAIL",
+      "data": {
+        "first_diff_bar": 0,
+        "runtime": [
+          100,
+          100,
+          100,
+          100,
+          100
+        ],
+        "independent": [
+          110.08333333333333,
+          110.08333333333333,
+          110.08333333333333,
+          110.08333333333333,
+          110.08333333333333
+        ]
+      }
+    }
+  ],
+  "unverified": []
+}

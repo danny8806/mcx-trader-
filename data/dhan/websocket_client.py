@@ -42,10 +42,13 @@ class DhanWebSocketClient:
         
         self._ws: Optional[websocket.WebSocketApp] = None
         self._thread: Optional[threading.Thread] = None
+        self._watchdog_thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self._connected = False
+        self._connecting = False
         self._last_tick_time = 0.0
         self._stale_threshold = 60.0  # seconds
+        self._watchdog_interval = 15.0  # how often the stale watchdog fires
         
         self._instruments: dict[str, dict[str, str]] = {}
         self._stats = {"recv": 0, "parse_err": 0, "sub": 0, "tick": 0}
@@ -82,19 +85,62 @@ class DhanWebSocketClient:
         self._stop.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+        # Stale watchdog: force a reconnect when the connection is up but
+        # silently stopped delivering ticks (breaks the connected-but-silent
+        # stall that the reconnect loop alone cannot detect).
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop, daemon=True, name="dhan-ws-watchdog"
+        )
+        self._watchdog_thread.start()
 
     def disconnect(self) -> None:
         """Stop WebSocket connection."""
         self._stop.set()
         if self._ws:
             self._ws.close()
+        if self._watchdog_thread is not None:
+            self._watchdog_thread.join(timeout=5)
+            self._watchdog_thread = None
+
+    def _watchdog_loop(self) -> None:
+        """Background watchdog: reconnect a stale (silent) connection.
+
+        Detects the case where the socket is still 'connected' but has not
+        delivered any tick within _stale_threshold seconds, and force-closes it
+        so the reconnect loop starts a fresh connection (with a fresh token via
+        token_loader). This prevents indefinite freezes on live LTP.
+        """
+        while not self._stop.is_set():
+            self._stop.wait(self._watchdog_interval)
+            if self._stop.is_set():
+                break
+            self._watchdog_loop_once()
+
+    def _watchdog_loop_once(self) -> None:
+        """Single stale-check pass (testable without a live thread)."""
+        if not self._connected or self._connecting:
+            return
+        if self.is_stale():
+            print(
+                "[dhan_ws] watchdog: stale (no ticks for %.0fs), forcing reconnect"
+                % self._stale_threshold,
+                flush=True,
+            )
+            if self._ws:
+                try:
+                    self._ws.close()
+                except Exception:
+                    pass
+            if self.on_status:
+                self.on_status("stale_reconnect")
 
     def _run_loop(self) -> None:
-        """Main reconnection loop with exponential backoff and token reload."""
+        """Main reconnection loop with bounded backoff and token reload."""
         delay = self.reconnect_delay
-        max_delay = 300.0
+        max_delay = self.reconnect_delay * 3  # cap backoff (e.g. 30s max)
         while not self._stop.is_set():
-            # Reload token before each reconnect attempt
+            # Reload/refresh token before each reconnect attempt so the socket
+            # always connects with an up-to-date (never stale) access token.
             if self.token_loader:
                 try:
                     fresh_token = self.token_loader()
@@ -118,7 +164,8 @@ class DhanWebSocketClient:
             f"wss://api-feed.dhan.co?version=2&token={self.token}"
             f"&clientId={self.client_id}&authType=2"
         )
-        
+
+        self._connecting = True
         self._ws = websocket.WebSocketApp(
             url,
             on_open=self._on_open,
@@ -126,12 +173,15 @@ class DhanWebSocketClient:
             on_error=self._on_error,
             on_close=self._on_close,
         )
-        
+
         # Set connected=True only after run_forever returns (clean state)
         # Use a flag that on_open can read
         self._connected = False
-        self._ws.run_forever(ping_interval=self.ping_interval)
-        self._connected = False
+        try:
+            self._ws.run_forever(ping_interval=self.ping_interval)
+        finally:
+            self._connecting = False
+            self._connected = False
         if self.on_status:
             self.on_status("disconnected")
 
@@ -153,7 +203,9 @@ class DhanWebSocketClient:
                 "InstrumentList": batch,
             }))
         self._stats["sub"] += 1
-        print(f"[dhan_ws] subscribed {len(subs)} instruments", flush=True)
+        # DEBUG: log which instruments were subscribed
+        sub_details = [(info["sid"], sym) for sym, info in self._instruments.items()]
+        print(f"[dhan_ws] subscribed {len(subs)} instruments: {sub_details}", flush=True)
 
     def _on_message(self, ws: Any, message: str | bytes) -> None:
         """Handle incoming WebSocket message with duplicate prevention."""
@@ -172,6 +224,9 @@ class DhanWebSocketClient:
                 ltp = tick.get("ltp", 0.0)
                 dedup_key = f"{sid}|{ltt}|{ltp:.2f}"
                 if ltt and dedup_key in self._seen_ltt:
+                    # DEBUG: log dedup to identify per-instrument filtering
+                    if self._stats["tick"] < 500:
+                        print(f"[dhan_ws] DEDUP sid={sid} ltp={ltp:.1f} ltt={ltt}", flush=True)
                     return  # duplicate tick after reconnect
                 if ltt:
                     self._seen_ltt[dedup_key] = ltt
@@ -248,6 +303,9 @@ class DhanWebSocketClient:
                 "timestamp": time.time(),
             }
         
+        # DEBUG: log unknown packet codes
+        if self._stats["recv"] < 500:
+            print(f"[dhan_ws] UNKNOWN code={code} len={len(data)} hex={data[:16].hex()}", flush=True)
         return None
 
     def is_stale(self) -> bool:
