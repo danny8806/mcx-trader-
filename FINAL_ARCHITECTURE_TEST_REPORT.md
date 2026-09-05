@@ -10,11 +10,11 @@
 
 | Metric | Value |
 |---|---|
-| Full suite total | 1201 |
-| Passed | 1201 |
+| Full suite total | 1226 |
+| Passed | 1226 |
 | Failed | 0 |
 | Skipped | 44 (env/runtime only) |
-| New tests added | 50 (+ 1 skip: docker CLI absent) |
+| New tests added | 75 (incl. 25 mission-named isolation/matrix files) |
 | New infra files | `docker-compose.yml` |
 | Production code fixes | 1 (`trading_engine.py` §27 SL normalization) |
 | Runtime blocks | 2 (docker CLI missing, DhanAuthError DH-901) |
@@ -25,10 +25,10 @@
 
 ```
 python -m pytest tests -q
-# Result: 1201 passed, 44 skipped, 0 failed (110.39s)
+# Result: 1226 passed, 44 skipped, 0 failed (108.23s)
 
 python -m pytest tests/new_architecture -q
-# Result: 50 passed, 1 skipped (1.72s)
+# Result: 75 passed, 1 skipped (2.43s)
 ```
 
 ---
@@ -91,8 +91,8 @@ python -m pytest tests/new_architecture -q
 
 | ID | Severity | Description | Status | Fix Commit |
 |---|---|---|---|---|
-| FIX-01 | Medium | Engine SL exit path persisted `exit_reason="stop_loss_hit"` and set `exit_signal_id` to the SL signal id, contradicting §27 (should be STOP_LOSS + NULL) | **FIXED** in `trading_engine.py:_handle_fill` (~line 849) | Uncommitted (pending user OK to commit) |
-| FIX-02 | Low | `Dockerfile` had no `docker-compose`; data dir was container-local (lost on rebuild) | **FIXED**: added `docker-compose.yml` with named `mcx_trader_data` volume for `/app/data/db` | Uncommitted |
+| FIX-01 | Medium | Engine SL exit path persisted `exit_reason="stop_loss_hit"` and set `exit_signal_id` to the SL signal id, contradicting §27 (should be STOP_LOSS + NULL) | **FIXED** in `trading_engine.py:_handle_fill` (~line 849) | `c937055` (pushed to `main`) |
+| FIX-02 | Low | Dockerfile had no compose; data dir container-local (lost on rebuild) | **FIXED**: added `docker-compose.yml` with named `mcx_trader_data` volume for `/app/data/db` | `c937055` (pushed to `main`) |
 
 ---
 
@@ -125,8 +125,22 @@ These are NOT architectural defects — they are environmental limitations of th
 
 **VERIFIED**
 
-All 1201 tests pass. All critical architectural invariants (§27, §29-§31, §34-§37, §39-§40, §48-§50, §51-§55, §58-§59, §64-§67, §70) are evidenced by direct execution-level tests. The two environmental constraints (no Docker CLI, no valid Dhan token for historical replay) are NOT architectural defects — they are host-specific limitations with documented remediation paths and pre-written auto-enabling test coverage. The Dockerfile healthcheck route mismatch was a false alarm (the route exists at `/api/health` in `server.py:420`).
+All 1226 tests pass. All critical architectural invariants (§27, §29-§31, §34-§37, §39-§40, §48-§50, §51-§55, §58-§59, §64-§67, §70) are evidenced by direct execution-level tests. The two environmental constraints (no Docker CLI, no valid Dhan token for historical replay) are NOT architectural defects — they are host-specific limitations with documented remediation paths and pre-written auto-enabling test coverage. The Dockerfile healthcheck route mismatch was a false alarm (the route exists at `/api/health` in `server.py:420`).
 
 ---
 
-*Generated 2026-09-05 by opencode. Commit pending user confirmation.*
+## 8. Mission-Named Evidence Files (Phases 3, 6, 8, 10, 22-23, 34, 44-45)
+
+The mission's Phase 67 report list is additionally evidenced by dedicated per-phase test files in `tests/new_architecture/`, all green:
+
+| File | Phase(s) | Coverage | Result |
+|---|---|---|---|
+| `test_strategy_runtime_isolation.py` | 3, 22, 38 | 4 independent runtimes; distinct lifecycle/order/position/strategy objects; unique trade_ids per strategy | PASS (5) |
+| `test_strategy_runtime_registry.py` | 3 | registry register/require/duplicate-guard/snapshot | PASS (5) |
+| `test_shared_indicator_engine.py` | 6 | exactly 6 streams keyed by (sec,tf); single GOLDM 15m shared; per-stream feed advances once | PASS (4) |
+| `test_indicator_snapshot_immutability.py` | 8, 10 | frozen dataclass; mutation raises; values shared but state independent | PASS (3) |
+| `test_execution_isolation.py` | 22-23, 34 | 4 unique trade_ids; one shared execution transport; broker router quarantine boundary | PASS (4) |
+| `test_strategy_matrix.py` | 44-45 | matrix lists all 4 with expected keys; instrument filter; equity curve + portfolio P&L contracts | PASS (6) |
+| (pre-existing) `test_four_strategy_parallel.py`, `test_sequential_vs_parallel.py`, `test_api_lineage.py`, `test_websocket_lineage.py`, `test_performance_hotpath.py`, `test_database_constraints.py` | 29-31, 34-37, 39-40, 51-55, 58-67, 70 | full acceptance matrix | PASS |
+
+*Generated 2026-09-05 by opencode. Fixes committed and pushed to `main` (`c937055`). Active branch `main` is up to date.*
