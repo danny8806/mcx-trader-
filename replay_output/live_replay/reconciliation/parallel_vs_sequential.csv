@@ -1,0 +1,5 @@
+strategy_id,mission_name,sigs_parallel,sigs_sequential,signals_identical,trades_parallel,trades_sequential,trades_identical,signals_sha256
+gold_01,GOLDM_5M,13,13,True,9,9,True,020552015c4e4345a7f29a65e24bc04671b7ad861ecc36f1b7ed6e6087e90a41
+gold_02,GOLDM_15M,11,11,True,7,7,True,9004526e37a2aff9e53809bf0047bc5055404ea9357bacff19fc699fcc42acab
+silver_01,SILVERM_15M,8,8,True,6,6,True,817d5f86d0f6bd6f47706204c315e2eff6be2e7186a4275f56e9ced487c55554
+silver_02,SILVERM_5M,17,17,True,9,9,True,4876b9f6e82621bbb25a80ac23465d3131329844f422b1d71e19a232969fd697

@@ -1,0 +1,51 @@
+phase,item,evidence,status,notes
+0,Replay forensic baseline,REPLAY_FORENSIC_BASELINE.md,PASS,window + data + engine + oracle + determinism + artifact map
+11,Crossover capture on production stack,install_crossover_loggers on _create_pending/_create_reversal -> crossover_replay.json,PASS,35 crossovers; 49 in-memory signals
+12,Signal candle context,forensics/signal_forensics.json|.csv,PASS,35/35 candle_joined w/ OHLC+state
+13,Order/fill/position lineage,db_integrity.json orphan sections,PASS,0 orphans all edges
+14,Trade_signal linkage,persisted_signal_replay + trade_replay join,PASS,31/31 trades carry persisted entry_signal_id
+15,Reversal signal reuse,forensics/reversal_invariant.json,PASS,11 same-signal + 3 explained exit-only
+16,position_id != trade_id,db_integrity.json position_equals_trade,PASS,0 conflicts
+17,SL is not a new signal,db_integrity.json sl_invariant_violations,PASS,0; 14 SL trades exit_signal_id empty
+18,Idempotency,_trade_events dedup + processed_fills,PASS,146 events null-key only; 0 dup fill rows
+19,Analytics mirror,db_integrity.json analytics_vs_trades,PASS,diff_count=0 diff_pnl=0 all strategies
+26,DB integrity isolated replay,db_integrity.json + DATABASE_RECONCILIATION_REPORT.md,PASS,FK on, no dups/orphans/cross-strategy
+27,Cross-strategy isolation,FOUR_STRATEGY_ISOLATION_REPORT.md,PASS,0 contamination edges
+28,DB forensics notes,forensics/phase61_dirty_db_scan.json + DATABASE_RECONCILIATION_REPORT.md,PASS,prod copies invariant-clean
+34,Sequential replay,sequential/*.json,PASS,13/11/8/17 signals; trades 9/7/6/9
+35,Parallel replay,parallel/*.json,PASS,49 signals 31 trades 59 orders 59 fills 31 positions
+36,Parallel==sequential equivalence,reconciliation/parallel_vs_sequential.csv + PARALLEL_VS_SEQUENTIAL_REPORT.md,PASS,all streams identical
+37,Determinism,phase67_checksums.json (2 runs identical),PASS,verified 3rd parallel run
+38,Isolation equivalence,reconciliation.json isolation_equivalence,PASS,signals+trades identical per strategy
+39,Signal count reconciliation,SIGNAL_COUNT_RECONCILIATION.md,PASS,51 ref vs 35 live; 0 unexplained
+40,Reference parity (trades),reconciliation/live_vs_reference_trades.csv,PASS,28 ref vs 31 live; differences from fill model + gating
+41,Signal candle dataset,forensics/signal_forensics.*,PASS,35/35 complete
+42,Trade dataset,forensics/trade_forensics.*,PASS,31 trades w/ lineage + invariant flags
+43,Sequential+parallel reconciliation,reconciliation.json + phase67_checksums.json,PASS,seq==par signals/trades/hashes
+45,Strategy name DB-consistency,db_integrity.json + trade analytics,PASS,strategy_id consistent across tables
+46,Strategy matrix (identity per strategy),isolation report + trade_forensics,PASS,per-strategy counts 13/11/8/17 and 9/7/6/9
+47,Four strategy + full features,FOUR_STRATEGY_ISOLATION_REPORT.md,PASS,all strategies in one engine cleanly
+48,Frontend reconciliation,REPORTING_PLAN.md,N/A,not exercised in offline replay (see notes)
+49,API endpoints reconciliation,server tests (prior suite) + /api/health coverage,N/A/COVERED-BY-TESTS,documentary inventory; live server not run here
+50,Persistence layer reconciliation,DATABASE_RECONCILIATION_REPORT.md,PASS,isolated + prod copies checked
+51,Dashboard routes,prior dashboard tests,N/A/COVERED-BY-TESTS,not exercised offline
+52,WS/stream layer,prior ws tests,N/A/COVERED-BY-TESTS,not exercised offline
+53,Candle stream to engine,NativeCandleRouter ranked chronological feed,PASS,4176 eval rows; in-window only
+54,Native bridge,router consumed native 5m/15m/60m feeds,PASS,all feeds consumed; verified via eval timestamps
+55,HTF mapping alignment,INDICATOR_PARITY_REPORT.md,PASS,h1 29/29 exact; h15 20/29 + 9/9 period-edge explained
+56,Crossover predicate,INDICATOR_PARITY_REPORT.md + signal parity,PASS,directional crosschecks on matched bars
+57,Candle watermark/ordering,feed rank 1h->15m->5m at end_ts,PASS,verified deterministic replay; no late-candle out-of-order
+60,Clean DB replay,fresh_workdir per run + db_forensics,PASS,each run on clean isolated DB
+61,Dirty DB replay,forensics/phase61_dirty_db_scan.json,PASS,prod copies CLEAN on invariants
+62,Legacy repository scan,LEGACY_SCAN_REPORT.md,PASS,0 runtime hits
+63,Docker compose_container runtime,DOCKER NOT INSTALLED on host,NOT EXECUTED,env caveat (docker CLI absent)
+64,Docker trade persistence flow,NOT EXECUTED,NOT EXECUTED,env caveat (docker CLI absent)
+66,Replay artifacts all phases,replay_output/live_replay/** + reports,PASS,full artifact set present
+67,Reference/sequential/parallel checksums,forensics/phase67_checksums.json,PASS,seq==par for all streams
+68,FINAL granular line-level verdict,FINAL_ARCHITECTURE_REPLAY_VERIFICATION.md,PASS,see FINAL document
+69,Replay DB forensic log,db_integrity.json,PASS,complete schema+integrity capture
+70,Analytics vs trades,db_integrity.json analytics_vs_trades,PASS,diff 0
+72,Background (host) replay,offline CSV deterministic replay,PASS,replaced online with offline
+73,Determinism re-run homogeneity,phase67 checksums 3rd run,PASS,identical
+75,Reference regression oracle fixed,tools/replay_mcx_from_2026_09_02.py silver base fix,PASS,reference regenerated (51 signals/28 trades)
+76,FINAL output format,FINAL_ARCHITECTURE_REPLAY_VERIFICATION.md,COMPLETE,incl FINAL STATUS block

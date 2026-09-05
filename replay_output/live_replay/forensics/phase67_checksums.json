@@ -1,0 +1,67 @@
+{
+ "signals_in_memory": {
+  "gold_01": {
+   "sequential": "4eaac501f24ce8c9de7514aa9e64527c2bed41b3b200e2cfd84ffc6d293c4337",
+   "parallel": "4eaac501f24ce8c9de7514aa9e64527c2bed41b3b200e2cfd84ffc6d293c4337"
+  },
+  "gold_02": {
+   "sequential": "97a13e9b817cb21109014db7b4e5de482e9750d314ad00f3ba627000ea3d396c",
+   "parallel": "97a13e9b817cb21109014db7b4e5de482e9750d314ad00f3ba627000ea3d396c"
+  },
+  "silver_01": {
+   "sequential": "08998eff156e6c943b1ecffa9be87060004932308a2645ab95554a43a4c3bf1c",
+   "parallel": "08998eff156e6c943b1ecffa9be87060004932308a2645ab95554a43a4c3bf1c"
+  },
+  "silver_02": {
+   "sequential": "b713f820eb592bd999c24f9162506af620ddb05763a61f4c60b4f2519eb6d923",
+   "parallel": "b713f820eb592bd999c24f9162506af620ddb05763a61f4c60b4f2519eb6d923"
+  }
+ },
+ "crossover_events": {
+  "gold_01": {
+   "sequential": "0578c61c6d5b3476211feabd0fb3a318b66a81a77aea1276b4bc8ca164bc0bc8",
+   "parallel": "0578c61c6d5b3476211feabd0fb3a318b66a81a77aea1276b4bc8ca164bc0bc8"
+  },
+  "gold_02": {
+   "sequential": "e1aab3aa136f85a8ca0b9c9c809ea13d428557a6b1beed01c53cd64fc90e8af0",
+   "parallel": "e1aab3aa136f85a8ca0b9c9c809ea13d428557a6b1beed01c53cd64fc90e8af0"
+  },
+  "silver_01": {
+   "sequential": "1c6d01df5c8af012af60cc48e0a49bac9b727d8cb1bcda29eaf9c3a7e2a79d14",
+   "parallel": "1c6d01df5c8af012af60cc48e0a49bac9b727d8cb1bcda29eaf9c3a7e2a79d14"
+  },
+  "silver_02": {
+   "sequential": "afecf2cf79846d66b085ef86515518d4acf97f968ba051c986fa4bda6c9815b4",
+   "parallel": "afecf2cf79846d66b085ef86515518d4acf97f968ba051c986fa4bda6c9815b4"
+  }
+ },
+ "reference_signals": {
+  "gold_01": "782f896b7742b565776742ab835385d1599d6541a8d6947c0cc9e9819e1fd95b",
+  "gold_02": "b0a2f8af3de62f265956f975132a98aae94d173c675e9c2e8bfd15ab0f8921c4",
+  "silver_01": "075cd36f4be34a0bb337a0768a7b9cd13536ba4226a073e5bed0f4f63de92bae",
+  "silver_02": "ef51f14ebf062204e32996b9d1b6581edbfc99a9c007a40568427aaf1fc99898"
+ },
+ "trades": {
+  "sequential": "f0f128e0753c31ffe34ab97daba0f4ff7dbb024ca1836696bb8986d4bbb51fd6",
+  "parallel": "f0f128e0753c31ffe34ab97daba0f4ff7dbb024ca1836696bb8986d4bbb51fd6"
+ },
+ "eval_stream_parallel": "3db031caed60a6ea858cf77f8b58d3f8c7335a2c44c05ca3b33a20d8ec683dbb",
+ "trades_by_strategy": {
+  "gold_01": {
+   "sequential": "2ab9e4ea8e8a07e4ac1e796dda80e12e890f67fa4fc2b75d04a97cdaeb75f297",
+   "parallel": "2ab9e4ea8e8a07e4ac1e796dda80e12e890f67fa4fc2b75d04a97cdaeb75f297"
+  },
+  "gold_02": {
+   "sequential": "f70efc712d5e23448f7869738edf56183da53970b8a8d0543cb356d18ebf17b4",
+   "parallel": "f70efc712d5e23448f7869738edf56183da53970b8a8d0543cb356d18ebf17b4"
+  },
+  "silver_01": {
+   "sequential": "fe4beb2fe04160221b7056e6c7e21cf2f0589f163b3b114e13614f1a3f0fa82f",
+   "parallel": "fe4beb2fe04160221b7056e6c7e21cf2f0589f163b3b114e13614f1a3f0fa82f"
+  },
+  "silver_02": {
+   "sequential": "b26c988fc63e3dc50c0a6f4e9116f0806095f6a367bbb52c50b04bcff5cee4d2",
+   "parallel": "b26c988fc63e3dc50c0a6f4e9116f0806095f6a367bbb52c50b04bcff5cee4d2"
+  }
+ }
+}

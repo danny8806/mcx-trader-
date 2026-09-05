@@ -1,7 +1,7 @@
 {
   "replay_start": "2026-09-02T09:00:00+05:30",
   "replay_end": "2026-09-04T23:25:00",
-  "system_time": "2026-09-05T19:47:46.287133+05:30",
+  "system_time": "2026-09-05T20:13:20.915414+05:30",
   "strategies": {
     "gold_01": {
       "signals": 18,
@@ -16,16 +16,16 @@
       "net_pnl": -532.7799999997264
     },
     "silver_01": {
-      "signals": 12,
-      "trades": 8,
-      "closed": 7,
-      "net_pnl": -635.7100000000231
-    },
-    "silver_02": {
       "signals": 9,
       "trades": 6,
       "closed": 5,
       "net_pnl": -1180.6300000000174
+    },
+    "silver_02": {
+      "signals": 12,
+      "trades": 8,
+      "closed": 7,
+      "net_pnl": -635.7100000000231
     }
   },
   "db_rows_read_only": 3,

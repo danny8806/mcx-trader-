@@ -1,0 +1,29 @@
+{
+ "pnl": [],
+ "strategies": {
+  "gold_01": {
+   "bars_processed": 522,
+   "state": "short_position",
+   "position_side": "SHORT",
+   "signals_count": 13
+  },
+  "gold_02": {
+   "bars_processed": 174,
+   "state": "flat",
+   "position_side": null,
+   "signals_count": 11
+  },
+  "silver_01": {
+   "bars_processed": 174,
+   "state": "long_position",
+   "position_side": "LONG",
+   "signals_count": 8
+  },
+  "silver_02": {
+   "bars_processed": 522,
+   "state": "long_position",
+   "position_side": "LONG",
+   "signals_count": 17
+  }
+ }
+}

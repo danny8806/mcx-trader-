@@ -1,0 +1,5 @@
+strategy_id,mission_name,ref_signals,live_crossovers,matched,ref_only,live_only,ref_only_causes,ref_only_cause_total
+gold_01,GOLDM_5M,18,9,8,10,1,"{""other:short_position"": 7, ""other:pending_long"": 1, ""other:long_position"": 2}",10
+gold_02,GOLDM_15M,12,8,7,5,1,"{""other:pending_short"": 1, ""other:short_position"": 2, ""other:long_position"": 1, ""other:pending_long"": 1}",5
+silver_01,SILVERM_15M,9,6,5,4,1,"{""other:pending_short"": 1, ""other:long_position"": 3}",4
+silver_02,SILVERM_5M,12,12,9,3,3,"{""other:pending_short"": 1, ""other:short_position"": 1, ""other:long_position"": 1}",3

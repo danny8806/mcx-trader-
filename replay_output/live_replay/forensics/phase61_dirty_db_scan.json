@@ -1,0 +1,210 @@
+{
+ "prod_data_db": {
+  "source": "C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\db\\trading.db",
+  "size_bytes": 278528,
+  "user_version": [
+   [
+    0
+   ]
+  ],
+  "foreign_keys": [
+   [
+    0
+   ]
+  ],
+  "tables": [
+   "signals",
+   "sqlite_sequence",
+   "trades",
+   "trade_signal_link",
+   "pending_orders",
+   "orders",
+   "fills",
+   "positions",
+   "trade_events",
+   "processed_fills",
+   "account_snapshots",
+   "events",
+   "quarantine_records",
+   "system_metadata",
+   "trades_analytics",
+   "trade_legs",
+   "trade_snapshots",
+   "strategy_daily_performance",
+   "strategy_monthly_performance",
+   "strategy_parameter_results",
+   "strategy_performance_snapshots",
+   "broker_order_mapping"
+  ],
+  "count_signals": 3,
+  "count_trades": 3,
+  "count_pending_orders": 0,
+  "count_orders": 4,
+  "count_fills": 4,
+  "count_positions": 3,
+  "count_events": 0,
+  "count_trade_events": 0,
+  "count_quarantine_records": 0,
+  "count_account_snapshots": 0,
+  "count_broker_order_mapping": 0,
+  "trades_without_entry_signal": [
+   [
+    0
+   ]
+  ],
+  "duplicate_trade_ids": [
+   [
+    0
+   ]
+  ],
+  "orphan_orders": [
+   [
+    0
+   ]
+  ],
+  "orphan_fills": [
+   [
+    0
+   ]
+  ],
+  "orphan_positions": [
+   [
+    0
+   ]
+  ],
+  "cross_strat_order_trade": [
+   [
+    0
+   ]
+  ],
+  "open_trades": [
+   [
+    "gold_01",
+    "CLOSED",
+    1
+   ],
+   [
+    "gold_01",
+    "OPEN",
+    1
+   ],
+   [
+    "silver_01",
+    "OPEN",
+    1
+   ]
+  ],
+  "sl_violations": [
+   [
+    0
+   ]
+  ],
+  "status": "CLEAN"
+ },
+ "root_trading_db": {
+  "source": "C:\\Users\\pc\\Desktop\\MCX-TRADER\\trading.db",
+  "size_bytes": 270336,
+  "user_version": [
+   [
+    0
+   ]
+  ],
+  "foreign_keys": [
+   [
+    0
+   ]
+  ],
+  "tables": [
+   "trades",
+   "sqlite_sequence",
+   "orders",
+   "fills",
+   "signals",
+   "trade_signal_link",
+   "account_snapshots",
+   "events",
+   "pending_orders",
+   "positions",
+   "trade_events",
+   "processed_fills",
+   "quarantine_records",
+   "system_metadata",
+   "trades_analytics",
+   "trade_legs",
+   "trade_snapshots",
+   "strategy_daily_performance",
+   "strategy_monthly_performance",
+   "strategy_parameter_results",
+   "strategy_performance_snapshots"
+  ],
+  "count_signals": 3,
+  "count_trades": 3,
+  "count_pending_orders": 0,
+  "count_orders": 4,
+  "count_fills": 4,
+  "count_positions": 3,
+  "count_events": 0,
+  "count_trade_events": 0,
+  "count_quarantine_records": 0,
+  "count_account_snapshots": 0,
+  "count_broker_order_mapping": [
+   [
+    "ERR",
+    "no such table: broker_order_mapping"
+   ]
+  ],
+  "trades_without_entry_signal": [
+   [
+    0
+   ]
+  ],
+  "duplicate_trade_ids": [
+   [
+    0
+   ]
+  ],
+  "orphan_orders": [
+   [
+    0
+   ]
+  ],
+  "orphan_fills": [
+   [
+    0
+   ]
+  ],
+  "orphan_positions": [
+   [
+    0
+   ]
+  ],
+  "cross_strat_order_trade": [
+   [
+    0
+   ]
+  ],
+  "open_trades": [
+   [
+    "gold_01",
+    "CLOSED",
+    1
+   ],
+   [
+    "gold_01",
+    "OPEN",
+    1
+   ],
+   [
+    "silver_01",
+    "OPEN",
+    1
+   ]
+  ],
+  "sl_violations": [
+   [
+    0
+   ]
+  ],
+  "status": "CLEAN"
+ }
+}

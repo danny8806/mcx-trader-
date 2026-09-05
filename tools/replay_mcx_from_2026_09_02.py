@@ -26,8 +26,8 @@ START = pd.Timestamp("2026-09-02 09:00", tz="Asia/Kolkata")
 STRATEGIES = {
     "gold_01": {"metal": "GOLDM", "base": 5, "mid": 15, "htf": 60, "multiplier": 10.0},
     "gold_02": {"metal": "GOLDM", "base": 15, "mid": 15, "htf": 60, "multiplier": 10.0},
-    "silver_01": {"metal": "SILVERM", "base": 5, "mid": 15, "htf": 60, "multiplier": 5.0},
-    "silver_02": {"metal": "SILVERM", "base": 15, "mid": 15, "htf": 60, "multiplier": 5.0},
+    "silver_01": {"metal": "SILVERM", "base": 15, "mid": 15, "htf": 60, "multiplier": 5.0},
+    "silver_02": {"metal": "SILVERM", "base": 5, "mid": 15, "htf": 60, "multiplier": 5.0},
 }
 SECURITY = {"GOLDM": "569003", "SILVERM": "483080"}
 CONTRACT = {"GOLDM": "569003 OCT", "SILVERM": "483080 Nov"}

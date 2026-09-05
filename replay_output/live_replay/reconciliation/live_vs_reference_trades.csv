@@ -1,0 +1,5 @@
+strategy_id,mission_name,ref_trades,live_trades,ref_closed,live_closed,ref_net_pnl,live_net_pnl
+gold_01,GOLDM_5M,8,9,7,8,-851.05,-1459.64
+gold_02,GOLDM_15M,6,7,6,7,-532.78,-1230.25
+silver_01,SILVERM_15M,6,6,5,5,-1180.63,-4493.93
+silver_02,SILVERM_5M,8,9,7,8,-635.71,-5358.09

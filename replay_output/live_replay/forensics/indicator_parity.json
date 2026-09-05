@@ -1,0 +1,138 @@
+{
+ "method": "matched-signal-bar join + reference boundary lines",
+ "matched_signal_bars": 29,
+ "htf_equals_ref_h1_exact": "29/29",
+ "mid_equals_ref_h15_exact": "20/29",
+ "mid_mismatch_total": 9,
+ "mid_mismatch_all_are_ref_period_edge": true,
+ "mismatch_ledger": [
+  {
+   "strategy_id": "gold_01",
+   "bar_key": "2026-09-02T17:20:00",
+   "live_mid": 78017.16092836256,
+   "ref_h15_same_bar": 78023.30814416661,
+   "ref_h15_plus15m": 78017.16092836256,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "gold_01",
+   "bar_key": "2026-09-03T18:00:00",
+   "live_mid": 77997.93161652907,
+   "ref_h15_same_bar": 77993.8113321405,
+   "ref_h15_plus15m": 77997.93161652907,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "gold_01",
+   "bar_key": "2026-09-04T13:45:00",
+   "live_mid": 77977.69422900969,
+   "ref_h15_same_bar": 77973.92432736394,
+   "ref_h15_plus15m": 77977.69422900969,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "gold_01",
+   "bar_key": "2026-09-04T21:45:00",
+   "live_mid": 78016.34054864621,
+   "ref_h15_same_bar": 78019.87530966912,
+   "ref_h15_plus15m": 78016.34054864621,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "silver_02",
+   "bar_key": "2026-09-02T17:30:00",
+   "live_mid": 239311.49411530604,
+   "ref_h15_same_bar": 239339.26316268952,
+   "ref_h15_plus15m": 239311.49411530604,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "silver_02",
+   "bar_key": "2026-09-03T19:15:00",
+   "live_mid": 238555.61272310463,
+   "ref_h15_same_bar": 238477.56586813735,
+   "ref_h15_plus15m": 238555.61272310463,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "silver_02",
+   "bar_key": "2026-09-03T22:35:00",
+   "live_mid": 238850.45574678836,
+   "ref_h15_same_bar": 238928.7875140329,
+   "ref_h15_plus15m": 238850.45574678836,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "silver_02",
+   "bar_key": "2026-09-04T13:35:00",
+   "live_mid": 238884.71071735368,
+   "ref_h15_same_bar": 238980.77229975408,
+   "ref_h15_plus15m": 238884.71071735368,
+   "live_eq_ref_plus15m": true
+  },
+  {
+   "strategy_id": "silver_02",
+   "bar_key": "2026-09-04T18:35:00",
+   "live_mid": 238653.67465351263,
+   "ref_h15_same_bar": 238612.42570087567,
+   "ref_h15_plus15m": 238653.67465351263,
+   "live_eq_ref_plus15m": true
+  }
+ ],
+ "htf_mismatch_ledger": [],
+ "per_strategy": {
+  "gold_01": {
+   "matched": 8,
+   "mid_eq": 4,
+   "htf_eq": 8
+  },
+  "gold_02": {
+   "matched": 7,
+   "mid_eq": 7,
+   "htf_eq": 7
+  },
+  "silver_01": {
+   "matched": 5,
+   "mid_eq": 5,
+   "htf_eq": 5
+  },
+  "silver_02": {
+   "matched": 9,
+   "mid_eq": 4,
+   "htf_eq": 9
+  }
+ },
+ "reference_publication_micro_ledger": [
+  {
+   "base": "17:00",
+   "h15": 78024.685582,
+   "h1": 78007.681667
+  },
+  {
+   "base": "17:05",
+   "h15": 78024.685582,
+   "h1": 78007.681667
+  },
+  {
+   "base": "17:10",
+   "h15": 78023.308144,
+   "h1": 78007.681667
+  },
+  {
+   "base": "17:15",
+   "h15": 78023.308144,
+   "h1": 78007.681667
+  },
+  {
+   "base": "17:20",
+   "h15": 78023.308144,
+   "h1": 78007.681667
+  },
+  {
+   "base": "17:25",
+   "h15": 78017.160928,
+   "h1": 78007.681667
+  }
+ ],
+ "note": "live_h1(60m) matches reference exactly on every matched bar. live h15(15m) equals reference for the bar before each 15m-period edge; at period edges the reference publishes the in-progress 15m bar's mapped value (native_map_htf src_avail = dt+rule_min, searchsorted side='right'), the live engine evaluates only COMPLETED 15m bars. Every mid mismatch satisfies live_mid(t) == ref_h15(t+15m) exactly, all 9/9."
+}

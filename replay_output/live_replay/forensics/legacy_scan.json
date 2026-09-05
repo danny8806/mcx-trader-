@@ -1,0 +1,681 @@
+{
+ "dema_mtf": [
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 10,
+   "match": "KTEST : the original backtester lines (`dema_mtf.htf_dema_line`, batch              pand"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 11,
+   "match": "         pandas-ewm + Wilder ATR) plus `dema_mtf.compute_signals`.  Both feeds are filte"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 91,
+   "match": "--------------------- # Backtest lines (dema_mtf.py loaded from the backtest project) # "
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 139,
+   "match": ".spec_from_file_location(     \"backtest_dema_mtf\", os.path.join(BACKTEST_ROOT, \"core\", \""
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 139,
+   "match": "\", os.path.join(BACKTEST_ROOT, \"core\", \"dema_mtf.py\")) _dema_mtf = importlib.util.module"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 140,
+   "match": "BACKTEST_ROOT, \"core\", \"dema_mtf.py\")) _dema_mtf = importlib.util.module_from_spec(_spec"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 141,
+   "match": "_from_spec(_spec) sys.modules[\"backtest_dema_mtf\"] = _dema_mtf _spec.loader.exec_module("
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 141,
+   "match": "ec) sys.modules[\"backtest_dema_mtf\"] = _dema_mtf _spec.loader.exec_module(_dema_mtf)   #"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 142,
+   "match": "] = _dema_mtf _spec.loader.exec_module(_dema_mtf)   # ----------------------------------"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 225,
+   "match": "---------------------- # BACKTEST feed: dema_mtf lines + compute_signals + same position"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 229,
+   "match": " = resample(df_5m, fast_min)     h15 = _dema_mtf.htf_dema_line(base, \"15min\", 3, 6, 1.0,"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 230,
+   "match": "6, 1.0, session_open=SESSION)     h1 = _dema_mtf.htf_dema_line(base, \"60min\", 3, 6, 1.0,"
+  },
+  {
+   "file": "compare_yesterday_signals.py",
+   "line": 231,
+   "match": ", 1.0, session_open=SESSION)     res = _dema_mtf.compute_signals(base, h15, h1)      sig"
+  },
+  {
+   "file": "full_simulator.py",
+   "line": 173,
+   "match": "ference backtest resample     (data_mcx/dema_mtf_base.py) does \u2014 used by _bt5_offline so"
+  },
+  {
+   "file": "_parity_ref.py",
+   "line": 14,
+   "match": "C:\\Users\\pc\\AppData\\Local\\Temp\\opencode\\dema_mtf_base.py\")  os.chdir(BT_PROJ) sys.path.i"
+  },
+  {
+   "file": "_parity_ref.py",
+   "line": 22,
+   "match": " as np import pandas as pd  import core.dema_mtf as DM spec = importlib.util.spec_from_f"
+  },
+  {
+   "file": "_parity_ref.py",
+   "line": 23,
+   "match": "importlib.util.spec_from_file_location(\"dema_mtf_base\", BASE_PATH) base_mod = importlib."
+  },
+  {
+   "file": "_parity_ref.py",
+   "line": 29,
+   "match": "= base_mod.resample_ohlcv  import goldm_dema_mtf_futures as G import show_15_15_60 as SH"
+  },
+  {
+   "file": "_step1_data_check.py",
+   "line": 6,
+   "match": "sktop\\nifty dema backtest\\project\\goldm_dema_mtf_futures.py\" ) g = importlib.util.module"
+  },
+  {
+   "file": "_step5_htf_check.py",
+   "line": 13,
+   "match": "tlib.util.spec_from_file_location(     \"dema_mtf_base\", r\"C:\\Users\\pc\\AppData\\Local\\Temp"
+  },
+  {
+   "file": "_step5_htf_check.py",
+   "line": 13,
+   "match": "C:\\Users\\pc\\AppData\\Local\\Temp\\opencode\\dema_mtf_base.py\") base = importlib.util.module_"
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 9,
+   "match": "alysis inspected the WRONG file (`goldm_dema_mtf_futures.py`) and concluded the backtest"
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 49,
+   "match": "\"FUTCOM\") ```  ### Signal Engine: `core/dema_mtf.py`  `native_map_htf()` (lines 106-135)"
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 124,
+   "match": " The following functions exist in `core/dema_mtf.py` but are NOT used by the actual back"
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 132,
+   "match": "ese were used by the OLD runner (`goldm_dema_mtf_futures.py`) which loaded only 5m CSVs "
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 151,
+   "match": " Status | |----------|--------| | `core/dema_mtf.py:resample_ohlcv()` | **LEGACY** \u2014 old"
+  },
+  {
+   "file": "docs/CANDLE_SOURCE_FORENSIC_REPORT.md",
+   "line": 152,
+   "match": "*LEGACY** \u2014 old backtest only | | `core/dema_mtf.py:htf_dema_line()` | **LEGACY** \u2014 old "
+  },
+  {
+   "file": "htf/backtest_style_htf.py",
+   "line": 6,
+   "match": "d() for mapping (EXACT same as backtest dema_mtf.py) \"\"\" from __future__ import annotati"
+  },
+  {
+   "file": "htf/backtest_style_htf.py",
+   "line": 91,
+   "match": "hsorted.          EXACT backtest logic (dema_mtf.py:94-98):             base_min = int(r"
+  },
+  {
+   "file": "strategies/base_dema_strategy.py",
+   "line": 66,
+   "match": " bar's CLOSE (reference         # goldm_dema_mtf_futures evaluates _check_sl_hit on the "
+  },
+  {
+   "file": "strategies/base_dema_strategy.py",
+   "line": 189,
+   "match": "                # Reference flow (goldm_dema_mtf_futures.next) runs                 # _c"
+  },
+  {
+   "file": "strategies/base_dema_strategy.py",
+   "line": 200,
+   "match": "als.         #    Reference flow (goldm_dema_mtf_futures._check_signals_for_next_bar)   "
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 4,
+   "match": "lines:   backtest side : reference core/dema_mtf.py (resample_ohlcv, htf_dema_line, comp"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 38,
+   "match": "(NIFTY, \"build_15min_enriched.py\")) ref_dema_mtf = _load_module(\"ref_dema_mtf\", os.path."
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 38,
+   "match": ".py\")) ref_dema_mtf = _load_module(\"ref_dema_mtf\", os.path.join(NIFTY, \"core\", \"dema_mtf"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 38,
+   "match": "dema_mtf\", os.path.join(NIFTY, \"core\", \"dema_mtf.py\")) resample_ohlcv = ref_dema_mtf.res"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 39,
+   "match": "\", \"dema_mtf.py\")) resample_ohlcv = ref_dema_mtf.resample_ohlcv htf_dema_line = ref_dema"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 40,
+   "match": "_mtf.resample_ohlcv htf_dema_line = ref_dema_mtf.htf_dema_line compute_signals = ref_dem"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 41,
+   "match": "mtf.htf_dema_line compute_signals = ref_dema_mtf.compute_signals  from core.timeframe_en"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 59,
+   "match": " in the 5m CSVs).\"\"\"     rule_min = ref_dema_mtf._rule_minutes(rule)     htf = resample_"
+  },
+  {
+   "file": "tools/reconcile_live_replay.py",
+   "line": 284,
+   "match": "                \"source\": \"project/core/dema_mtf.py via tools/replay_mcx_from_2026_09_02"
+  },
+  {
+   "file": "tools/replay_mcx_from_2026_09_02.py",
+   "line": 38,
+   "match": "t\")     ref_path = ref_root / \"core\" / \"dema_mtf.py\"     if not ref_path.exists():      "
+  },
+  {
+   "file": "tools/replay_mcx_from_2026_09_02.py",
+   "line": 42,
+   "match": ".spec_from_file_location(\"mcx_reference_dema_mtf\", ref_path)     module = importlib.util"
+  },
+  {
+   "file": "tools/replay_mcx_from_2026_09_02.py",
+   "line": 271,
+   "match": "esktop\\nifty dema backtest\\project\\core\\dema_mtf.py\",             \"database_used_as_expe"
+  },
+  {
+   "file": "tools/replay_mcx_from_2026_09_02.py",
+   "line": 303,
+   "match": "esktop\\nifty dema backtest\\project\\core\\dema_mtf.py\"))}, indent=2), encoding=\"utf-8\")   "
+  },
+  {
+   "file": "tools/replay_mcx_from_2026_09_02.py",
+   "line": 304,
+   "match": "eplay Parity Report\\n\\nReference: `core/dema_mtf.py`\\n\\n- DEMA/ATR: reference implementa"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 18,
+   "match": ".py:29-32` | | Strategy engine | `goldm_dema_mtf_futures.GoldFuturesDemaStrategy` (Backt"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 18,
+   "match": "der) | `show_15_15_60.py:49-52`, `goldm_dema_mtf_futures.py:115` | | Resample override |"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 19,
+   "match": "ow_15_15_60.py:13-17`; `%TEMP%\\opencode\\dema_mtf_base.py` | | Signals/indicators | `core"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 20,
+   "match": "base.py` | | Signals/indicators | `core.dema_mtf.htf_dema_line` (`DM.htf_dema_line`) | `"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 25,
+   "match": "open, high, low, close, volume` (`goldm_dema_mtf_futures.py:92`). - `datetime` \u2192 naive I"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 38,
+   "match": "session_start + floor(mins/15)*15m`   (`dema_mtf_base.py` \u2014 keep-all; verified: the over"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 42,
+   "match": "is KEPT by the reference. - Note: `core.dema_mtf.resample_ohlcv` itself drops partial wi"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 42,
+   "match": "cv` itself drops partial windows (`core/dema_mtf.py:76-78`),   but the reference **overr"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 59,
+   "match": "=cur`. - `dema_atr` imported into `core.dema_mtf` (`core/dema_mtf.py:25`).  ## 5. HTF li"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 59,
+   "match": "r` imported into `core.dema_mtf` (`core/dema_mtf.py:25`).  ## 5. HTF line mapping (looka"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 63,
+   "match": "tf_dema_line(df_base, rule, \u2026)` \u2014 `core/dema_mtf.py:92-122`: 1. `htf = resample_ohlcv(df"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 74,
+   "match": "gnal rules (exact boolean)  From `goldm_dema_mtf_futures._signal_at` (`:260-277`), evalu"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_VS_LIVE_ARCHITECTURE.md",
+   "line": 10,
+   "match": "5m (validate/dedupe)              goldm_dema_mtf_futures.load_5m   CandleFetcher._fetch_"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_VS_LIVE_ARCHITECTURE.md",
+   "line": 12,
+   "match": "\u251c\u2500 15m base: resample KEEP-ALL buckets (dema_mtf_base)                  \u251c\u2500 15m/1h bars C"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_VS_LIVE_ARCHITECTURE.md",
+   "line": 19,
+   "match": "sorted(src_avail,target,right)-1   core/dema_mtf.py:117           bisect_right(end_times"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_VS_LIVE_ARCHITECTURE.md",
+   "line": 21,
+   "match": "_cross (strict)                   goldm_dema_mtf_futures.py:271-276                     "
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/CURRENT_ARCHITECTURE_REPORT.md",
+   "line": 40,
+   "match": ":1420-1426). Reference `%TEMP%\\opencode\\dema_mtf_base.py` uses the same KEEP-ALL bucket "
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/CURRENT_ARCHITECTURE_REPORT.md",
+   "line": 65,
+   "match": "). Text exactly matches backtest `goldm_dema_mtf_futures` rules. 30. Entry model: `_dete"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/FINAL_5DAY_LIVE_REPLAY_REPORT.md",
+   "line": 7,
+   "match": "cktest\\project` \u2014 `show_15_15_60.py` / `dema_mtf_base.py` (Pine DEMA-ATR(3,6,1.0), 15m b"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/FINAL_5DAY_LIVE_REPLAY_REPORT.md",
+   "line": 42,
+   "match": "dum. - Reference ground-truth capture: `dema_mtf_base.py` run on the identical 5m CSVs  "
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/FINAL_5DAY_LIVE_REPLAY_REPORT.md",
+   "line": 249,
+   "match": "sv` \u2014 290 candles + h15/h1/flags/SL. - `dema_mtf_base.py` (reference implementation, fro"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/FINAL_PARITY_GAP_REPORT.md",
+   "line": 35,
+   "match": "NTIONAL, VERIFIED**  - Code: reference `dema_mtf_base.py` fills at `OPEN` of the first l"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 6,
+   "match": "\\nifty dema backtest\\project`   (`goldm_dema_mtf_futures.py`, `core\\dema_mtf.py`, `build"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 6,
+   "match": "`   (`goldm_dema_mtf_futures.py`, `core\\dema_mtf.py`, `build_15min_enriched.py`,   `show"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 7,
+   "match": " the KEEP-ALL resample `%TEMP%\\opencode\\dema_mtf_base.py`   which `show_15_15_60.py:12-1"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 27,
+   "match": "| `base_dema_strategy.py:437` vs `goldm_dema_mtf_futures.py:177` | | F2 | **STT side for"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 28,
+   "match": "execution/fee_model.py:71-75` vs `goldm_dema_mtf_futures.py:70-73` | | X1 | **Slippage \u00b1"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 33,
+   "match": "| `trading_engine.py:840-861` vs `goldm_dema_mtf_futures.py:82-85` | | X6/X7 | **Order/b"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 44,
+   "match": "y 1, mult 10/5, capital 300k.    `goldm_dema_mtf_futures.py:55-58` == `settings.json:64-"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 53,
+   "match": "inutes/tf)\\*tf, O/H/L/C/V agg    (`core/dema_mtf.py:47-89`, KEEP-ALL `dema_mtf_base.py:4"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 53,
+   "match": "   (`core/dema_mtf.py:47-89`, KEEP-ALL `dema_mtf_base.py:47-70`)    == live warmup (`tra"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 57,
+   "match": "e_end; searchsorted(right)-1`    (`core/dema_mtf.py:106-117`) == `bisect_right(end_times"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 60,
+   "match": " SHORT mirror; 3-way NaN skip    (`core/dema_mtf.py:176-183`) == `base_dema_strategy.py:"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 62,
+   "match": " SL min(2 lows)/max(2 highs)    (`goldm_dema_mtf_futures.py:273-276,287-288`) == `base_d"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 65,
+   "match": "-arm \u2014 all bar-for-bar equal    (`goldm_dema_mtf_futures.py:150-258,279-302` == `base_de"
+  },
+  {
+   "file": "_DEEP_AUDIT_LIVE_VS_BT_2026-08-30/DEEP_AUDIT_FINDINGS.md",
+   "line": 67,
+   "match": "11. **P&L formula** \u2014 identical (`goldm_dema_mtf_futures.py:221-224` == `portfolio/pnl.p"
+  },
+  {
+   "file": "tests/fresh_audit/MASTER_VALIDATION_REPORT.md",
+   "line": 169,
+   "match": "ator | `indicators/dema_atr.py` | `core/dema_mtf.py` | EXACT | | HTF mapping | `htf/back"
+  },
+  {
+   "file": "tests/fresh_audit/MASTER_VALIDATION_REPORT.md",
+   "line": 170,
+   "match": " | `htf/backtest_style_htf.py` | `goldm_dema_mtf_futures.py` | EXACT | | Signal detectio"
+  },
+  {
+   "file": "tests/fresh_audit/MASTER_VALIDATION_REPORT.md",
+   "line": 171,
+   "match": "ategies/base_dema_strategy.py` | `goldm_dema_mtf_futures.py` | EXACT | | SL calculation "
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 4,
+   "match": "th signal generators: 1. Backtest: core/dema_mtf.py -> compute_signals() (raw crossovers"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 77,
+   "match": "index)  # Mock build_15min_enriched for dema_mtf.py import types as _types _mock = _type"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 83,
+   "match": "d_15min_enriched\"] = _mock  # Load core.dema_mtf via importlib _spec = importlib.util.sp"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 85,
+   "match": ".spec_from_file_location(     \"backtest_dema_mtf\",     os.path.join(BACKTEST_ROOT, \"core"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 86,
+   "match": "   os.path.join(BACKTEST_ROOT, \"core\", \"dema_mtf.py\"), ) _dema_mtf = importlib.util.modu"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 88,
+   "match": "CKTEST_ROOT, \"core\", \"dema_mtf.py\"), ) _dema_mtf = importlib.util.module_from_spec(_spec"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 89,
+   "match": "_from_spec(_spec) sys.modules[\"backtest_dema_mtf\"] = _dema_mtf _spec.loader.exec_module("
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 89,
+   "match": "ec) sys.modules[\"backtest_dema_mtf\"] = _dema_mtf _spec.loader.exec_module(_dema_mtf)  ht"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 90,
+   "match": "] = _dema_mtf _spec.loader.exec_module(_dema_mtf)  htf_dema_line = _dema_mtf.htf_dema_li"
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 92,
+   "match": "xec_module(_dema_mtf)  htf_dema_line = _dema_mtf.htf_dema_line backtest_compute_signals "
+  },
+  {
+   "file": "tests/fresh_audit/test_backtest_vs_live_crossover.py",
+   "line": 93,
+   "match": "f_dema_line backtest_compute_signals = _dema_mtf.compute_signals   # -------------------"
+  },
+  {
+   "file": "docs/migration/BACKTEST_LIVE_SIGNAL_PARITY_REPORT.md",
+   "line": 35,
+   "match": "p\\nifty dema backtest\\project`   (`core/dema_mtf.py`, `build_15min_enriched.py`, `goldm_"
+  },
+  {
+   "file": "docs/migration/BACKTEST_LIVE_SIGNAL_PARITY_REPORT.md",
+   "line": 35,
+   "match": ".py`, `build_15min_enriched.py`, `goldm_dema_mtf_futures.py`). - **Production live**: th"
+  },
+  {
+   "file": "docs/migration/FORENSIC_BASELINE.md",
+   "line": 12,
+   "match": "pc\\Desktop\\nifty dema backtest\\project (dema_mtf.py, goldm_dema_mtf_futures.py, build_15"
+  },
+  {
+   "file": "docs/migration/FORENSIC_BASELINE.md",
+   "line": 12,
+   "match": "ma backtest\\project (dema_mtf.py, goldm_dema_mtf_futures.py, build_15min_enriched.py; ba"
+  },
+  {
+   "file": "docs/migration/FORENSIC_BASELINE.md",
+   "line": 12,
+   "match": "tures.py, build_15min_enriched.py; base dema_mtf_base.py at C:\\Users\\pc\\AppData\\Local\\Te"
+  },
+  {
+   "file": "docs/migration/FORENSIC_BASELINE.md",
+   "line": 12,
+   "match": "C:\\Users\\pc\\AppData\\Local\\Temp\\opencode\\dema_mtf_base.py) - Actual MCX data: GOLDM_5m_mc"
+  },
+  {
+   "file": "docs/migration/FORENSIC_BASELINE.md",
+   "line": 18,
+   "match": "ier 5 qty 1 - Backtest CAPITAL in goldm_dema_mtf_futures.py = 100000 (NOT 300000); silve"
+  }
+ ],
+ "foreign_clock": [
+  {
+   "file": "_rebuild_prod_db.py",
+   "line": 63,
+   "match": "(engine._on_bar_closed per bar + replay clock), NOT full_simulator.replay (which     additionally fe"
+  }
+ ],
+ "engine_injection": [
+  {
+   "file": "docs/FULL_SYSTEM_ARCHITECTURE.md",
+   "line": 688,
+   "match": "                                   \u2502 \u2502  Registered engines:                                      "
+  },
+  {
+   "file": "docs/migration/TRADE_IDENTITY_PROOF.md",
+   "line": 31,
+   "match": "gates explicitly | `core/lifecycle.py` `register_entry_fill`; `trading_engine.py:1300-1306, 1403-1428` | | separate i"
+  }
+ ],
+ "candle_hotswap": [
+  {
+   "file": "audit_signal_candles.py",
+   "line": 407,
+   "match": "d set_ok and em_bad == 0         checks.append((f\"S_{name}_{sid}(fast={tf})_candles\", ok,                        f\"crossin"
+  },
+  {
+   "file": "_p1_resample_test.py",
+   "line": 167,
+   "match": "in zip(dtims, prices_for(dtims))] drows.append(drows[0])  # exact duplicate of the first candle b5, b15, b1h = build_bars(\"SYNTH\", drow"
+  },
+  {
+   "file": "tests/fresh_audit/test_full_pipeline_audit.py",
+   "line": 657,
+   "match": "class TestSection27_LateCandles:     \"\"\"Inject late closed candles. Verify sorting, state correction, ind"
+  }
+ ],
+ "indicator_override": [
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 10,
+   "match": "ence + classification.  Also computes a FORCED-GRID reference line (reference DEMA-ATR but with the mapping grid set to the tr"
+  },
+  {
+   "file": "tools/parity_signal_harness.py",
+   "line": 54,
+   "match": "ATR_P, ATR_F = 3, 6, 1.0   def htf_line_forced(df_base, rule, base_min, dema_p=DEMA_P, atr_p=ATR_P, atr_f=ATR_F,                     session_open=SES"
+  },
+  {
+   "file": "_BACKTEST_VS_LIVE_AUDIT/BACKTEST_REFERENCE_SPEC.md",
+   "line": 19,
+   "match": "m_dema_mtf_futures.py:115` | | Resample override | `DM.resample_ohlcv = base_mod.resample_ohlcv` \u2014 **KEEP ALL BUCKETS** (partial end-of-session windows are INCLUDED) | `show_15_15_60.py:13-17`; `%TEMP%\\opencode\\dema_mtf_base.py` | | Signals/indicators | `"
+  }
+ ],
+ "pnl_suppression": [
+  {
+   "file": "tests/adversarial_trade_lifecycle/test_pnl_and_close_correctness.py",
+   "line": 247,
+   "match": "      def test_close_trade_preserves_nonzero_pnl(self):         \"\"\"close_trade(gross_pnl"
+  }
+ ],
+ "bronze_meta": [
+  {
+   "file": "docs/migration/FINAL_VERIFICATION_REPORT.md",
+   "line": 117,
+   "match": ".md 4. ANALYTICS_MIGRATION_REPORT.md 5. LEGACY_RETIREMENT_REPORT.md 6. DATABASE_CONNECT"
+  },
+  {
+   "file": "docs/migration/OLD_ARCHITECTURE_INVENTORY.md",
+   "line": 31,
+   "match": "acy/analytics.db_20260905_000333`. See `LEGACY_RETIREMENT_REPORT.md`.  ---  ## 2. Envir"
+  },
+  {
+   "file": "dashboard/routes/reconciliation.py",
+   "line": 42,
+   "match": "cks\"].append({                 \"name\": \"legacy_reconciliation\",                 \"is_con"
+  },
+  {
+   "file": "dashboard/routes/reconciliation.py",
+   "line": 53,
+   "match": "     results[\"checks\"].append({\"name\": \"legacy_reconciliation\", \"error\": str(e)})      "
+  }
+ ],
+ "async_dual": [
+  {
+   "file": "_audit_auth_gate.py",
+   "line": 67,
+   "match": "      return \"CLOSED\"          no_key = asyncio.run(ws_no_key())         check(\"ws.blocked_"
+  },
+  {
+   "file": "_audit_auth_gate.py",
+   "line": 88,
+   "match": "  return f\"ERR {e}\"          with_key = asyncio.run(ws_with_key())         check(\"ws.allowe"
+  },
+  {
+   "file": "_frontend_deep_check.py",
+   "line": 500,
+   "match": "         return []      paused_strats = asyncio.run(_one_push())     ui_s = next((s for s i"
+  },
+  {
+   "file": "_frontend_deep_check.py",
+   "line": 523,
+   "match": "eady on {BASE}\")      try:         ui = asyncio.run(collect_ui_state())         run_checks("
+  },
+  {
+   "file": "_fullstack_check.py",
+   "line": 594,
+   "match": "er] ready on {BASE}\")      try:         asyncio.run(main_checks(engine, ref))     finally: "
+  },
+  {
+   "file": "dashboard/server.py",
+   "line": 121,
+   "match": "ncurrent.futures                 loop = asyncio.get_event_loop()                 state = await loop.ru"
+  },
+  {
+   "file": "tests/fresh_audit/test_audit_fix_state_equity.py",
+   "line": 156,
+   "match": "200_000)      import asyncio     resp = asyncio.run(analytics_routes.get_strategy_equity(\"g"
+  },
+  {
+   "file": "tests/fresh_audit/test_audit_fix_state_equity.py",
+   "line": 171,
+   "match": "200_000)      import asyncio     resp = asyncio.run(analytics_routes.get_strategy_equity(\"g"
+  },
+  {
+   "file": "tests/new_architecture/test_websocket_lineage.py",
+   "line": 37,
+   "match": "assert mgr.active_connections == 0      asyncio.run(run())     assert len(fws.sent) == 2   "
+  },
+  {
+   "file": "tests/new_architecture/test_websocket_lineage.py",
+   "line": 75,
+   "match": "})         assert len(b.sent) == 1      asyncio.run(run())   def test_ws_messages_are_json_"
+  },
+  {
+   "file": "tests/new_architecture/test_websocket_lineage.py",
+   "line": 87,
+   "match": "    assert mgr.total_messages == 1      asyncio.run(run())     json.loads(fws.sent[0])  # m"
+  }
+ ],
+ "dream_stress": [],
+ "patterns": [
+  "dema_mtf",
+  "foreign_clock",
+  "engine_injection",
+  "candle_hotswap",
+  "indicator_override",
+  "pnl_suppression",
+  "bronze_meta",
+  "async_dual",
+  "dream_stress"
+ ],
+ "summary": {
+  "dema_mtf": 103,
+  "foreign_clock": 1,
+  "engine_injection": 2,
+  "candle_hotswap": 3,
+  "indicator_override": 3,
+  "pnl_suppression": 1,
+  "bronze_meta": 4,
+  "async_dual": 11,
+  "dream_stress": 0
+ }
+}

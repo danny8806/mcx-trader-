@@ -1,0 +1,180 @@
+{
+ "pragmas": {
+  "foreign_keys": [
+   {
+    "foreign_keys": 1
+   }
+  ]
+ },
+ "duplicate_ids": {
+  "trades": [],
+  "orders": [],
+  "fills": [],
+  "positions": [],
+  "pending_orders": [],
+  "broker_mappings": []
+ },
+ "trades_without_entry_signal": [],
+ "position_equals_trade": [],
+ "orphans": {
+  "pending_orders": [],
+  "orders": [],
+  "fills": [],
+  "positions": [],
+  "trade_legs": [],
+  "trade_signal_link": [],
+  "trade_events": [],
+  "trade_snapshots": [],
+  "fills_without_order": []
+ },
+ "unknown_broker_orders": [],
+ "cross_strategy": {
+  "order_vs_trade": [],
+  "fill_vs_trade": [],
+  "fill_vs_order": [],
+  "position_vs_trade": []
+ },
+ "sl_invariant_violations": [],
+ "reversal_exits": [
+  {
+   "trade_id": "4238a504-c891-4e7c-a7a1-e385441f83cd",
+   "strategy_id": "silver_02",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "7f1f722b-671f-45ef-bbee-ed6aef8ba974"
+  },
+  {
+   "trade_id": "cf1f5a49-0b3b-46a5-82f5-2cf81440c4f2",
+   "strategy_id": "silver_01",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "445d8ca9-57a9-4201-b509-c2a9b6504938"
+  },
+  {
+   "trade_id": "b0934754-9378-4f76-a925-7ba865341deb",
+   "strategy_id": "gold_02",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "5a4c66cd-c5c0-4dc6-8d06-c290d1226880"
+  },
+  {
+   "trade_id": "94e2e434-3839-45a4-adb9-98662ce96f2f",
+   "strategy_id": "gold_01",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "c99809c8-7027-4d96-bc45-11603387f4c4"
+  },
+  {
+   "trade_id": "f622ce76-cccf-429d-8d5a-cefad102367a",
+   "strategy_id": "gold_02",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "e973c3e1-763d-4ed4-a950-882523e52a71"
+  },
+  {
+   "trade_id": "363c398d-bc07-4e90-a361-7de7a328379b",
+   "strategy_id": "gold_01",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "0e086032-fb26-4531-9bef-df67fd7908b9"
+  },
+  {
+   "trade_id": "94ed4a99-cc6b-4926-ace4-90f1274d7430",
+   "strategy_id": "silver_02",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "a932c8fb-d462-40fb-99d5-a7aa28055aa7"
+  },
+  {
+   "trade_id": "cc1bebec-c37d-46d5-bac6-d72971314f8c",
+   "strategy_id": "silver_01",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "f2e0909b-ef78-4d7e-bc45-3a1bdce71a2c"
+  },
+  {
+   "trade_id": "8f233f2d-a7de-4efc-ac43-01e1ce27f23d",
+   "strategy_id": "gold_02",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "82eb0725-b87a-43a8-9bc5-ba2ca177092e"
+  },
+  {
+   "trade_id": "67562394-7ed3-4714-aa98-dbd294a0181d",
+   "strategy_id": "gold_01",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "10912713-4ec2-4238-8579-79c53e3c0c92"
+  },
+  {
+   "trade_id": "70bc34ac-c04e-465a-a06d-4ac0c017d1c9",
+   "strategy_id": "silver_01",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "537343e7-405b-45e5-a812-782dbce4366e"
+  },
+  {
+   "trade_id": "3c6875b2-a20b-43b1-a019-36ab16168286",
+   "strategy_id": "silver_02",
+   "exit_reason": "long_reversal",
+   "exit_signal_id": "48d29846-088f-4ef4-b71c-bcd74487ffdc"
+  },
+  {
+   "trade_id": "d07a87eb-e211-4a3e-92a4-10cfbb7d3e84",
+   "strategy_id": "gold_01",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "5c68647a-b073-40d3-9b29-67a5eed77c0c"
+  },
+  {
+   "trade_id": "292dd011-7df8-4f34-914b-00a63a1b8507",
+   "strategy_id": "gold_02",
+   "exit_reason": "short_reversal",
+   "exit_signal_id": "257cc5a2-f5f6-4785-a8b3-fa20fbb0b1f5"
+  }
+ ],
+ "duplicate_trade_events": [
+  {
+   "idempotency_key": null,
+   "n": 146
+  }
+ ],
+ "processed_fill_dups": [],
+ "analytics_vs_trades": [
+  {
+   "strategy_id": "gold_01",
+   "trades_db": 9,
+   "pnl_db": -1459.6400000000815,
+   "trades_analytics": 9,
+   "pnl_analytics": -1459.6400000000815,
+   "diff_count": 0,
+   "diff_pnl": 0.0
+  },
+  {
+   "strategy_id": "gold_02",
+   "trades_db": 7,
+   "pnl_db": -1230.250000000256,
+   "trades_analytics": 7,
+   "pnl_analytics": -1230.250000000256,
+   "diff_count": 0,
+   "diff_pnl": 0.0
+  },
+  {
+   "strategy_id": "silver_01",
+   "trades_db": 6,
+   "pnl_db": -4493.930000000081,
+   "trades_analytics": 6,
+   "pnl_analytics": -4493.930000000081,
+   "diff_count": 0,
+   "diff_pnl": 0.0
+  },
+  {
+   "strategy_id": "silver_02",
+   "trades_db": 9,
+   "pnl_db": -5358.0900000000875,
+   "trades_analytics": 9,
+   "pnl_analytics": -5358.0900000000875,
+   "diff_count": 0,
+   "diff_pnl": 0.0
+  }
+ ],
+ "counts": {
+  "signals": 49,
+  "trades": 31,
+  "pending_orders": 0,
+  "orders": 59,
+  "fills": 59,
+  "positions": 31,
+  "events": 198,
+  "trade_events": 146,
+  "quarantine_records": 0
+ }
+}

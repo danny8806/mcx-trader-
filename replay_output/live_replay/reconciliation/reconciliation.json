@@ -1,0 +1,201 @@
+{
+ "window": {
+  "start": "2026-09-02 09:00 IST",
+  "end": "2026-09-04 23:25:00",
+  "data_source": "offline_csv(replay_input) deterministic seed 20260902",
+  "notes": "DhanAuthError DH-901 blocks online historical fetch on this host; offline CSVs are the window's authoritative data"
+ },
+ "reference": {
+  "total_signals": 51,
+  "total_trades": 28,
+  "source": "project/core/dema_mtf.py via tools/replay_mcx_from_2026_09_02.py"
+ },
+ "live_parallel": {
+  "total_live_crossovers": 35,
+  "total_persisted_signals": 49,
+  "persisted_entry": 21,
+  "persisted_exit": 28,
+  "total_trades": 31,
+  "total_orders": 59,
+  "total_fills": 59,
+  "total_positions": 31,
+  "closed_trades": 28,
+  "sl_exit_trades": 14,
+  "reversal_exit_trades": 14,
+  "trades_without_signal": [],
+  "sl_trades_empty_exit_signal": 14
+ },
+ "signal_parity_per_strategy": [
+  {
+   "strategy_id": "gold_01",
+   "mission_name": "GOLDM_5M",
+   "ref_signals": 18,
+   "live_crossovers": 9,
+   "matched": 8,
+   "ref_only": 10,
+   "live_only": 1,
+   "ref_only_causes": {
+    "other:short_position": 7,
+    "other:pending_long": 1,
+    "other:long_position": 2
+   },
+   "ref_only_cause_total": 10
+  },
+  {
+   "strategy_id": "gold_02",
+   "mission_name": "GOLDM_15M",
+   "ref_signals": 12,
+   "live_crossovers": 8,
+   "matched": 7,
+   "ref_only": 5,
+   "live_only": 1,
+   "ref_only_causes": {
+    "other:pending_short": 1,
+    "other:short_position": 2,
+    "other:long_position": 1,
+    "other:pending_long": 1
+   },
+   "ref_only_cause_total": 5
+  },
+  {
+   "strategy_id": "silver_01",
+   "mission_name": "SILVERM_15M",
+   "ref_signals": 9,
+   "live_crossovers": 6,
+   "matched": 5,
+   "ref_only": 4,
+   "live_only": 1,
+   "ref_only_causes": {
+    "other:pending_short": 1,
+    "other:long_position": 3
+   },
+   "ref_only_cause_total": 4
+  },
+  {
+   "strategy_id": "silver_02",
+   "mission_name": "SILVERM_5M",
+   "ref_signals": 12,
+   "live_crossovers": 12,
+   "matched": 9,
+   "ref_only": 3,
+   "live_only": 3,
+   "ref_only_causes": {
+    "other:pending_short": 1,
+    "other:short_position": 1,
+    "other:long_position": 1
+   },
+   "ref_only_cause_total": 3
+  }
+ ],
+ "trade_parity_per_strategy": [
+  {
+   "strategy_id": "gold_01",
+   "mission_name": "GOLDM_5M",
+   "ref_trades": 8,
+   "live_trades": 9,
+   "ref_closed": 7,
+   "live_closed": 8,
+   "ref_net_pnl": -851.05,
+   "live_net_pnl": -1459.64
+  },
+  {
+   "strategy_id": "gold_02",
+   "mission_name": "GOLDM_15M",
+   "ref_trades": 6,
+   "live_trades": 7,
+   "ref_closed": 6,
+   "live_closed": 7,
+   "ref_net_pnl": -532.78,
+   "live_net_pnl": -1230.25
+  },
+  {
+   "strategy_id": "silver_01",
+   "mission_name": "SILVERM_15M",
+   "ref_trades": 6,
+   "live_trades": 6,
+   "ref_closed": 5,
+   "live_closed": 5,
+   "ref_net_pnl": -1180.63,
+   "live_net_pnl": -4493.93
+  },
+  {
+   "strategy_id": "silver_02",
+   "mission_name": "SILVERM_5M",
+   "ref_trades": 8,
+   "live_trades": 9,
+   "ref_closed": 7,
+   "live_closed": 8,
+   "ref_net_pnl": -635.71,
+   "live_net_pnl": -5358.09
+  }
+ ],
+ "isolation_equivalence": [
+  {
+   "strategy_id": "gold_01",
+   "mission_name": "GOLDM_5M",
+   "sigs_parallel": 13,
+   "sigs_sequential": 13,
+   "signals_identical": true,
+   "trades_parallel": 9,
+   "trades_sequential": 9,
+   "trades_identical": true,
+   "signals_sha256": "020552015c4e4345a7f29a65e24bc04671b7ad861ecc36f1b7ed6e6087e90a41"
+  },
+  {
+   "strategy_id": "gold_02",
+   "mission_name": "GOLDM_15M",
+   "sigs_parallel": 11,
+   "sigs_sequential": 11,
+   "signals_identical": true,
+   "trades_parallel": 7,
+   "trades_sequential": 7,
+   "trades_identical": true,
+   "signals_sha256": "9004526e37a2aff9e53809bf0047bc5055404ea9357bacff19fc699fcc42acab"
+  },
+  {
+   "strategy_id": "silver_01",
+   "mission_name": "SILVERM_15M",
+   "sigs_parallel": 8,
+   "sigs_sequential": 8,
+   "signals_identical": true,
+   "trades_parallel": 6,
+   "trades_sequential": 6,
+   "trades_identical": true,
+   "signals_sha256": "817d5f86d0f6bd6f47706204c315e2eff6be2e7186a4275f56e9ced487c55554"
+  },
+  {
+   "strategy_id": "silver_02",
+   "mission_name": "SILVERM_5M",
+   "sigs_parallel": 17,
+   "sigs_sequential": 17,
+   "signals_identical": true,
+   "trades_parallel": 9,
+   "trades_sequential": 9,
+   "trades_identical": true,
+   "signals_sha256": "4876b9f6e82621bbb25a80ac23465d3131329844f422b1d71e19a232969fd697"
+  }
+ ],
+ "checksums": {
+  "sequential_signals": {
+   "gold_01": "cbe9c3eb5e710b9768d41f695d31bcfe30dbfcf6e79143d9d933ec9a27e0e93b",
+   "gold_02": "4b98301f438a0821156ae375bfc69170eced97fe278aad87fd457ac59ca424dc",
+   "silver_01": "baf80e292029811a88a453c864e57bfec4769333001058f2874f54491bab885f",
+   "silver_02": "270366ec2623687bdc66d0b895d57da382065c55e94f5e6c85d991fc0ffe1777"
+  },
+  "sequential_trades": {
+   "gold_01": "4778000b8def658515eb05eebae9f8eab515673cf12f52b69ce4698cc688b552",
+   "gold_02": "5407c829c3c1c2f9c616a5d271f05bb5b3ee5c572ad414e8f27b49b85e032b54",
+   "silver_01": "f99e54f4cc22c87f495d7975a2091936234fd0a175f92d73cdd4e95154930bf1",
+   "silver_02": "ec91dab473ba068c3793b9660ab2280fd4ebf14244fc8ab2d62de9c1ed0b7968"
+  },
+  "parallel_evaluation_stream": "9c68738f601fc9b193ae4798fb5ceb68fad03262caa52ec0867d269063184481"
+ },
+ "observations": {
+  "dema3_atr6_htf_mapping_identical_to_reference": "",
+  "filled_later": [
+   "reference counts every qualifying crossover bar regardless of position (backtest semantics)",
+   "live engine gates new-crossing evaluation by strategy lifecycle (in-position bars arm only reversals)",
+   "measured indicator parity (see forensics/indicator_parity.json): 60m line live==ref on 29/29 matched bars; 15m line 20/29 exact with all 9 remaining == reference one period later (reference period-edge publication, live is no-lookahead)"
+  ]
+ }
+}
