@@ -228,7 +228,7 @@ class BaseDEMAStrategy:
         Tolerance: 15m can be up to 1.5% above 1H (accounts for DEMA drift between TFs
         caused by different data ranges in live vs backtest).
         """
-        cross = close > htf_val and prev_close <= prev_htf_val
+        cross = close > htf_val and prev_close <= htf_val
         if not cross:
             return False
         # Confirmation: 15m line must be strictly below 1H line for LONG
@@ -249,7 +249,7 @@ class BaseDEMAStrategy:
         Strict filter: 15m MUST be above 1H for SHORT confirmation.
         (15m below 1H = bullish trend, contradicting a SHORT signal)
         """
-        cross = close < htf_val and prev_close >= prev_htf_val
+        cross = close < htf_val and prev_close >= htf_val
         if not cross:
             return False
         # Confirmation: 15m line must be above 1H line for bearish confirmation
