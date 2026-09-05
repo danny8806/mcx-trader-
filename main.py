@@ -42,7 +42,6 @@ def main():
     engine = TradingEngine(config_path=str(_PKG_DIR / "config" / "settings.json"))
     engine.set_persistence(persistence)
 
-    # Restore state (sets engine status to RESTORING)
     saved_state = persistence.load_state()
     if saved_state:
         print("[System] Restoring state from last session...")
@@ -54,7 +53,6 @@ def main():
     def shutdown(signum, frame):
         print("\n[System] Shutting down...")
         engine.stop()
-        # Final persist before exit
         try:
             state = engine.snapshot()
             persistence.save_state(state)

@@ -622,19 +622,13 @@ class TestFullReplayPhase33:
             l = o - abs(np.random.randn() * 30)
             c = o + np.random.randn() * 20
             bar = _bar("GOLDM", "5m", ts + i * 300, o, h, l, c)
-            engine.indicators["GOLDM:5m"].update(o, h, l, c)
+            engine._on_bar_closed(bar)
             if i % 12 == 0:
                 htf_bar = _bar("GOLDM", "1h", ts + i * 300, o, h, l, c)
-                engine.htf_engine.on_htf_bar_closed(htf_bar)
+                engine._on_bar_closed(htf_bar)
             if i % 3 == 0:
                 mid_bar = _bar("GOLDM", "15m", ts + i * 300, o, h, l, c)
-                engine.htf_engine.on_htf_bar_closed(mid_bar)
-            htf_mapped = engine.htf_engine.map_to_fast_bar(bar, "5m")
-            mid_mapped = engine.htf_engine.map_mid_to_fast_bar(bar, "5m")
-            fast_ind = engine.indicators["GOLDM:5m"]
-            signal = strat.on_bar(bar, htf_mapped, fast_ind.value, mid_mapped)
-            if signal:
-                engine._process_signal(signal)
+                engine._on_bar_closed(mid_bar)
             base_price = c
         snap = strat.snapshot()
         assert snap["bars_processed"] == 100
@@ -652,17 +646,11 @@ class TestFullReplayPhase33:
             s_price = 95000 + np.random.randn() * 30
             g_bar = _bar("GOLDM", "5m", ts + i * 300, g_price, g_price + 30, g_price - 30, g_price + 10)
             s_bar = _bar("SILVERM", "15m", ts + i * 900, s_price, s_price + 20, s_price - 20, s_price + 5)
-            engine.indicators["GOLDM:5m"].update(g_bar.open, g_bar.high, g_bar.low, g_bar.close)
-            engine.indicators["SILVERM:15m"].update(s_bar.open, s_bar.high, s_bar.low, s_bar.close)
+            engine._on_bar_closed(g_bar)
+            engine._on_bar_closed(s_bar)
             if i % 12 == 0:
-                engine.htf_engine.on_htf_bar_closed(_bar("GOLDM", "1h", ts + i * 300, g_price, g_price + 30, g_price - 30, g_price + 10))
-                engine.htf_engine.on_htf_bar_closed(_bar("SILVERM", "1h", ts + i * 900, s_price, s_price + 20, s_price - 20, s_price + 5))
-            g_htf = engine.htf_engine.map_to_fast_bar(g_bar, "5m")
-            g_mid = engine.htf_engine.map_mid_to_fast_bar(g_bar, "5m")
-            s_htf = engine.htf_engine.map_to_fast_bar(s_bar, "15m")
-            s_mid = engine.htf_engine.map_mid_to_fast_bar(s_bar, "15m")
-            g_sig = g_strat.on_bar(g_bar, g_htf, engine.indicators["GOLDM:5m"].value, g_mid)
-            s_sig = s_strat.on_bar(s_bar, s_htf, engine.indicators["SILVERM:15m"].value, s_mid)
+                engine._on_bar_closed(_bar("GOLDM", "1h", ts + i * 300, g_price, g_price + 30, g_price - 30, g_price + 10))
+                engine._on_bar_closed(_bar("SILVERM", "1h", ts + i * 900, s_price, s_price + 20, s_price - 20, s_price + 5))
         assert g_strat._bars_processed == 50
         assert s_strat._bars_processed == 50
 

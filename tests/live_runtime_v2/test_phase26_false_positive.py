@@ -51,30 +51,60 @@ class TestFalsePositiveDetection:
         assert result_right is True, "Should detect LONG cross when close > htf"
 
     def test_long_cross_uses_prev_htf_val(self):
-        """LONG cross must compare prev_close against prev_htf_val (h1[i-1]),
-        matching the reference backtest `close[i-1] <= h1[i-1]` — NOT htf_val
-        (h1[i]). Regression test for the pre-migration D1 divergence."""
+        """LONG cross: prev_close compared against current htf_val (h1[i]),
+        matching the approved new crossover condition.
+        The new condition: close > htf AND prev_close <= htf AND prev_htf < htf."""
         from strategies.gold import GoldStrategy01
         strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
                               fast_timeframe="5m", htf_timeframe="1h")
-        # close crosses above h1[i] (101 > 100) BUT prev_close is ABOVE h1[i-1]
-        # (99.5 > 99): reference says NO LONG. The old buggy code used
-        # `prev_close <= htf_val` (99.5 <= 100 True) and wrongly fired.
+        # close crosses above h1[i] (101 > 100) AND prev_close is BELOW htf_val
+        # (99.5 <= 100) BUT prev_close is ABOVE prev_htf_val (99.5 > 99):
+        # New crossover says YES because prev_close <= current htf_val.
         r = strat._check_long_cross(
             close=101.0, prev_close=99.5, htf_val=100.0, prev_htf_val=99.0)
-        assert r is False, "Long cross must use prev_htf_val, not htf_val"
+        assert r is True, "New crossover: prev_close <= current htf_val triggers"
 
-    def test_short_cross_uses_prev_htf_val(self):
-        """SHORT cross must compare prev_close against prev_htf_val (h1[i-1]),
-        matching `close[i-1] >= h1[i-1]` — NOT htf_val (h1[i])."""
+    def test_long_cross_rejects_prev_above_htf(self):
+        """LONG cross rejects when prev_close > current htf_val."""
         from strategies.gold import GoldStrategy01
         strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
                               fast_timeframe="5m", htf_timeframe="1h")
-        # close crosses below h1[i] (98 < 100) BUT prev_close is BELOW h1[i-1]
-        # (98.5 < 99): reference says NO SHORT.
+        # prev_close > htf_val: should NOT cross
+        r = strat._check_long_cross(
+            close=101.0, prev_close=100.5, htf_val=100.0, prev_htf_val=99.0)
+        assert r is False, "prev_close > htf_val must not trigger LONG cross"
+
+    def test_short_cross_uses_prev_htf_val(self):
+        """SHORT cross: prev_close compared against current htf_val (h1[i]),
+        matching the approved new crossover condition."""
+        from strategies.gold import GoldStrategy01
+        strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                              fast_timeframe="5m", htf_timeframe="1h")
+        # close crosses below h1[i] (98 < 100) BUT prev_close is ABOVE htf_val
+        # (98.5 > 100 False): prev_close > htf_val means no cross.
         r = strat._check_short_cross(
             close=98.0, prev_close=98.5, htf_val=100.0, prev_htf_val=99.0)
-        assert r is False, "Short cross must use prev_htf_val, not htf_val"
+        assert r is False, "prev_close > htf_val must not trigger SHORT cross"
+
+    def test_short_cross_rejects_prev_below_htf(self):
+        """SHORT cross rejects when prev_close < current htf_val (no crossover)."""
+        from strategies.gold import GoldStrategy01
+        strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                              fast_timeframe="5m", htf_timeframe="1h")
+        # prev_close < htf_val → no crossover (prev was already below)
+        r = strat._check_short_cross(
+            close=98.0, prev_close=99.5, htf_val=100.0, prev_htf_val=99.0)
+        assert r is False, "prev_close < htf_val means no SHORT crossover"
+
+    def test_short_cross_fires_on_actual_crossover(self):
+        """SHORT cross fires when close < htf AND prev_close >= htf."""
+        from strategies.gold import GoldStrategy01
+        strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                              fast_timeframe="5m", htf_timeframe="1h")
+        # prev_close was above htf, now close is below: actual crossover
+        r = strat._check_short_cross(
+            close=98.0, prev_close=100.5, htf_val=100.0, prev_htf_val=99.0)
+        assert r is True, "Actual SHORT crossover should trigger"
 
     def test_position_manager_detects_double_open(self):
         """PositionManager detects double-open attempt."""

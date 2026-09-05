@@ -1,0 +1,21 @@
+{
+  "run_id": "rtv2_20260905T075912_eab6cebf",
+  "suite_version": "2.0.0",
+  "total_tests": 1,
+  "phases": {
+    "phase12": {
+      "pass": 1,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "save_trade_read",
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  "verdict": "SYSTEM_VERIFIED",
+  "failures": [],
+  "unverified": []
+}
