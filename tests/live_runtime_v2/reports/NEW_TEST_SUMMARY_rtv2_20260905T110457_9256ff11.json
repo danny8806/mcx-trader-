@@ -1,0 +1,37 @@
+{
+  "run_id": "rtv2_20260905T110457_9256ff11",
+  "suite_version": "2.0.0",
+  "total_tests": 2,
+  "phases": {
+    "phase2": {
+      "pass": 1,
+      "fail": 1,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "engine_init",
+          "result": "PASS"
+        },
+        {
+          "test": "engine_init",
+          "result": "FAIL"
+        }
+      ]
+    }
+  },
+  "verdict": "SYSTEM_NOT_VERIFIED",
+  "failures": [
+    {
+      "run_id": "rtv2_20260905T110457_9256ff11",
+      "timestamp": 1788606301.783107,
+      "elapsed": 4.367916107177734,
+      "phase": "phase2",
+      "test": "engine_init",
+      "result": "FAIL",
+      "data": {
+        "error": "Expected >=6 indicators, got 0\nassert 0 >= 6\n +  where 0 = len({})\n +    where {} = <trading_engine.TradingEngine object at 0x00000207C9E20EC0>.indicators"
+      }
+    }
+  ],
+  "unverified": []
+}

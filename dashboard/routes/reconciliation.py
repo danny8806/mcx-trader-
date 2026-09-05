@@ -52,10 +52,10 @@ def _run_reconciliation_sync():
         except Exception as e:
             results["checks"].append({"name": "legacy_reconciliation", "error": str(e)})
 
-    # 2. Lifecycle orphan scan
-    if hasattr(_engine, "_lifecycle") and _engine._lifecycle:
+    # 2. Lifecycle orphan scan (aggregate over per-strategy lifecycles)
+    if hasattr(_engine, "orphan_scan"):
         try:
-            orphan_report = _engine._lifecycle.orphan_scan()
+            orphan_report = _engine.orphan_scan()
             results["checks"].append({
                 "name": "lifecycle_orphan_scan",
                 "is_clean": orphan_report["is_clean"],
@@ -80,13 +80,10 @@ def _run_reconciliation_sync():
         except Exception as e:
             results["checks"].append({"name": "lifecycle_orphan_scan", "error": str(e)})
 
-    # 3. Lifecycle identity consistency
-    if hasattr(_engine, "_lifecycle") and _engine._lifecycle:
+    # 3. Lifecycle identity consistency (aggregate over per-strategy lifecycles)
+    if hasattr(_engine, "reconcile_trades"):
         try:
-            lc_result = _engine._lifecycle.reconcile(
-                position_manager=_engine.position_manager,
-                order_manager=_engine.order_manager,
-            )
+            lc_result = _engine.reconcile_trades()
             results["checks"].append({
                 "name": "lifecycle_identity_consistency",
                 "stats": lc_result["stats"],

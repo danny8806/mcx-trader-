@@ -121,6 +121,9 @@ def _make_engine_tmp():
     engine._init_strategies()
     engine._init_execution()
     engine._init_portfolio()
+    engine.event_store = None
+    engine.trade_ledger = None
+    engine._build_runtimes(None)
     engine._init_risk()
     engine._init_monitoring()
     engine._init_notifications()

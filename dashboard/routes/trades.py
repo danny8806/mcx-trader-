@@ -21,10 +21,15 @@ def init(engine, event_bus, persistence=None):
 
 def _list_trades_sync(strategy: Optional[str] = None, instrument: Optional[str] = None):
     try:
-        # Primary: canonical lifecycle (single source of truth)
-        if _engine and hasattr(_engine, "_lifecycle") and _engine._lifecycle:
-            lifecycle = _engine._lifecycle
-            trades = lifecycle.get_trades_for_api(strategy_id=strategy, instrument=instrument)
+        # Primary: canonical lifecycle (per-strategy runtimes)
+        if _engine and getattr(_engine, "runtimes", None) and len(_engine.runtimes) > 0:
+            trades = []
+            for rt in _engine.runtimes.all():
+                try:
+                    trades.extend(rt.lifecycle.get_trades_for_api(
+                        strategy_id=strategy, instrument=instrument))
+                except Exception:
+                    pass
             if trades:
                 return {"trades": trades, "count": len(trades), "source": "lifecycle"}
 
@@ -60,9 +65,9 @@ async def list_trades(strategy: Optional[str] = None, instrument: Optional[str] 
 
 def _get_trade_sync(trade_id: str):
     try:
-        # Primary: canonical lifecycle
-        if _engine and hasattr(_engine, "_lifecycle") and _engine._lifecycle:
-            trade = _engine._lifecycle.get_trade(trade_id)
+        # Primary: canonical lifecycle (read-only aggregate over runtimes)
+        if _engine and hasattr(_engine, "get_trade"):
+            trade = _engine.get_trade(trade_id)
             if trade:
                 return trade.snapshot()
 
@@ -81,11 +86,11 @@ async def get_trade(trade_id: str):
     return await asyncio.to_thread(_get_trade_sync, trade_id)
 
 def _lifecycle_orphan_scan_sync():
-    """Run comprehensive orphan scan across the entire lifecycle."""
-    if not _engine or not hasattr(_engine, "_lifecycle"):
+    """Run comprehensive orphan scan across all per-strategy lifecycles."""
+    if not _engine or not hasattr(_engine, "orphan_scan"):
         return {"error": "Engine lifecycle not initialized"}
     try:
-        return _engine._lifecycle.orphan_scan()
+        return _engine.orphan_scan()
     except Exception as e:
         return {"error": str(e)}
 
@@ -94,15 +99,11 @@ async def lifecycle_orphan_scan():
     return await asyncio.to_thread(_lifecycle_orphan_scan_sync)
 
 def _lifecycle_reconcile_sync():
-    """Run lifecycle reconciliation and return detailed report."""
-    if not _engine or not hasattr(_engine, "_lifecycle"):
+    """Run lifecycle reconciliation across all per-strategy lifecycles."""
+    if not _engine or not hasattr(_engine, "reconcile_trades"):
         return {"error": "Engine lifecycle not initialized"}
     try:
-        result = _engine._lifecycle.reconcile(
-            position_manager=_engine.position_manager,
-            order_manager=_engine.order_manager,
-        )
-        return result
+        return _engine.reconcile_trades()
     except Exception as e:
         return {"error": str(e)}
 

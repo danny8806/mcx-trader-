@@ -343,3 +343,122 @@ class PositionManager:
                     exit_signal_id=cp_data.get("exit_signal_id"),
                 )
                 self._closed_positions.append(pos)
+
+
+class PositionManagerFacade:
+    """Shared routing layer over per-strategy PositionManagers.
+
+    Each StrategyRuntime owns its own PositionManager (its own Position
+    objects, margins and P&L). The facade keeps the engine/dashboard/
+    reconciliation surface stable: reads aggregate across all runtimes and
+    every write routes to the position's owning strategy manager. No mutable
+    position state lives on the facade itself.
+    """
+
+    def __init__(self, managers: Optional[dict[str, PositionManager]] = None):
+        self._managers: dict[str, PositionManager] = dict(managers or {})
+
+    def register(self, strategy_id: str, manager: PositionManager) -> None:
+        self._managers[strategy_id] = manager
+
+    def _owner(self, strategy_id: Optional[str]) -> PositionManager:
+        if not strategy_id or strategy_id not in self._managers:
+            raise ValueError(f"no position manager for strategy {strategy_id!r}")
+        return self._managers[strategy_id]
+
+    def _find_owner(self, position_id: str):
+        for mgr in self._managers.values():
+            pos = next((p for p in mgr._positions.values() if p.position_id == position_id),
+                       next((p for p in mgr._closed_positions if p.position_id == position_id), None))
+            if pos is not None:
+                return mgr, pos
+        return None, None
+
+    def open_position(self, fill, multiplier=1.0, stop_price=None, margin=0.0,
+                      entry_signal_id=None, trade_id=None) -> Position:
+        return self._owner(getattr(fill, "strategy_id", None)).open_position(
+            fill, multiplier=multiplier, stop_price=stop_price, margin=margin,
+            entry_signal_id=entry_signal_id, trade_id=trade_id,
+        )
+
+    def close_position(self, position_id, fill, reason, exit_signal_id=None) -> Position:
+        mgr, pos = self._find_owner(position_id)
+        if mgr is None:
+            raise ValueError(f"Position {position_id} not found")
+        return mgr.close_position(position_id, fill, reason, exit_signal_id)
+
+    def get_position(self, position_id: str) -> Optional[Position]:
+        _, pos = self._find_owner(position_id)
+        return pos
+
+    def get_positions_by_strategy(self, strategy_id: str) -> list[Position]:
+        mgr = self._managers.get(strategy_id)
+        if mgr is None:
+            return []
+        return mgr.get_positions_by_strategy(strategy_id)
+
+    def get_positions_by_instrument(self, instrument: str) -> list[Position]:
+        out: list[Position] = []
+        for mgr in self._managers.values():
+            out.extend(mgr.get_positions_by_instrument(instrument))
+        return out
+
+    @property
+    def open_positions(self) -> list[Position]:
+        out: list[Position] = []
+        for mgr in self._managers.values():
+            out.extend(mgr.open_positions)
+        return out
+
+    @property
+    def closed_positions(self) -> list[Position]:
+        out: list[Position] = []
+        for mgr in self._managers.values():
+            out.extend(mgr.closed_positions)
+        return out
+
+    def update_marks(self, prices: dict[str, float]) -> None:
+        for mgr in self._managers.values():
+            mgr.update_marks(prices)
+
+    def snapshot(self) -> dict:
+        """Aggregated snapshot (same shape as PositionManager.snapshot)."""
+        open_positions: dict[str, dict] = {}
+        closed_positions: list[dict] = []
+        for mgr in self._managers.values():
+            data = mgr.snapshot()
+            for pid, pos_data in data.get("open_positions", {}).items():
+                open_positions[pid] = pos_data
+            closed_positions.extend(data.get("closed_positions", []))
+        return {
+            "open_positions": open_positions,
+            "closed_positions": closed_positions,
+        }
+
+    def restore(self, data: dict) -> None:
+        """Restore per-strategy position managers from a snapshot.
+
+        Accepts either the aggregated engine shape (strategy_id -> manager
+        snapshot) or the flat PositionManager shape (keys open_positions/
+        closed_positions); rows are routed to the owning strategy manager.
+        """
+        if not data:
+            return
+        if "open_positions" in data or "closed_positions" in data:
+            # Flat shape: dispatch each open position by its strategy_id.
+            for pid, pos_data in (data.get("open_positions") or {}).items():
+                sid = (pos_data or {}).get("strategy_id")
+                mgr = self._managers.get(sid)
+                if mgr is not None and mgr.get_position(pid) is None:
+                    mgr.restore({"open_positions": {pid: pos_data}, "closed_positions": []})
+            for cp_data in (data.get("closed_positions") or []):
+                sid = (cp_data or {}).get("strategy_id")
+                mgr = self._managers.get(sid)
+                if mgr is not None and mgr.get_position(cp_data.get("position_id")) is None:
+                    mgr.restore({"open_positions": {}, "closed_positions": [cp_data]})
+            return
+        # Per-strategy shape: strategy_id -> manager snapshot.
+        for sid, mgr_data in data.items():
+            mgr = self._managers.get(sid)
+            if mgr is not None:
+                mgr.restore(mgr_data)

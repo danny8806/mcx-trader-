@@ -161,6 +161,11 @@ class StrategyInstance:
         self.fast_indicator.update(bar.open, bar.high, bar.low, bar.close)
         fast_dema_atr = self.fast_indicator.value
 
+        # 1b. For strategies where fast == mid, the fast bar IS the mid bar —
+        # keep the mid HTF state live so 15m confirmation never goes stale.
+        if self.fast_timeframe == self.mid_timeframe:
+            self.mid_htf_state.update(bar)
+
         # 2. Map HTF values from OWN state (not global engine)
         slow_mapped = self.slow_htf_state.get_mapped_value(bar)
         mid_mapped = self.mid_htf_state.get_mapped_value(bar)
@@ -268,6 +273,12 @@ class StrategyInstance:
             stop_signal = self._check_stop_loss(bar)
             if stop_signal is not None:
                 self.just_entered = False
+                # Re-arm signal detection on the SAME bar so a clean flip/flat
+                # after a stop-out can immediately re-enter (matches backtest).
+                self._detect_signal(
+                    close, prev_close, htf_val, prev_htf_val, high, low, bar.start_ts,
+                    mid_val, prev_mid_val, prev_high, prev_low, fast_dema_atr,
+                )
                 return stop_signal
 
         # 3. Detect new signals
@@ -362,6 +373,11 @@ class StrategyInstance:
             quantity=self.quantity,
         )
         signal.metadata = {
+            # A signal is durable evidence, but it is not a trade.  The engine
+            # persists this state and waits for the breakout before it creates
+            # a lifecycle/trade id.
+            "pending": True,
+            "triggered": False,
             "entry_price": close,
             "htf_value": htf_val,
             "mid_value": mid_val,
@@ -382,8 +398,15 @@ class StrategyInstance:
         self, side, close, high, low, timestamp,
         prev_high=None, prev_low=None,
         htf_val=None, mid_val=None, fast_dema_atr=None,
-    ) -> Signal:
-        """Create reversal: close current position, arm opposite pending."""
+    ) -> Optional[Signal]:
+        """Arm a reversal: exit at the NEXT BAR OPEN, then re-enter the
+        opposite side via the breakout trigger.
+
+        Mirrors the reference backtest flow: the crossing bar only arms a
+        pending breakout for the opposite side and schedules the held
+        position's exit at the next fast bar's open. No order is placed now
+        (returns None), matching BaseDEMAStrategy.on_bar().
+        """
         if side == "LONG":
             trigger = high
             sl_low = prev_low if prev_low is not None else low
@@ -411,19 +434,25 @@ class StrategyInstance:
             "is_reversal": True,
         }
 
-        # Close current position
-        self.pending_exit_at_open = True
-        self.pending_exit_reason = "reversal"
-
-        # Arm opposite entry
+        # Arm the opposite-side breakout entry (fired by _check_pending_entry
+        # on the next bars).
         self.pending_entry = PendingEntry(
             signal=signal,
             trigger_price=trigger,
             side=side,
         )
         self.state = StrategyState.PENDING_LONG if side == "LONG" else StrategyState.PENDING_SHORT
+
+        # Schedule the held position's exit at the next fast bar's OPEN.
+        self.pending_exit_at_open = True
+        self.pending_exit_reason = f"{side.lower()}_reversal"
+        self.pending_exit_bar_start = timestamp
+
+        # Mark the exit pending (position/stop stay live until the engine
+        # consumes the deferred exit at the next open).
+        self._close_position(f"{side.lower()}_reversal")
         self._signals.append(signal)
-        return signal
+        return None
 
     # ═══════════════════════════════════════════════════════════════════════
     # PENDING ENTRY + STOP LOSS — identical to BaseDEMAStrategy
@@ -452,6 +481,11 @@ class StrategyInstance:
         self.state = StrategyState.LONG_POSITION if pen.side == "LONG" else StrategyState.SHORT_POSITION
         self.pending_entry = None
 
+        if pen.signal.metadata is None:
+            pen.signal.metadata = {}
+        pen.signal.metadata["pending"] = False
+        pen.signal.metadata["triggered"] = True
+
         return pen.signal
 
     def _check_stop_loss(self, bar: Bar) -> Optional[Signal]:
@@ -478,6 +512,7 @@ class StrategyInstance:
             quantity=self.quantity,
         )
         exit_signal.metadata = {
+            "exit": True,
             "exit_reason": "stop_loss_hit",
             "exit_price": bar.close,
             "position_side": self.position_side,
@@ -501,12 +536,13 @@ class StrategyInstance:
             signal_type=SignalType.SHORT if self.position_side == "LONG" else SignalType.LONG,
             instrument=self.instrument,
             strategy_id=self.strategy_id,
-            timestamp=bar.start_ts,
+            timestamp=(bar.start_ts or 0.0) + 0.25,
             trigger_price=self.same_bar_stop,
             stop_price=self.stop_price,
             quantity=self.quantity,
         )
         exit_signal.metadata = {
+            "exit": True,
             "exit_reason": "stop_loss_hit",
             "exit_price": self.same_bar_stop,
             "same_bar": True,
@@ -586,6 +622,10 @@ class StrategyInstance:
         self.just_entered = True
         self.state = StrategyState.LONG_POSITION if pen.side == "LONG" else StrategyState.SHORT_POSITION
         self.pending_entry = None
+        if pen.signal.metadata is None:
+            pen.signal.metadata = {}
+        pen.signal.metadata["pending"] = False
+        pen.signal.metadata["triggered"] = True
         return pen.signal
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -688,6 +728,17 @@ class StrategyInstance:
             "prev_htf_value": self._prev_htf_value,
             "prev_mid_value": self._prev_mid_value,
             "last_exit_reason": self.last_exit_reason,
+            "just_entered": self.just_entered,
+            "pending_exit_at_open": self.pending_exit_at_open,
+            "pending_exit_reason": self.pending_exit_reason,
+            "pending_exit_bar_start": self.pending_exit_bar_start,
+            "pending_entry": ((self.pending_entry.signal.signal_id,
+                               self.pending_entry.trigger_price,
+                               self.pending_entry.side,
+                               self.pending_entry.bars_pending)
+                              if self.pending_entry else None),
+            "same_bar_stop": self.same_bar_stop,
+            "current_trade_id": self.current_trade_id,
         }
 
     def restore(self, snapshot: dict) -> None:
@@ -704,3 +755,28 @@ class StrategyInstance:
         self._prev_htf_value = snapshot.get("prev_htf_value")
         self._prev_mid_value = snapshot.get("prev_mid_value")
         self.last_exit_reason = snapshot.get("last_exit_reason")
+        self.just_entered = bool(snapshot.get("just_entered", False))
+        self.pending_exit_at_open = bool(snapshot.get("pending_exit_at_open", False))
+        self.pending_exit_reason = snapshot.get("pending_exit_reason")
+        self.pending_exit_bar_start = snapshot.get("pending_exit_bar_start")
+        self.same_bar_stop = snapshot.get("same_bar_stop")
+        self.current_trade_id = snapshot.get("current_trade_id")
+
+        pending_entry = snapshot.get("pending_entry")
+        if pending_entry:
+            signal_id, trigger, side, bars = pending_entry
+            signal = self._signals[-1] if self._signals else None
+            self.pending_entry = PendingEntry(
+                signal=signal or Signal(
+                    signal_type=SignalType.LONG if side == "LONG" else SignalType.SHORT,
+                    instrument=self.instrument, strategy_id=self.strategy_id,
+                    timestamp=0.0, trigger_price=trigger,
+                    stop_price=self.stop_price or 0.0, quantity=self.quantity,
+                ),
+                trigger_price=trigger, side=side,
+            )
+            if self.pending_entry.signal.signal_id != signal_id and signal is not None:
+                self.pending_entry.signal.signal_id = signal_id
+            self.pending_entry.bars_pending = bars
+        else:
+            self.pending_entry = None

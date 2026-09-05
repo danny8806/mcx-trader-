@@ -138,3 +138,73 @@ class OrderManager:
             "pending_signals": len(self._pending_signals),
             "active_orders": len(self._active_orders),
         }
+
+
+class OrderManagerFacade:
+    """Shared read/routing layer over per-strategy OrderManagers.
+
+    Each StrategyRuntime owns its own OrderManager (its own pending-signal
+    dedup set, active-order cache and fill-notification slot). The shared
+    PaperExecutionEngine is the single broker transport underneath. The facade
+    keeps external consumers (reconciliation, dashboard, scripts) stable:
+    reads aggregate across runtimes; submit/drain route by strategy.
+    """
+
+    def __init__(self, execution_engine: PaperExecutionEngine):
+        self.execution_engine = execution_engine
+        self._managers: dict[str, OrderManager] = {}
+
+    def register(self, strategy_id: str, manager: OrderManager) -> None:
+        self._managers[strategy_id] = manager
+
+    def submit_signal(self, signal, multiplier: float = 1.0, trade_id: str = ""):
+        mgr = self._managers.get(getattr(signal, "strategy_id", None))
+        if mgr is None:
+            return None
+        return mgr.submit_signal(signal, multiplier=multiplier, trade_id=trade_id)
+
+    def drain_fills(self) -> list[Fill]:
+        """Aggregate drains across all runtimes (compat only).
+
+        The engine core drains its own strategy manager directly.
+        """
+        fills: list[Fill] = []
+        for mgr in self._managers.values():
+            fills.extend(mgr.drain_fills())
+        return fills
+
+    def cancel_order(self, order_id: str) -> bool:
+        return self.execution_engine.cancel_order(order_id)
+
+    def get_order(self, order_id: str) -> Optional[Order]:
+        return self.execution_engine.get_order(order_id)
+
+    def get_active_orders(self, strategy_id: Optional[str] = None) -> list[Order]:
+        orders = [
+            o for o in self.execution_engine._orders.values()
+            if o.state in (OrderState.CREATED, OrderState.SUBMITTED, OrderState.PARTIALLY_FILLED)
+        ]
+        if strategy_id:
+            orders = [o for o in orders if o.strategy_id == strategy_id]
+        return orders
+
+    def snapshot(self) -> dict:
+        """Aggregated order-manager state (all strategies + shared broker)."""
+        orders = {
+            oid: {
+                "order_id": o.order_id,
+                "strategy_id": o.strategy_id,
+                "instrument": o.instrument,
+                "side": o.side,
+                "quantity": o.quantity,
+                "state": o.state.value,
+            }
+            for oid, o in self.execution_engine._orders.items()
+        }
+        return {
+            "orders": orders,
+            "active_orders": len(self.get_active_orders()),
+            "pending_signals": sum(
+                len(m._pending_signals) for m in self._managers.values()
+            ),
+        }

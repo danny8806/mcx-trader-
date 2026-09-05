@@ -445,6 +445,87 @@ class PersistenceManager:
                 ).fetchall()
             return [dict(r) for r in rows]
 
+    def save_position(self, position) -> None:
+        """Persist a position to the canonical positions table.
+
+        The position_id is a SEPARATE identity from the trade_id (enforced by
+        the canonical uniqueness trigger). status='open' on entry; the row is
+        flipped to 'closed' by close_position_record() on exit.
+        """
+        entry_time = position.entry_timestamp
+        if isinstance(entry_time, (int, float)) and entry_time:
+            entry_time = datetime.fromtimestamp(entry_time, tz=timezone.utc).isoformat()
+        with self._tx() as conn:
+            conn.execute("""
+                INSERT INTO positions (
+                    position_id, trade_id, strategy_id, instrument, side,
+                    quantity, average_entry_price, status, entry_time,
+                    realized_pnl, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(position_id) DO UPDATE SET
+                    strategy_id=excluded.strategy_id, instrument=excluded.instrument,
+                    side=excluded.side, quantity=excluded.quantity,
+                    average_entry_price=excluded.average_entry_price,
+                    status=excluded.status, realized_pnl=excluded.realized_pnl,
+                    updated_at=excluded.updated_at
+            """, (
+                position.position_id,
+                position.trade_id,
+                position.strategy_id,
+                position.instrument,
+                position.side.value if hasattr(position.side, "value") else str(position.side),
+                position.quantity,
+                position.average_entry,
+                position.status.value if hasattr(position.status, "value") else str(position.status),
+                entry_time,
+                position.realized_pnl,
+                datetime.now(timezone.utc).isoformat(),
+            ))
+
+    def close_position_record(self, position) -> None:
+        """Flip a position row to closed with exit price/timestamp/realized P&L."""
+        exit_price = None
+        exit_time = None
+        if getattr(position, "exit_fills", None):
+            last_exit = position.exit_fills[-1]
+            exit_price = last_exit.price
+            if last_exit.timestamp:
+                exit_time = datetime.fromtimestamp(
+                    last_exit.timestamp, tz=timezone.utc
+                ).isoformat()
+        with self._tx() as conn:
+            conn.execute("""
+                UPDATE positions SET
+                    status='closed',
+                    average_exit_price=?,
+                    exit_time=?,
+                    realized_pnl=?,
+                    updated_at=?
+                WHERE position_id=?
+            """, (
+                exit_price,
+                exit_time,
+                position.realized_pnl,
+                datetime.now(timezone.utc).isoformat(),
+                position.position_id,
+            ))
+
+    def get_open_positions(self, strategy_id: Optional[str] = None) -> list[dict]:
+        """Get open position rows from the canonical positions table."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            if strategy_id:
+                rows = conn.execute(
+                    "SELECT * FROM positions WHERE status='open' AND strategy_id=?",
+                    (strategy_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM positions WHERE status='open'"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
     def get_account_snapshots(self, limit: int = 100) -> list[dict]:
         """Get recent account snapshots."""
         with self._lock:

@@ -92,15 +92,8 @@ def _engine(tmp_path, monkeypatch):
     )
     engine = TradingEngine(config_path=str(cfg_path))
     engine.set_persistence(persistence)
-    # Wire the central lifecycle manager exactly as production start() does so
-    # _persist_trade actually writes the trade row (the canonical FK trigger
-    # "order references missing trade" otherwise aborts order/fill persistence).
-    from core.lifecycle import TradeLifecycleManager
-    engine._lifecycle = TradeLifecycleManager(
-        persistence=persistence,
-        event_store=engine.event_store,
-        trade_ledger=engine.trade_ledger,
-    )
+    # set_persistence() now builds one TradeLifecycleManager per
+    # StrategyRuntime with persistence, exactly as production wires it.
 
     from core.market_status import MarketState, EngineStatus
     ws = engine.data_adapter.ws

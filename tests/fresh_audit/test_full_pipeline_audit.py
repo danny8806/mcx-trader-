@@ -371,16 +371,21 @@ class TestSection22_CandleSource:
             "Bars must flow from REST CandleFetcher to strategy"
 
     def test_pipeline_flow_documented(self):
-        """Verify the documented pipeline: REST→Closed LTF→Validate→Dedup→Sort→Resample→HTF→Indicators→HTF→LTF mapping→Strategy."""
+        """Verify the documented pipeline: REST→Closed LTF→Validate→Dedup→Sort→Resample→HTF→Indicators→HTF→LTF mapping→Strategy (via CandleFetcher + EventBus)."""
         import inspect
         from trading_engine import TradingEngine
         # Check _warmup_from_rest exists (REST source)
         assert hasattr(TradingEngine, '_warmup_from_rest'), "Pipeline must have REST warmup"
-        # Check _on_bar_closed processes closed bars
+        # _on_bar_closed publishes closed bars onto the EventBus (source of
+        # truth for the decoupled pipeline; strategy handlers update the
+        # indicator/HTF state and emit signals).
         source = inspect.getsource(TradingEngine._on_bar_closed)
-        assert "indicator" in source, "Pipeline must update indicators from closed bars"
-        assert "htf_engine" in source, "Pipeline must feed HTF engine"
-        assert "strat" in source, "Pipeline must process signals through strategy"
+        assert "event_bus.publish" in source, "Pipeline must publish closed bars via EventBus"
+        assert "candle:" in source, "Pipeline must route bars by instrument/timeframe topic"
+        # Strategy handlers consume the event and drive indicators + signals.
+        handler = inspect.getsource(TradingEngine._make_candle_handler)
+        assert "strategy.on_candle" in handler, "Pipeline must process signals through strategy"
+        assert "_process_deferred_exit" in handler, "Pipeline must honour deferred exits"
 
 
 # ═══════════════════════════════════════════════════════════════════════

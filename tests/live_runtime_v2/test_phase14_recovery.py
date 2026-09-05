@@ -101,6 +101,8 @@ class TestRecovery:
             count = d2.load_from_database()
             assert count == 2
             assert d2.is_duplicate("F_RESTART_1")
+            d2.close()
+            d1.close()
 
     def test_order_manager_snapshot(self):
         """OrderManager snapshot returns valid state."""

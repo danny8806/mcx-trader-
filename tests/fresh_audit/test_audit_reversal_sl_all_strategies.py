@@ -129,6 +129,23 @@ def _engine(tmp_path, monkeypatch):
     engine.set_persistence(persistence)
     engine.event_store = _Recorder()
 
+    # The new architecture closes every position through TradeCloseManager
+    # (per-runtime lifecycle). Offline fixtures that drive signals directly
+    # must wire it, exactly like the production start() path.
+    from core.trade_close import TradeCloseManager
+    engine._trade_close_manager = TradeCloseManager(
+        position_manager=engine.position_manager,
+        pnl_engines=engine.pnl_engines,
+        account_engines=engine.account_engines,
+        global_account=engine.account_engine,
+        risk_engine=engine.risk_engine,
+        persistence=persistence,
+        event_store=engine.event_store,
+        telegram=engine.telegram,
+        event_callback=engine._event_callback,
+        trade_ledger=engine.trade_ledger,
+    )
+
     # Force tradeable state offline (mirrors harness._enable_trading).
     ws = engine.data_adapter.ws
     ws.connected = True

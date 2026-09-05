@@ -240,11 +240,16 @@ class TradeLifecycleManager:
     may independently create or modify trade identity.
     """
 
-    def __init__(self, persistence=None, event_store=None, trade_ledger=None):
+    def __init__(self, persistence=None, event_store=None, trade_ledger=None,
+                 strategy_id=None):
         self._lock = threading.RLock()
         self._persistence = persistence
         self._event_store = event_store
         self._trade_ledger = trade_ledger
+        # Per-strategy ownership: when strategy_id is set this instance only
+        # loads/caches trades that belong to that strategy, so one lifecycle
+        # exists per StrategyRuntime and never sees another strategy's trades.
+        self._strategy_id = strategy_id
 
         # ── Canonical in-memory state ──
         self._trades: Dict[str, TradeContext] = {}          # trade_id → TradeContext
@@ -299,6 +304,8 @@ class TradeLifecycleManager:
             return trade
         rows = self._persistence.get_trades()
         for data in rows:
+            if self._strategy_id and data.get("strategy_id") != self._strategy_id:
+                continue
             if data.get("trade_id") == trade_id:
                 return self._cache_restored_trade(data)
         return None
@@ -311,6 +318,8 @@ class TradeLifecycleManager:
         }:
             return None
         for data in self._persistence.get_trades():
+            if self._strategy_id and data.get("strategy_id") != self._strategy_id:
+                continue
             if data.get(field) == value:
                 return self._cache_restored_trade(data)
         return None
@@ -806,6 +815,8 @@ class TradeLifecycleManager:
         with self._lock:
             try:
                 trades = self._persistence.get_trades()
+                if self._strategy_id:
+                    trades = [t for t in trades if t.get("strategy_id") == self._strategy_id]
                 for t_data in trades:
                     trade = TradeContext.from_snapshot(t_data)
                     # Convert ISO timestamps back to float

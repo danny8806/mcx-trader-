@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timezone, timedelta
@@ -35,12 +36,13 @@ from core.fill_dedup import FillDeduplicator
 from events.bus import EventBus
 from data.native_streams import NativeCandleDistributor
 from strategies.instance import StrategyInstance
+from strategies.types import SignalType, StrategyState
 from strategies.gold import create_gold_5m, create_gold_15m
 from strategies.silver import create_silver_5m, create_silver_15m
 from execution.paper_broker import PaperExecutionEngine, Fill
 from execution.fee_model import MCXFeeModel
-from execution.order_manager import OrderManager
-from portfolio.position_manager import PositionManager, Position
+from execution.order_manager import OrderManager, OrderManagerFacade
+from portfolio.position_manager import PositionManager, PositionManagerFacade, Position
 from portfolio.pnl import PNLEngine
 from portfolio.account import AccountEngine
 from monitoring.health import HealthMonitor, SystemStatus
@@ -50,6 +52,7 @@ from analytics.trade_ledger import TradeLedger
 from core.lifecycle import TradeLifecycleManager
 from core.risk_engine import RiskEngine
 from core.trade_close import TradeCloseManager
+from strategies.runtime import StrategyRuntime, StrategyRuntimeRegistry
 
 log = logging.getLogger(__name__)
 
@@ -127,13 +130,18 @@ class TradingEngine:
             self.trade_ledger = None
         self.fill_dedup = FillDeduplicator(db_path=db_path)
         self.safe_mode = SafeModeManager(self.market_status)
-        self._lifecycle = TradeLifecycleManager()
+        # No global TradeLifecycleManager: one per StrategyRuntime.
+        self._lifecycle = None
         self._trade_close_manager = None
 
         # ── State ──
         self._running = False
         self._lock = threading.RLock()
         self._persistence = None
+
+        # ── Per-strategy runtimes (rebuilt with persistence by set_persistence) ──
+        self.runtimes = StrategyRuntimeRegistry()
+        self._build_runtimes(persistence=None)
 
         # Live vs bar-model signal routing
         self.tick_signal_processing = True
@@ -185,7 +193,11 @@ class TradingEngine:
         )
 
     def _init_timeframe_engine(self) -> None:
-        """Alias for _init_candle_fetcher (backward compat with tests/scripts)."""
+        """Initialize the REST CandleFetcher as the strategy candle source.
+
+        Backward-compatible alias for _init_candle_fetcher: closed bars flow
+        from the CandleFetcher through EventBus to per-strategy handlers.
+        """
         self._init_candle_fetcher()
 
     def _init_strategies(self) -> None:
@@ -226,30 +238,40 @@ class TradingEngine:
 
     def _init_execution(self) -> None:
         paper_config = self.config.get("paper_execution", {})
+        # Single shared broker transport (PaperExecutionEngine) underneath
+        # per-strategy OrderManagers. The facade keeps external consumers
+        # stable while execution state stays per-runtime.
         self.execution_engine = PaperExecutionEngine(
             slippage_ticks=paper_config.get("slippage_ticks", 1),
             latency_ms=paper_config.get("latency_ms", 100),
             partial_fill_probability=paper_config.get("partial_fill_probability", 0.0),
         )
-        self.order_manager = OrderManager(execution_engine=self.execution_engine)
+        self.order_manager = OrderManagerFacade(execution_engine=self.execution_engine)
 
     def _init_portfolio(self) -> None:
         account_config = self.config.get("account", {})
-        self.position_manager = PositionManager()
+        self.position_manager = PositionManagerFacade()
         default_capital = account_config.get("starting_capital_per_strategy", 300_000.0)
         margin_pct = self.config.get("risk", {}).get("margin_per_trade_pct", 6.5)
 
         self.pnl_engines = {}
         self.account_engines = {}
-        fee_model = MCXFeeModel()
+        charges_config = self.config.get("charges", {})
         for strat_name in self.strategies:
+            instrument = self.strategies[strat_name].instrument
+            # Fee model is derived from the instrument's own charges config
+            # (e.g. stamp_duty_pct) — never global defaults that contradict it.
+            inst_charges = charges_config.get(instrument, {})
+            fee_model = MCXFeeModel.from_config(inst_charges) if inst_charges else MCXFeeModel()
             self.pnl_engines[strat_name] = PNLEngine(fee_model=fee_model)
             self.account_engines[strat_name] = AccountEngine(
                 starting_capital=default_capital,
                 margin_per_trade_pct=margin_pct,
             )
-        # Global account engine (compat)
-        self.account_engine = AccountEngine(starting_capital=default_capital, margin_per_trade_pct=margin_pct)
+        # Global account engine (compat aggregate) — seeded with TOTAL capital
+        # (account.starting_capital), NOT the per-strategy allocation.
+        global_capital = account_config.get("starting_capital", 600_000.0)
+        self.account_engine = AccountEngine(starting_capital=global_capital, margin_per_trade_pct=margin_pct)
 
     def _init_risk(self) -> None:
         risk_config = self.config.get("risk", {})
@@ -271,6 +293,54 @@ class TradingEngine:
         else:
             self.telegram = TelegramRouter()
 
+    def _build_runtimes(self, persistence) -> None:
+        """Build (or rebuild) one isolated StrategyRuntime per strategy.
+
+        Each runtime owns its own TradeLifecycleManager (scoped to the
+        strategy), OrderManager (over the shared broker transport), and
+        PositionManager. When persistence is available the lifecycle caches
+        are restored from trading.db filtered by strategy_id. This is the
+        ONLY place StrategyRuntime objects (and their lifecycle caches for
+        the current persistence) are created — set_persistence() no longer
+        wipes strategy/position state.
+        """
+        self.runtimes = StrategyRuntimeRegistry()
+        for sid, strategy in self.strategies.items():
+            lifecycle = TradeLifecycleManager(
+                persistence=persistence,
+                event_store=self.event_store,
+                trade_ledger=self.trade_ledger,
+                strategy_id=sid,
+            )
+            if persistence is not None:
+                lifecycle.restore_from_db()
+            order_manager = OrderManager(execution_engine=self.execution_engine)
+            position_manager = PositionManager()
+            runtime = StrategyRuntime(
+                strategy_id=sid,
+                strategy=strategy,
+                lifecycle=lifecycle,
+                order_manager=order_manager,
+                position_manager=position_manager,
+            )
+            runtime.current_trade_id = getattr(strategy, "current_trade_id", None)
+            self.runtimes.register(runtime)
+            self.order_manager.register(sid, order_manager)
+            self.position_manager.register(sid, position_manager)
+
+        # Compat view: indicator components are owned per-strategy now; expose
+        # them globally so boot audits / dashboards still find 'engine.indicators'.
+        self.indicators = {}
+        for sid, strategy in self.strategies.items():
+            self.indicators[f"{sid}_fast"] = strategy.fast_indicator
+            self.indicators[f"{sid}_mid"] = getattr(
+                strategy, "mid_indicator", strategy.mid_htf_state)
+            self.indicators[f"{sid}_slow"] = strategy.slow_htf_state
+
+    def _runtime(self, strategy_id: str) -> StrategyRuntime:
+        """Resolve the isolated runtime for a strategy (authoritative)."""
+        return self.runtimes.require(strategy_id)
+
     # ═══════════════════════════════════════════════════════════════════
     # CANDLE + TICK HANDLERS (EventBus-driven)
     # ═══════════════════════════════════════════════════════════════════
@@ -282,6 +352,7 @@ class TradingEngine:
             with self._lock:
                 self.health.record_bar()
                 self.market_status.mark_rest_data_fresh()
+                self._maybe_enable_trading()
 
                 bar = Bar(
                     instrument=event.instrument,
@@ -292,9 +363,14 @@ class TradingEngine:
                     low=event.low, close=event.close,
                     volume=int(event.volume),
                 )
-                self._process_deferred_exit(strategy, bar)
+                # Deferred reversal exits only fire on the strategy's FAST
+                # timeframe (next fast bar open). HTF/mid candles must NOT
+                # consume a scheduled exit.
+                is_fast = (event.timeframe == strategy.fast_timeframe)
+                if is_fast:
+                    self._process_deferred_exit(strategy, bar)
                 signal = strategy.on_candle(event)
-                if signal:
+                if signal and is_fast:
                     self._process_signal(signal)
                     stop2 = strategy._consume_same_bar_stop(bar)
                     if stop2 is not None:
@@ -315,29 +391,67 @@ class TradingEngine:
         return handler
 
     def _on_tick(self, tick) -> None:
-        """Handle WebSocket tick — update execution price + position marks + publish to EventBus."""
+        """Handle WebSocket tick — update execution price + position marks + publish to EventBus.
+
+        Accepts both dict ticks (Dhan adapter canonical format, and test
+        harness) and dataclass/object ticks.
+        """
         from events.types import TickEvent
-        instrument = getattr(tick, "instrument", None)
+
+        if isinstance(tick, dict):
+            instrument = tick.get("instrument")
+            ltp = tick.get("ltp", 0.0)
+            timestamp = tick.get("event_timestamp") or tick.get("timestamp") or time.time()
+            volume = tick.get("volume", 0.0)
+        else:
+            instrument = getattr(tick, "instrument", None)
+            ltp = getattr(tick, "ltp", 0.0)
+            timestamp = (getattr(tick, "event_timestamp", None)
+                         or getattr(tick, "timestamp", None) or time.time())
+            volume = getattr(tick, "volume", 0.0)
         if not instrument:
             return
 
-        ltp = tick.ltp
-        timestamp = tick.timestamp
+        valid_ltp = (isinstance(ltp, (int, float))
+                     and ltp > 0.0
+                     and not (isinstance(ltp, float) and (math.isnan(ltp) or math.isinf(ltp))))
 
-        # Update execution engine
-        self.execution_engine.update_price(instrument, ltp)
-
-        # Mark positions (LTP mark)
-        for pos in self.position_manager.get_positions_by_instrument(instrument):
-            if hasattr(pos, "update_mark"):
-                pos.update_mark(ltp)
-
-        # Publish tick event for strategy SL/trigger processing
-        event = TickEvent(
-            instrument=instrument, ltp=ltp,
-            timestamp=timestamp, volume=getattr(tick, "volume", 0.0),
+        # Market-data bookkeeping (always, even for a bad-LTP sentinel tick)
+        ws = getattr(self.data_adapter, "ws", None)
+        ws_connected = bool(ws and ws.connected)
+        self.market_status.update_data_status(
+            connected=ws_connected,
+            last_tick_time=(ws._last_tick_time if ws else 0.0),
         )
-        self.event_bus.publish(f"tick:{instrument}", event)
+        if ws_connected:
+            ws_stats = ws._stats if hasattr(ws, "_stats") else {}
+            self.health.update_component(
+                "data_adapter", SystemStatus.HEALTHY,
+                f"{ws_stats.get('tick', 0) if ws_stats else 0} ticks")
+            if ws.is_stale() and ws_stats.get("tick", 0) > 0:
+                print("[Engine] WARNING: WebSocket stale - no ticks received recently", flush=True)
+                if self.market_status.is_trading_allowed:
+                    self.safe_mode.enter_safe_mode("market_data_uncertain",
+                                                   "WebSocket stale during trading hours")
+        else:
+            self.health.update_component("data_adapter", SystemStatus.ERROR, "WebSocket disconnected")
+
+        self.health.record_tick()
+        self._maybe_enable_trading()
+
+        with self._lock:
+            if valid_ltp:
+                self.execution_engine.update_price(instrument, ltp)
+                for pos in self.position_manager.get_positions_by_instrument(instrument):
+                    if pos.is_open:
+                        pos.update_mark(ltp)
+
+            # Always publish the tick — strategies guard on ltp <= 0/sentinels.
+            event = TickEvent(
+                instrument=instrument, ltp=float(ltp) if valid_ltp else 0.0,
+                timestamp=float(timestamp or time.time()), volume=float(volume or 0.0),
+            )
+            self.event_bus.publish(f"tick:{instrument}", event)
 
     def _on_bar_closed(self, bar: Bar) -> None:
         """Handle closed bar — publish to EventBus for per-strategy processing.
@@ -363,8 +477,8 @@ class TradingEngine:
         pass
 
     def _on_fill(self, fill) -> None:
-        """Handle fill from execution engine (used in dedup replay)."""
-        pass
+        """Compatibility callback. Order submission passes the signal id directly."""
+        self._handle_fill(fill, getattr(fill, "entry_signal_id", None))
 
     # ═══════════════════════════════════════════════════════════════════
     # SIGNAL / EXIT / TRADE LIFECYCLE
@@ -380,6 +494,7 @@ class TradingEngine:
 
         exit_price = fill_price if fill_price is not None else (ltp if ltp is not None else bar.open)
         strategy.pending_exit_at_open = False
+        strategy.pending_exit_bar_start = None
         reason = strategy.pending_exit_reason or "reversal"
 
         from strategies.types import Signal as StratSignal, SignalType
@@ -387,27 +502,313 @@ class TradingEngine:
             signal_type=SignalType.SHORT if strategy.position_side == "LONG" else SignalType.LONG,
             instrument=strategy.instrument,
             strategy_id=strategy.strategy_id,
-            timestamp=bar.start_ts,
+            # Offset AFTER the bar open: the exit is consumed at the open, so
+            # ordering is preserved with other same-bar signals.
+            timestamp=(bar.start_ts or time.time()) + 0.5,
             trigger_price=exit_price,
             stop_price=strategy.stop_price,
             quantity=strategy.quantity,
         )
-        exit_signal.metadata = {"exit_reason": reason, "exit_price": exit_price, "deferred_exit": True}
+        exit_signal.metadata = {
+            "exit": True, "exit_reason": reason, "exit_price": exit_price,
+            "deferred_exit": True, "source": "next_open", "fill_price": exit_price,
+        }
+        # The reversal exit and the opposite re-entry share ONE signal id —
+        # the SIG-X lineage invariant (one trade id per pending reversal).
+        if getattr(strategy, "pending_entry", None) is not None:
+            exit_signal.signal_id = strategy.pending_entry.signal.signal_id
         strategy._close_position(reason)
         self._process_signal(exit_signal)
         return True
 
     def _process_signal(self, signal) -> None:
-        log.info("[Engine] Signal: %s %s %s trigger=%.0f SL=%.0f",
-                 signal.strategy_id, signal.signal_type.name,
-                 signal.instrument, signal.trigger_price, signal.stop_price)
+        """Move one strategy signal through the explicit durable lifecycle.
+
+        Signal creation and breakout execution are deliberately separate: a
+        pending breakout only writes the immutable signal; a trade id is born
+        only after a trigger has actually occurred.
+
+        All mutable lifecycle/execution/position state is resolved from the
+        signal's OWN StrategyRuntime — a signal can never touch another
+        strategy's lifecycle caches, order state, or positions.
+        """
+        metadata = signal.metadata or {}
+        is_exit = bool(metadata.get("exit"))
+        is_pending = bool(metadata.get("pending")) and not bool(metadata.get("triggered"))
+        strategy = self.strategies.get(signal.strategy_id)
+        if strategy is None:
+            log.error("Dropping signal for unknown strategy %s", signal.strategy_id)
+            return
+        runtime = self._runtime(signal.strategy_id)
+        lifecycle = runtime.lifecycle
+        order_manager = runtime.order_manager
+        position_manager = runtime.position_manager
+
+        # A bare opposite-side signal while this strategy holds an open
+        # position is a REVERSAL: it closes the held position (never opens a
+        # phantom/duplicate trade). Re-entry on the opposite side happens only
+        # via a later breakout trigger armed by the strategy.
+        if not is_exit and not is_pending:
+            sig_side = (signal.side or getattr(signal.signal_type, "value", "")).upper()
+            if sig_side in ("LONG", "SHORT"):
+                open_pos = next((
+                    p for p in position_manager.get_positions_by_strategy(signal.strategy_id)
+                    if p.is_open and p.instrument == signal.instrument), None)
+                if open_pos is not None:
+                    held_side = "LONG" if open_pos.is_long else "SHORT"
+                    if held_side != sig_side:
+                        from strategies.types import Signal as StratSignal
+                        reversal = StratSignal(
+                            signal_type=signal.signal_type,
+                            instrument=signal.instrument,
+                            strategy_id=signal.strategy_id,
+                            timestamp=signal.timestamp,
+                            trigger_price=signal.trigger_price,
+                            stop_price=signal.stop_price,
+                            quantity=signal.quantity,
+                        )
+                        reversal.signal_id = signal.signal_id
+                        reversal.metadata = dict(signal.metadata or {})
+                        reversal.metadata.update({
+                            "exit": True,
+                            "exit_reason": f"{held_side.lower()}_reversal",
+                            "is_reversal": True,
+                        })
+                        signal = reversal
+                        is_exit = True
+
+        self._persist_signal(signal, "exit" if is_exit else "entry")
         self.publish_event("signal_created", {
-            "strategy_id": signal.strategy_id,
-            "instrument": signal.instrument,
-            "signal_type": signal.signal_type.name,
-            "trigger_price": signal.trigger_price,
-            "stop_price": signal.stop_price,
+            "signal_id": signal.signal_id, "strategy_id": signal.strategy_id,
+            "instrument": signal.instrument, "signal_type": signal.signal_type.name,
+            "trigger_price": signal.trigger_price, "stop_price": signal.stop_price,
+            "pending": is_pending,
         })
+        if is_pending:
+            return
+
+        # Exits reduce risk and remain available during a safety halt. Entries
+        # must pass both the session/data gate and the risk gate.
+        if not is_exit:
+            if self.safe_mode.is_active or not self.market_status.is_trading_allowed:
+                self._reset_strategy_state(signal.strategy_id)
+                return
+            account = self.account_engines.get(signal.strategy_id)
+            multiplier = self.config.instrument(signal.instrument).get("multiplier", 1.0)
+            required_margin = self._calculate_margin(signal.instrument, signal.trigger_price, signal.quantity)
+            held = position_manager.get_positions_by_strategy(signal.strategy_id)
+            allowed, reason = self.risk_engine.check_order(
+                signal, len(self.position_manager.open_positions),
+                _strategy_positions_for_risk(signal.signal_type, held),
+                account.available_margin if account else 0.0, required_margin,
+                account.equity if account else 0.0,
+            )
+            if not allowed:
+                log.warning("Order rejected for %s: %s", signal.strategy_id, reason)
+                self._reset_strategy_state(signal.strategy_id)
+                self.publish_event("order_rejected", {"signal_id": signal.signal_id,
+                    "strategy_id": signal.strategy_id, "instrument": signal.instrument, "reason": reason})
+                return
+
+        multiplier = self.config.instrument(signal.instrument).get("multiplier", 1.0)
+        if is_exit:
+            position = next((p for p in position_manager.get_positions_by_strategy(signal.strategy_id)
+                             if p.instrument == signal.instrument and p.is_open), None)
+            trade = lifecycle.get_trade(position.trade_id) if position else None
+            if trade is None:
+                log.error("Exit signal %s has no explicit open trade", signal.signal_id)
+                return
+        else:
+            trade = lifecycle.resolve_trade_from_signal(signal.signal_id)
+            if trade is None:
+                trade = lifecycle.create_trade_from_signal(
+                    signal, signal.strategy_id, signal.strategy_id, signal.instrument,
+                    signal.quantity, multiplier,
+                )
+            strategy.current_trade_id = trade.trade_id
+            runtime.current_trade_id = trade.trade_id
+
+        order = order_manager.submit_signal(signal, multiplier=multiplier, trade_id=trade.trade_id)
+        if order is None:
+            if not is_exit:
+                self._reset_strategy_state(signal.strategy_id)
+            return
+        lifecycle.register_order(trade.trade_id, order.order_id, "EXIT" if is_exit else "ENTRY")
+        self._persist_order(order, signal)
+        self.publish_event("order_created", {"trade_id": trade.trade_id, "order_id": order.order_id,
+            "signal_id": signal.signal_id, "strategy_id": signal.strategy_id,
+            "instrument": signal.instrument, "state": order.state.value})
+        for fill in order_manager.drain_fills():
+            self._handle_fill(fill, signal.signal_id, is_exit=is_exit)
+
+    def _persist_signal(self, signal, signal_type: str) -> None:
+        if not self._persistence:
+            return
+        self._persistence.save_signal({
+            "signal_id": signal.signal_id, "strategy_id": signal.strategy_id,
+            "instrument": signal.instrument, "side": signal.signal_type.value,
+            "signal_type": signal_type, "timestamp": signal.timestamp,
+            "trigger_price": signal.trigger_price, "stop_price": signal.stop_price,
+            "quantity": signal.quantity,
+        })
+
+    def _persist_order(self, order, signal) -> None:
+        if self._persistence:
+            self._persistence.save_order({
+                "order_id": order.order_id, "strategy_id": order.strategy_id,
+                "instrument": order.instrument, "side": order.side, "quantity": order.quantity,
+                "order_type": order.order_type, "price": signal.trigger_price,
+                "state": order.state.value, "filled_quantity": order.filled_quantity,
+                "average_fill_price": order.average_fill_price,
+                "created_at": datetime.fromtimestamp(order.created_at, tz=timezone.utc).isoformat(),
+                "updated_at": datetime.fromtimestamp(order.updated_at, tz=timezone.utc).isoformat(),
+                "signal_id": signal.signal_id, "trade_id": order.trade_id,
+            })
+
+    def _handle_fill(self, fill, signal_id: str | None, is_exit: bool | None = None) -> None:
+        """Apply a fill exactly once, using explicit IDs throughout."""
+        if self.fill_dedup.is_duplicate(fill.fill_id):
+            return
+        self.fill_dedup.note_processed(fill.fill_id)
+        if fill.price <= 0 or (isinstance(fill.price, float) and not math.isfinite(fill.price)):
+            self.fill_dedup.mark_processed(fill.fill_id)
+            return
+        runtime = self._runtime(fill.strategy_id)
+        lifecycle = runtime.lifecycle
+        position_manager = runtime.position_manager
+        current = next((p for p in position_manager.get_positions_by_strategy(fill.strategy_id)
+                        if p.instrument == fill.instrument and p.is_open), None)
+        is_exit = bool(is_exit) if is_exit is not None else current is not None
+        if not is_exit:
+            trade = lifecycle.get_trade(fill.trade_id) or lifecycle.resolve_trade_from_signal(signal_id)
+            if trade is None:
+                raise RuntimeError("entry fill has no explicit trade reference")
+            account = self.account_engines[fill.strategy_id]
+            margin = self._calculate_margin(fill.instrument, fill.price, fill.quantity)
+            account_blocked = account.block_margin(margin)
+            # Only block the global account if the per-strategy block
+            # succeeded (avoids a double-release of the same margin).
+            global_blocked = self.account_engine.block_margin(margin) if account_blocked else False
+            if not (account_blocked and global_blocked):
+                if account_blocked:
+                    account.release_margin(margin)
+                self._reset_strategy_state(fill.strategy_id)
+                return
+            position = position_manager.open_position(
+                fill, multiplier=fill.multiplier, margin=margin,
+                stop_price=self.strategies[fill.strategy_id].stop_price,
+                entry_signal_id=signal_id, trade_id=trade.trade_id,
+            )
+            self._persist_fill(fill, trade.trade_id, signal_id)
+            self._persist_position(position)
+            lifecycle.register_entry_fill(trade.trade_id, fill.fill_id, fill.price, fill.timestamp)
+            lifecycle.register_position(trade.trade_id, position.position_id)
+            # Keep the analytics read-model (trade ledger) in lock-step at entry:
+            # the OPEN projection must exist as soon as the position opens so a
+            # crash/restart never has a position without a ledger trade.
+            if self.trade_ledger is not None:
+                try:
+                    if self.trade_ledger.get_trade(trade.trade_id) is None:
+                        self.trade_ledger.create_trade(
+                            strategy_id=fill.strategy_id,
+                            instrument=fill.instrument,
+                            side="LONG" if position.is_long else "SHORT",
+                            entry_quantity=position.quantity,
+                            signal_time=fill.timestamp,
+                            trigger_price=position.average_entry,
+                            stop_price=getattr(position, "stop_price", None) or 0.0,
+                            multiplier=fill.multiplier,
+                            entry_reason="signal",
+                            trade_id=trade.trade_id,
+                            position_id=position.position_id,
+                        )
+                    self.trade_ledger.record_fill(
+                        trade_id=trade.trade_id,
+                        fill_id=fill.fill_id,
+                        order_id=fill.order_id,
+                        side="BUY" if position.is_long else "SELL",
+                        quantity=fill.quantity,
+                        price=fill.price,
+                        timestamp=fill.timestamp,
+                        is_entry=True,
+                    )
+                except Exception as e:
+                    log.error("[Engine] ledger projection write failed for %s: %s",
+                              trade.trade_id, e)
+            self.publish_event("position_opened", {"trade_id": trade.trade_id,
+                "position_id": position.position_id, "fill_id": fill.fill_id,
+                "strategy_id": fill.strategy_id, "instrument": fill.instrument})
+        else:
+            if current is None or not current.trade_id:
+                raise RuntimeError("exit fill has no explicit open position/trade")
+            if self._trade_close_manager is None:
+                raise RuntimeError("trade close manager is not initialized")
+            result = self._trade_close_manager.close_position(
+                fill, current, fill.strategy_id, fill.multiplier,
+                exit_reason=(self.strategies[fill.strategy_id].last_exit_reason or "signal_exit"),
+                exit_signal_id=signal_id,
+            )
+            if result is False:
+                return
+            if self._persistence is not None and hasattr(self._persistence, "close_position_record"):
+                try:
+                    self._persistence.close_position_record(current)
+                except Exception as e:
+                    log.error("[Engine] close_position_record failed for %s: %s",
+                              current.position_id, e)
+            lifecycle.register_exit_fill(current.trade_id, fill.fill_id, fill.price,
+                fill.timestamp, signal_id or "", exit_reason=self.strategies[fill.strategy_id].last_exit_reason or "signal_exit")
+            lifecycle.close_trade(current.trade_id, result["gross_pnl"], result["charges"], result["net_pnl"])
+            # Reversal exits arm an OPPOSITE pending breakout entry which must
+            # survive the close: keep it if the strategy has one armed.
+            pending_armed = self.strategies[fill.strategy_id].pending_entry is not None
+            self._reset_strategy_state(fill.strategy_id, keep_pending=pending_armed)
+        self.fill_dedup.mark_processed(fill.fill_id)
+
+    def _persist_fill(self, fill, trade_id: str, signal_id: str | None) -> None:
+        if self._persistence:
+            self._persistence.save_fill({"fill_id": fill.fill_id, "order_id": fill.order_id,
+                "strategy_id": fill.strategy_id, "instrument": fill.instrument, "side": fill.side,
+                "quantity": fill.quantity, "price": fill.price,
+                "timestamp": datetime.fromtimestamp(fill.timestamp, tz=timezone.utc).isoformat(),
+                "trade_id": trade_id, "entry_signal_id": signal_id})
+
+    def _persist_position(self, position) -> None:
+        """Persist a position row into the canonical positions table.
+
+        position_id is the row key; trade_id is the separate canonical trade
+        identity (position_id != trade_id, enforced by the DB trigger).
+        """
+        if self._persistence is not None and hasattr(self._persistence, "save_position"):
+            try:
+                self._persistence.save_position(position)
+            except Exception as e:
+                log.error("[Engine] save_position failed for %s: %s",
+                          getattr(position, "position_id", "?"), e)
+
+    def _calculate_margin(self, instrument: str, price: float, quantity: int) -> float:
+        model = self.config.instrument(instrument).get("margin_model", {})
+        if model:
+            return quantity * (model.get("slope", 0.0) * price + model.get("intercept", 0.0))
+        return price * quantity * self.config.instrument(instrument).get("multiplier", 1.0) * 0.065
+
+    def _reset_strategy_state(self, strategy_id: str, keep_pending: bool = False) -> None:
+        strategy = self.strategies.get(strategy_id)
+        if strategy:
+            keep = keep_pending and strategy.pending_entry is not None
+            if keep:
+                pen = strategy.pending_entry
+                strategy.state = (StrategyState.PENDING_LONG if pen.side == "LONG"
+                                  else StrategyState.PENDING_SHORT)
+            else:
+                strategy.state = StrategyState.FLAT
+            strategy.position_side = strategy.stop_price = None
+            if not keep:
+                strategy.pending_entry = None
+            strategy.current_trade_id = None
+        runtime = self.runtimes.get(strategy_id)
+        if runtime is not None:
+            runtime.current_trade_id = None
 
     # ═══════════════════════════════════════════════════════════════════
     # PERSISTENCE / EVENTS
@@ -415,6 +816,12 @@ class TradingEngine:
 
     def set_persistence(self, persistence) -> None:
         self._persistence = persistence
+        # Rebuild every StrategyRuntime lifecycle with the real persistence
+        # and restore that strategy's OWN trades from trading.db. Rebuilding
+        # on set_persistence() is safe now (the old wipe bug): runtimes only
+        # carry lifecycle caches; strategy state, positions, orders and fills
+        # live elsewhere and are preserved.
+        self._build_runtimes(persistence)
 
     def publish_event(self, event_type: str, data: dict) -> None:
         if self._event_callback:
@@ -439,7 +846,7 @@ class TradingEngine:
 
     def start(self) -> None:
         self._running = True
-        self.market_status.set_engine_status(EngineStatus.TRADING)
+        self.market_status.set_engine_status(EngineStatus.RECONCILING)
 
         # Wire TradeCloseManager
         self._trade_close_manager = TradeCloseManager(
@@ -455,9 +862,12 @@ class TradingEngine:
             trade_ledger=self.trade_ledger,
         )
 
+        self.market_status.set_engine_status(EngineStatus.WARMING_UP)
         self._warmup_from_rest()
         self.candle_fetcher.start()
         self.data_adapter.connect()
+        # READY: no trading yet. The first fresh candle/tick transitions
+        # READY -> TRADING via _maybe_enable_trading().
         self.market_status.set_engine_status(EngineStatus.READY)
 
         log.info("[Engine] Started — %d strategies active", len(self.strategies))
@@ -485,8 +895,12 @@ class TradingEngine:
 
         for name, strategy in self.strategies.items():
             try:
+                # Per-strategy FAST timeframe warmup (5m and 15m strategies
+                # each warm their own fast indicator) — never hardcode "5".
+                fast_id = {"5m": "5", "15m": "15"}.get(strategy.fast_timeframe, "5")
+                fast_minutes = strategy._tf_to_minutes(strategy.fast_timeframe)
                 candles = self.data_adapter.fetch_historical_candles(
-                    strategy.instrument, "5", base_from, to_date)
+                    strategy.instrument, fast_id, base_from, to_date)
                 if not candles:
                     continue
                 df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -499,7 +913,8 @@ class TradingEngine:
                 for _, row in df.iterrows():
                     strategy.warmup_indicator(Bar(
                         instrument=strategy.instrument, timeframe=strategy.fast_timeframe,
-                        start_ts=row["datetime"].timestamp(), end_ts=row["datetime"].timestamp() + 300,
+                        start_ts=row["datetime"].timestamp(),
+                        end_ts=row["datetime"].timestamp() + fast_minutes * 60,
                         open=row["open"], high=row["high"], low=row["low"], close=row["close"],
                         volume=int(row["volume"]),
                     ))
@@ -523,7 +938,13 @@ class TradingEngine:
                 log.error("[Engine] %s warmup failed: %s", name, e)
 
     def restore(self, saved_state: dict) -> None:
-        """Restore engine state from a saved snapshot."""
+        """Restore engine state from a saved snapshot.
+
+        Restores per-strategy indicator/HTF/pending state AND the per-strategy
+        position managers (each position back into its OWN runtime). Account
+        margin is then reconstituted from the restored open positions so the
+        startup reconciliation margin check is exactly consistent.
+        """
         if not saved_state:
             return
         strategies_state = saved_state.get("strategies", {})
@@ -533,14 +954,81 @@ class TradingEngine:
                     strat.restore(strategies_state[name])
                 except Exception:
                     pass
+        positions_state = saved_state.get("positions")
+        if positions_state:
+            try:
+                self.position_manager.restore(positions_state)
+            except Exception:
+                pass
+        # Reconstitute per-strategy + global used_margin from restored open
+        # positions so reconciliation (account vs position margins) is exact.
+        for strat_id, account in self.account_engines.items():
+            account.used_margin = sum(
+                p.margin for p in self.position_manager.get_positions_by_strategy(strat_id)
+                if p.is_open
+            )
+        self.account_engine.used_margin = sum(
+            p.margin for p in self.position_manager.open_positions if p.is_open
+        )
+        # Mirror current trade ids into each runtime from the restored strategy.
+        for rt in self.runtimes.all():
+            rt.current_trade_id = getattr(rt.strategy, "current_trade_id", None)
 
     def snapshot(self) -> dict:
         return {
             "running": self._running,
             "strategies": {name: strat.snapshot() for name, strat in self.strategies.items()},
+            "positions": self.position_manager.snapshot(),
             "event_bus": self.event_bus.snapshot(),
             "candle_distributor": self.candle_distributor.candle_count,
         }
+
+    # ── Aggregate lifecycle views for shared API/WS infrastructure ──
+    # These are read-only aggregations over the per-strategy lifecycles; no
+    # shared mutable lifecycle state exists.
+
+    def get_trade(self, trade_id: str) -> Optional[Any]:
+        """Find a trade across the per-strategy lifecycles (read-only)."""
+        for rt in self.runtimes.all():
+            trade = rt.lifecycle.get_trade(trade_id)
+            if trade is not None:
+                return trade
+        return None
+
+    def reconcile_trades(self) -> dict:
+        """Aggregate lifecycle.reconcile() across per-strategy lifecycles."""
+        errors: list[Any] = []
+        warnings: list[Any] = []
+        stats = {"total_trades": 0, "open": 0, "closed": 0, "pending": 0}
+        for rt in self.runtimes.all():
+            res = rt.lifecycle.reconcile()
+            errors.extend(res.get("errors", []))
+            warnings.extend(res.get("warnings", []))
+            for k, v in res.get("stats", {}).items():
+                stats[k] = stats.get(k, 0) + v
+        return {"errors": errors, "warnings": warnings, "stats": stats}
+
+    def orphan_scan(self) -> dict:
+        """Aggregate orphan_scan() across per-strategy lifecycles."""
+        merged = {
+            "orphan_fills": [], "orphan_orders": [], "orphan_positions": [],
+            "orphan_pending_orders": [], "trades_without_signals": [],
+            "trades_without_positions": [], "trades_with_wrong_exit_state": [],
+            "mismatched_memory_db": [], "total_orphans": 0, "is_clean": False,
+        }
+        for rt in self.runtimes.all():
+            try:
+                res = rt.lifecycle.orphan_scan()
+            except Exception:
+                continue
+            for key in ("orphan_fills", "orphan_orders", "orphan_positions",
+                        "orphan_pending_orders", "trades_without_signals",
+                        "trades_without_positions", "trades_with_wrong_exit_state",
+                        "mismatched_memory_db"):
+                merged[key].extend(res.get(key, []))
+            merged["total_orphans"] += res.get("total_orphans", 0)
+        merged["is_clean"] = merged["total_orphans"] == 0
+        return merged
 
     def notify_settings_refreshed(self) -> None:
         self.publish_event("settings_refreshed", {"timestamp": time.time()})
@@ -554,9 +1042,41 @@ class TradingEngine:
         self._tick_signal_processing = value
 
     def _reconcile_strategy_positions(self) -> None:
-        """Reconcile strategy state with actual positions."""
-        pass
+        """Reconcile strategy state with actual positions.
+
+        Heals the crash/REST restart gap where a strategy may be persisted as
+        FLAT while the (per-strategy) position manager still holds an open
+        position: re-derive the strategy's state/side/stop from the live open
+        position so a restart never double-entries into a held position.
+        """
+        if not hasattr(self, "position_manager") or self.position_manager is None:
+            return
+        with self._lock:
+            for sid, strategy in list(getattr(self, "strategies", {}).items()):
+                open_pos = next((
+                    p for p in self.position_manager.get_positions_by_strategy(sid)
+                    if p.is_open), None)
+                if open_pos is None:
+                    continue
+                if strategy.state not in (StrategyState.LONG_POSITION, StrategyState.SHORT_POSITION):
+                    side_val = getattr(getattr(open_pos, "side", None), "value", None)
+                    if side_val is None:
+                        side_val = "LONG" if bool(getattr(open_pos, "is_long", False)) else "SHORT"
+                    is_long = (side_val == "LONG")
+                    strategy.state = (StrategyState.LONG_POSITION if is_long
+                                      else StrategyState.SHORT_POSITION)
+                    strategy.position_side = "LONG" if is_long else "SHORT"
+                    if getattr(strategy, "stop_price", None) is None:
+                        strategy.stop_price = getattr(open_pos, "stop_price", None)
 
     def _maybe_enable_trading(self) -> None:
-        """Check if trading should be enabled."""
-        pass
+        """Transition READY -> TRADING when the market is open and live market
+        data is confirmed (via WebSocket ticks OR fresh REST candles).
+
+        Called after every tick/candle. Trading becomes allowed only when:
+        engine READY, MarketState LIVE_TRADING, and data is live.
+        """
+        if (self.market_status.engine_status == EngineStatus.READY
+                and self.market_status.state == MarketState.LIVE_TRADING
+                and self.market_status.has_live_market_data):
+            self.market_status.set_engine_status(EngineStatus.TRADING)

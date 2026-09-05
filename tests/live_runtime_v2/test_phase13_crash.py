@@ -29,6 +29,8 @@ class TestCrashHandling:
             assert dedup2.is_duplicate("F_CRASH_1")
             assert dedup2.is_duplicate("F_CRASH_2")
             assert not dedup2.is_duplicate("F_CRASH_3")
+            dedup2.close()
+            dedup.close()
 
     def test_fill_dedup_mark_atomic(self):
         """mark_processed is atomic — concurrent calls don't corrupt DB."""
@@ -41,6 +43,7 @@ class TestCrashHandling:
                 results.append(dedup.mark_processed(f"F_AT_{i}"))
             assert all(results)
             assert dedup.count == 20
+            dedup.close()
 
     def test_safe_mode_enter_blocks_trading(self):
         """Entering safe mode blocks trading (when market is live)."""
