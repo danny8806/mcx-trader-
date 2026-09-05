@@ -44,6 +44,7 @@ CANONICAL_TABLES = frozenset({
     "account_snapshots",
     "events",
     "quarantine_records",
+    "broker_order_mapping",
     "system_metadata",
 })
 
@@ -273,6 +274,18 @@ _SCHEMA_DDL: list[str] = [
         detected_at TEXT DEFAULT (datetime('now')),
         resolution_status TEXT DEFAULT 'OPEN',
         resolved_trade_id TEXT
+    )
+    """,
+    # ── canonical: broker order -> strategy identity mapping (mission §40) ──
+    """
+    CREATE TABLE IF NOT EXISTS broker_order_mapping (
+        broker_order_id TEXT PRIMARY KEY,
+        order_id TEXT,
+        trade_id TEXT,
+        strategy_id TEXT,
+        instrument TEXT,
+        registered_at REAL,
+        updated_at TEXT DEFAULT (datetime('now'))
     )
     """,
     # ── canonical: schema / system metadata ──

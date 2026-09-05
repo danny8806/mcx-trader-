@@ -374,6 +374,60 @@ class PersistenceManager:
             ).fetchone()
             return dict(row) if row else None
 
+    def save_broker_order_mapping(self, mapping: dict) -> None:
+        """Persist the explicit broker_order_id -> strategy identity mapping
+        (mission §40). Survives restart through canonical persistence."""
+        with self._tx() as conn:
+            conn.execute("""
+                INSERT INTO broker_order_mapping (
+                    broker_order_id, order_id, trade_id, strategy_id, instrument
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(broker_order_id) DO UPDATE SET
+                    order_id=excluded.order_id, trade_id=excluded.trade_id,
+                    strategy_id=excluded.strategy_id, instrument=excluded.instrument
+            """, (
+                mapping.get("broker_order_id"),
+                mapping.get("order_id"),
+                mapping.get("trade_id"),
+                mapping.get("strategy_id"),
+                mapping.get("instrument"),
+            ))
+
+    def get_broker_order_mappings(self) -> list[dict]:
+        """Load all durable broker order mappings (restore on restart)."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM broker_order_mapping ORDER BY broker_order_id"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def save_quarantine_record(self, record: dict) -> None:
+        """Persist a rejected/quarantined event (mission §34)."""
+        with self._tx() as conn:
+            conn.execute("""
+                INSERT INTO quarantine_records (
+                    original_type, original_id, reason, payload
+                ) VALUES (?, ?, ?, ?)
+            """, (
+                record.get("original_type", "event"),
+                record.get("original_id", ""),
+                record.get("reason", ""),
+                json.dumps(record.get("payload", {})),
+            ))
+
+    def get_quarantine_records(self, limit: int = 100) -> list[dict]:
+        """Read recent quarantine records (diagnostics/audit)."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM quarantine_records ORDER BY record_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def save_trade_and_fill(self, trade: dict, fill: dict) -> None:
         """Persist a closed trade and its exit fill in one transaction."""
         with self._tx() as conn:

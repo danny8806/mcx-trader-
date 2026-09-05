@@ -103,6 +103,9 @@ class PaperExecutionEngine:
         self._current_prices: dict[str, float] = {}
         self._price_lock = threading.Lock()
         self._max_fills = 500  # Keep only last 500 fills in memory
+        # §40 — optional BrokerEventRouter: every created order registers its
+        # explicit broker_order_id -> strategy/trade mapping here.
+        self.broker_router = None
 
     def _now(self) -> float:
         return self._clock() if self._clock is not None else time.time()
@@ -142,6 +145,8 @@ class PaperExecutionEngine:
             trade_id=trade_id,
         )
         self._orders[order.order_id] = order
+        if self.broker_router is not None:
+            self.broker_router.register_from_order(order)
         return order
 
     def submit_order(self, order: Order) -> Order:

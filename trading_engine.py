@@ -35,12 +35,14 @@ from core.safe_mode import SafeModeManager
 from core.fill_dedup import FillDeduplicator
 from events.bus import EventBus
 from data.native_streams import NativeCandleDistributor
+from data.native_router import NativeCandleRouter
 from strategies.instance import StrategyInstance
 from strategies.types import SignalType, StrategyState
 from strategies.gold import create_gold_5m, create_gold_15m
 from strategies.silver import create_silver_5m, create_silver_15m
 from indicators.shared import SharedNativeIndicatorEngine
 from execution.paper_broker import PaperExecutionEngine, Fill
+from execution.broker_router import BrokerEventRouter
 from execution.fee_model import MCXFeeModel
 from execution.order_manager import OrderManager, OrderManagerFacade
 from portfolio.position_manager import PositionManager, PositionManagerFacade, Position
@@ -103,6 +105,13 @@ class TradingEngine:
         # ── Shared infrastructure ──
         self.event_bus = EventBus()
         self.candle_distributor = NativeCandleDistributor(self.event_bus)
+        # §7 — NativeCandleRouter is the single native-candle choke point:
+        # dedup by (security_id, timeframe, candle_end_ts), out-of-order
+        # detection, incomplete-candle guard, then forward to the distributor.
+        self.candle_router = NativeCandleRouter(
+            distributor=self.candle_distributor.on_candle_closed,
+            instruments=self.config.get("instruments", {}),
+        )
         indicator_cfg = self.config.get("indicators", {})
         self.indicator_engine = SharedNativeIndicatorEngine(
             dema_period=indicator_cfg.get("dema_period", 3),
@@ -137,6 +146,10 @@ class TradingEngine:
             self.trade_ledger = None
         self.fill_dedup = FillDeduplicator(db_path=db_path)
         self.safe_mode = SafeModeManager(self.market_status)
+        # §34 — cross-strategy protection: rejected/quarantined events are
+        # logged as ERROR and recorded here; they never mutate lifecycle state.
+        self.quarantine_count: int = 0
+        self._quarantined_events: list[dict] = []
         # No global TradeLifecycleManager: one per StrategyRuntime.
         self._lifecycle = None
         self._trade_close_manager = None
@@ -184,16 +197,22 @@ class TradingEngine:
         self.htf_engine: Any = type("_FakeHTF", (), {"_engines": {}, "on_htf_bar_closed": lambda s, b: None, "map_to_fast_bar": lambda s, b, t: None, "map_mid_to_fast_bar": lambda s, b, t: None})()
 
     def _init_candle_fetcher(self) -> None:
-        """Initialize CandleFetcher and wire to EventBus via NativeCandleDistributor."""
+        """Initialize CandleFetcher and wire to EventBus via NativeCandleRouter
+        -> NativeCandleDistributor."""
         from core.candle_fetcher import CandleFetcher
         instruments = self.config.get("instruments", {})
         first_inst = list(instruments.values())[0] if instruments else {}
         session_open = first_inst.get("session_open", "09:00")
         session_close = first_inst.get("session_close", "23:30")
+        if not hasattr(self, 'candle_router') or self.candle_router is None:
+            self.candle_router = NativeCandleRouter(
+                distributor=self.candle_distributor.on_candle_closed,
+                instruments=instruments,
+            )
         self.candle_fetcher = CandleFetcher(
             data_adapter=self.data_adapter,
             instruments=instruments,
-            on_candle_closed=self.candle_distributor.on_candle_closed,
+            on_candle_closed=self.candle_router.on_candle_closed,
             session_open=session_open,
             session_close=session_close,
             market_status=self.market_status,
@@ -267,6 +286,12 @@ class TradingEngine:
             partial_fill_probability=paper_config.get("partial_fill_probability", 0.0),
         )
         self.order_manager = OrderManagerFacade(execution_engine=self.execution_engine)
+        # §39–40 — BrokerEventRouter is the single broker-event choke point:
+        # every fill/order event routes by EXPLICIT broker_order_id -> strategy
+        # mapping (never symbol/side/latest order); unmappable events are
+        # quarantined. The paper broker registers each order's mapping here.
+        self.broker_router = BrokerEventRouter(persistence=None)
+        self.execution_engine.broker_router = self.broker_router
 
     def _init_portfolio(self) -> None:
         account_config = self.config.get("account", {})
@@ -474,14 +499,21 @@ class TradingEngine:
             self.event_bus.publish(f"tick:{instrument}", event)
 
     def _on_bar_closed(self, bar: Bar) -> None:
-        """Handle closed bar — publish to EventBus for per-strategy processing.
+        """Handle closed bar — route through NativeCandleRouter to EventBus.
 
-        Called by replay scripts and CandleFetcher callback.
+        Called by replay scripts and CandleFetcher callback. The router
+        de-duplicates (security_id, timeframe, candle_end_ts) and drops
+        out-of-order bars so replays can overlap live data safely.
         """
         if not self._running:
             return
         self.health.record_bar()
         self.market_status.mark_rest_data_fresh()
+
+        router = getattr(self, "candle_router", None)
+        if router is not None:
+            router.on_candle(bar, is_complete=True)
+            return
 
         from events.types import CandleEvent
         event = CandleEvent(
@@ -497,8 +529,14 @@ class TradingEngine:
         pass
 
     def _on_fill(self, fill) -> None:
-        """Compatibility callback. Order submission passes the signal id directly."""
-        self._handle_fill(fill, getattr(fill, "entry_signal_id", None))
+        """Compatibility callback. Routes through the broker router by explicit
+        broker_order_id mapping (§39); order submission passes the signal id."""
+        router = getattr(self, "broker_router", None)
+        if router is not None:
+            router.route_fill(fill, self._handle_fill,
+                              entry_signal_id=getattr(fill, "entry_signal_id", None))
+        else:
+            self._handle_fill(fill, getattr(fill, "entry_signal_id", None))
 
     # ═══════════════════════════════════════════════════════════════════
     # SIGNAL / EXIT / TRADE LIFECYCLE
@@ -558,8 +596,16 @@ class TradingEngine:
         strategy = self.strategies.get(signal.strategy_id)
         if strategy is None:
             log.error("Dropping signal for unknown strategy %s", signal.strategy_id)
+            self._quarantine_event(
+                "unknown_strategy_signal",
+                {"signal_id": signal.signal_id, "strategy_id": signal.strategy_id})
             return
         runtime = self._runtime(signal.strategy_id)
+        if runtime is None:
+            self._quarantine_event(
+                "no_runtime_for_strategy",
+                {"signal_id": signal.signal_id, "strategy_id": signal.strategy_id})
+            return
         lifecycle = runtime.lifecycle
         order_manager = runtime.order_manager
         position_manager = runtime.position_manager
@@ -659,7 +705,16 @@ class TradingEngine:
             "signal_id": signal.signal_id, "strategy_id": signal.strategy_id,
             "instrument": signal.instrument, "state": order.state.value})
         for fill in order_manager.drain_fills():
-            self._handle_fill(fill, signal.signal_id, is_exit=is_exit)
+            # §39 — every broker fill routes by explicit broker_order_id ->
+            # strategy mapping (never symbol/side/latest order). Unmappable or
+            # conflicting fills are quarantined, never applied.
+            router = getattr(self, "broker_router", None)
+            if router is not None:
+                router.route_fill(
+                    fill, self._handle_fill,
+                    entry_signal_id=signal.signal_id, is_exit=is_exit)
+            else:
+                self._handle_fill(fill, signal.signal_id, is_exit=is_exit)
 
     def _persist_signal(self, signal, signal_type: str) -> None:
         if not self._persistence:
@@ -693,7 +748,21 @@ class TradingEngine:
         if fill.price <= 0 or (isinstance(fill.price, float) and not math.isfinite(fill.price)):
             self.fill_dedup.mark_processed(fill.fill_id)
             return
-        runtime = self._runtime(fill.strategy_id)
+
+        # §34 — validate fill strategy identity via its owning runtime.
+        # Unknown strategy ids are quarantined: the fill is never applied.
+        runtime = None
+        if hasattr(self, 'runtimes') and self.runtimes:
+            try:
+                runtime = self._runtime(fill.strategy_id)
+            except (KeyError, ValueError):
+                runtime = None
+        if runtime is None:
+            self._quarantine_event("fill_unknown_strategy", {
+                "fill_id": fill.fill_id, "order_id": fill.order_id,
+                "strategy_id": fill.strategy_id, "trade_id": getattr(fill, "trade_id", "")})
+            self.fill_dedup.mark_processed(fill.fill_id)
+            return
         lifecycle = runtime.lifecycle
         position_manager = runtime.position_manager
         current = next((p for p in position_manager.get_positions_by_strategy(fill.strategy_id)
@@ -701,8 +770,19 @@ class TradingEngine:
         is_exit = bool(is_exit) if is_exit is not None else current is not None
         if not is_exit:
             trade = lifecycle.get_trade(fill.trade_id) or lifecycle.resolve_trade_from_signal(signal_id)
-            if trade is None:
-                raise RuntimeError("entry fill has no explicit trade reference")
+            # §34 — entry fill must have an explicit trade reference in this
+            # strategy's scope. A fill that resolves to a cross-strategy trade
+            # (different strategy_id) is quarantined — never applied.
+            if trade is None or trade.strategy_id != fill.strategy_id:
+                self._quarantine_event("entry_fill_no_trade_or_mismatch", {
+                    "fill_id": fill.fill_id, "order_id": fill.order_id,
+                    "trade_id": getattr(fill, "trade_id", None),
+                    "resolved_trade_id": getattr(trade, "trade_id", None) if trade else None,
+                    "fill_strategy_id": fill.strategy_id,
+                    "trade_strategy_id": getattr(trade, "strategy_id", None) if trade else None,
+                    "signal_id": signal_id})
+                self.fill_dedup.mark_processed(fill.fill_id)
+                return
             account = self.account_engines[fill.strategy_id]
             margin = self._calculate_margin(fill.instrument, fill.price, fill.quantity)
             account_blocked = account.block_margin(margin)
@@ -760,7 +840,12 @@ class TradingEngine:
                 "strategy_id": fill.strategy_id, "instrument": fill.instrument})
         else:
             if current is None or not current.trade_id:
-                raise RuntimeError("exit fill has no explicit open position/trade")
+                self._quarantine_event("exit_fill_no_position", {
+                    "fill_id": fill.fill_id, "order_id": fill.order_id,
+                    "strategy_id": fill.strategy_id,
+                    "instrument": fill.instrument, "trade_id": getattr(fill, "trade_id", "")})
+                self.fill_dedup.mark_processed(fill.fill_id)
+                return
             if self._trade_close_manager is None:
                 raise RuntimeError("trade close manager is not initialized")
             result = self._trade_close_manager.close_position(
@@ -836,6 +921,15 @@ class TradingEngine:
 
     def set_persistence(self, persistence) -> None:
         self._persistence = persistence
+        if getattr(self, "broker_router", None) is not None:
+            # §40 — broker mappings survive restart: reload the explicit
+            # broker_order_id -> strategy mapping from canonical persistence so
+            # late-arriving broker fills still route to the correct strategy.
+            self.broker_router.set_persistence(persistence)
+            try:
+                self.broker_router.restore()
+            except Exception as e:
+                log.error("[Engine] broker router restore failed: %s", e)
         # Rebuild every StrategyRuntime lifecycle with the real persistence
         # and restore that strategy's OWN trades from trading.db. Rebuilding
         # on set_persistence() is safe now (the old wipe bug): runtimes only
@@ -859,6 +953,47 @@ class TradingEngine:
                 })
             except Exception:
                 pass
+
+    # ── §34 cross-strategy quarantine ───────────────────────────────────
+
+    def _quarantine_event(self, reason: str, details: dict, persist: bool = True) -> None:
+        """Reject a cross-strategy/mismatched lifecycle event.
+
+        Logs ERROR, records the event, counts it, and — when persistence is
+        available — writes a quarantine_records row. NEVER mutates lifecycle
+        state (that is the caller's contract).
+        """
+        if not hasattr(self, "quarantine_count"):
+            self.quarantine_count = 0
+        if not hasattr(self, "_quarantined_events"):
+            self._quarantined_events = []
+        record = {"reason": reason, "details": dict(details), "timestamp": time.time()}
+        self.quarantine_count += 1
+        self._quarantined_events.append(record)
+        if len(self._quarantined_events) > 500:
+            self._quarantined_events = self._quarantined_events[-500:]
+        log.error("[Engine] QUARANTINE %s details=%s", reason, details)
+        if persist and self._persistence is not None:
+            try:
+                self._persistence.save_quarantine_record({
+                    "original_type": "lifecycle_event",
+                    "original_id": str(details.get("trade_id") or details.get("fill_id")
+                                       or details.get("signal_id") or "?"),
+                    "reason": reason,
+                    "payload": details,
+                })
+            except Exception as e:
+                log.error("[Engine] quarantine persist failed: %s", e)
+        try:
+            self.publish_event("quarantine_event", {"reason": reason, **details})
+        except Exception:
+            pass
+
+    def quarantine_snapshot(self) -> dict:
+        return {
+            "count": getattr(self, "quarantine_count", 0),
+            "events": list(getattr(self, "_quarantined_events", [])[-100:]),
+        }
 
     # ═══════════════════════════════════════════════════════════════════
     # LIFECYCLE
@@ -995,12 +1130,15 @@ class TradingEngine:
             rt.current_trade_id = getattr(rt.strategy, "current_trade_id", None)
 
     def snapshot(self) -> dict:
+        router_stats = getattr(self, "candle_router", None)
+        router_stats = router_stats.stats() if router_stats is not None else {}
         return {
             "running": self._running,
             "strategies": {name: strat.snapshot() for name, strat in self.strategies.items()},
             "positions": self.position_manager.snapshot(),
             "event_bus": self.event_bus.snapshot(),
             "candle_distributor": self.candle_distributor.candle_count,
+            "candle_router": router_stats,
         }
 
     # ── Aggregate lifecycle views for shared API/WS infrastructure ──

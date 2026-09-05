@@ -8,6 +8,7 @@ No strategy, manager, or component may independently create or modify trade iden
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
@@ -15,6 +16,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+
+log = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
@@ -262,6 +266,11 @@ class TradeLifecycleManager:
         # ── Event log ──
         self._events: List[LifecycleEvent] = []
 
+        # §34 — cross-strategy protection: every lifecycle event is validated
+        # against this strategy's scope; mismatches are quarantined (logged,
+        # counted, never applied).
+        self.quarantine_count: int = 0
+
     # ═══════════════════════════════════════════
     # ID RESOLUTION — one authoritative resolver
     # ═══════════════════════════════════════════
@@ -309,6 +318,27 @@ class TradeLifecycleManager:
             if data.get("trade_id") == trade_id:
                 return self._cache_restored_trade(data)
         return None
+
+    # §34 — cross-strategy protection: resolve a trade ONLY if it is in this
+    # lifecycle's own scope (owned by this strategy). A cross-strategy trade_id
+    # (e.g. a GOLDM_15M fill token presented to GOLDM_5M) resolves to None and
+    # the event is quarantined — never applied.
+    def _trade_in_scope(self, trade_id: str) -> Optional[TradeContext]:
+        trade = self._trades.get(trade_id)
+        if trade is None and self._persistence is not None:
+            trade = self.get_trade(trade_id)
+        if trade is None:
+            return None
+        if self._strategy_id and trade.strategy_id != self._strategy_id:
+            return None
+        return trade
+
+    def _quarantine(self, event_kind: str, trade_id: str, detail: str = "") -> None:
+        """Record a rejected cross-strategy lifecycle event (mission §34)."""
+        self.quarantine_count += 1
+        log.error(
+            "[Lifecycle] QUARANTINE %s trade_id=%r detail=%s strategy=%s",
+            event_kind, trade_id, detail, self._strategy_id)
 
     def _load_trade_by(self, field: str, value: str) -> Optional[TradeContext]:
         """Load an explicitly linked trade after a runtime-cache miss."""
@@ -386,6 +416,14 @@ class TradeLifecycleManager:
         with self._lock:
             from strategies.types import SignalType
 
+            # §34 — a trade must be created in the scope of this lifecycle's
+            # own strategy; creating it for another strategy is quarantined.
+            if self._strategy_id and strategy_id != self._strategy_id:
+                self._quarantine("create_trade_strategy_mismatch",
+                                 f"signal={signal.signal_id}",
+                                 f"strategy={strategy_id!r}")
+                return None
+
             # Determine side and action
             side = signal.side or ("LONG" if signal.signal_type in (SignalType.LONG,) else "SHORT")
             if signal.signal_type == SignalType.SHORT:
@@ -459,9 +497,10 @@ class TradeLifecycleManager:
     def register_pending_order(self, trade_id: str, pending_order_id: str) -> bool:
         """Register a pending order for a trade."""
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
-                print(f"[Lifecycle] ERROR: trade {trade_id} not found for pending order", flush=True)
+                self._quarantine("register_pending_order", trade_id,
+                                 f"pending_order={pending_order_id}")
                 return False
             trade.pending_order_id = pending_order_id
             trade.pending_status = "pending"
@@ -479,7 +518,11 @@ class TradeLifecycleManager:
             if not trade_id:
                 print(f"[Lifecycle] ERROR: pending order {pending_order_id} not linked to any trade", flush=True)
                 return None
-            trade = self._trades[trade_id]
+            trade = self._trade_in_scope(trade_id)
+            if trade is None:
+                self._quarantine("activate_pending_order", trade_id,
+                                 f"pending_order={pending_order_id}")
+                return None
             trade.pending_status = "triggered"
             trade.entry_order_id = order_id
             trade.status = TradeStatus.OPEN.value if trade.status == TradeStatus.PENDING.value else trade.status
@@ -496,11 +539,13 @@ class TradeLifecycleManager:
     # ═══════════════════════════════════════════
 
     def register_order(self, trade_id: str, order_id: str, role: str = "ENTRY") -> bool:
-        """Register an order for a trade."""
+        """Register an order for a trade. Cross-strategy trade_ids are
+        quarantined (mission §34)."""
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
-                print(f"[Lifecycle] ERROR: trade {trade_id} not found for order {order_id}", flush=True)
+                self._quarantine("register_order", trade_id,
+                                 f"order={order_id} role={role}")
                 return False
             if role == "ENTRY":
                 trade.entry_order_id = order_id
@@ -519,11 +564,13 @@ class TradeLifecycleManager:
 
     def register_entry_fill(self, trade_id: str, fill_id: str, price: float,
                              timestamp: float = 0.0) -> bool:
-        """Register an entry fill for a trade."""
+        """Register an entry fill for a trade. Cross-strategy trade_ids are
+        quarantined (mission §34)."""
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
-                print(f"[Lifecycle] ERROR: trade {trade_id} not found for entry fill {fill_id}", flush=True)
+                self._quarantine("register_entry_fill", trade_id,
+                                 f"fill={fill_id}")
                 return False
             trade.entry_fill_id = fill_id
             trade.entry_price = price
@@ -537,13 +584,15 @@ class TradeLifecycleManager:
             return True
 
     def register_exit_fill(self, trade_id: str, fill_id: str, price: float,
-                            timestamp: float = 0.0, exit_signal_id: str = "",
-                            exit_type: str = "", exit_reason: str = "") -> bool:
-        """Register an exit fill for a trade."""
+                        timestamp: float = 0.0, exit_signal_id: str = "",
+                        exit_type: str = "", exit_reason: str = "") -> bool:
+        """Register an exit fill for a trade. Cross-strategy trade_ids are
+        quarantined (mission §34)."""
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
-                print(f"[Lifecycle] ERROR: trade {trade_id} not found for exit fill {fill_id}", flush=True)
+                self._quarantine("register_exit_fill", trade_id,
+                                 f"fill={fill_id}")
                 return False
             trade.exit_fill_id = fill_id
             trade.exit_price = price
@@ -578,8 +627,10 @@ class TradeLifecycleManager:
         never replaces the trade_id or re-keys lifecycle state.
         """
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
+                self._quarantine("register_position", trade_id,
+                                 f"position={position_id}")
                 return False
 
             trade.position_id = position_id
@@ -596,9 +647,9 @@ class TradeLifecycleManager:
                     net_pnl: float = 0.0) -> bool:
         """Close a trade. This is the canonical close operation."""
         with self._lock:
-            trade = self._trades.get(trade_id)
+            trade = self._trade_in_scope(trade_id)
             if not trade:
-                print(f"[Lifecycle] ERROR: trade {trade_id} not found for close", flush=True)
+                self._quarantine("close_trade", trade_id, "cross-strategy or unknown")
                 return False
             if trade.status == TradeStatus.CLOSED.value:
                 print(f"[Lifecycle] WARNING: trade {trade_id} already closed", flush=True)
