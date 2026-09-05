@@ -551,12 +551,78 @@ _ALTER_MIGRATIONS: list[tuple[str, str, str]] = [
     ("trade_events", "payload_json", "TEXT"),
     ("trade_events", "sequence_no", "INTEGER"),
 ]
+# ────────────────────────────────────────────────────────────────
+# Process-wide shared connection registry, keyed by resolved db path.
+#
+# Every component (EventStore, TradeLedger, FillDeduplicator, recovery and
+# PersistenceManager) opens a `Database` on the SAME trading.db file.  Keeping
+# per-instance thread-local connections meant up to four independent SQLite
+# connections (each with its own write lock) wrote to one file concurrently,
+# which produced real `database is locked` errors under trade load.  Sharing a
+# single connection and a single write lock per path enforces the intended
+# single-writer model process-wide.
+# ────────────────────────────────────────────────────────────────
+_shared_conns: dict[str, sqlite3.Connection] = {}
+_shared_locks: dict[str, threading.RLock] = {}
+_shared_refs: dict[str, int] = {}
+_shared_registry_lock = threading.Lock()
+
+
+def _db_key(db_path: str | Path) -> str:
+    return str(Path(str(db_path)).resolve())
+
+
+def shared_path_lock(db_path: str | Path) -> threading.RLock:
+    """Return the process-wide write lock for a db file path."""
+    key = _db_key(db_path)
+    with _shared_registry_lock:
+        return _shared_locks.setdefault(key, threading.RLock())
+
+
+def _open_connection(db_path: str | Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(db_path), timeout=30.0, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    # THE critical invariant — enforced on every connection:
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def shared_connection(db_path: str | Path) -> sqlite3.Connection:
+    """Return the process-wide connection for a db file path (created once)."""
+    key = _db_key(db_path)
+    with _shared_registry_lock:
+        conn = _shared_conns.get(key)
+        if conn is None:
+            Path(str(db_path)).parent.mkdir(parents=True, exist_ok=True)
+            conn = _open_connection(db_path)
+            _shared_conns[key] = conn
+        return conn
+
+
+def _release_shared_connection(db_path: str | Path) -> None:
+    """Close the shared connection for a path and drop its registry state."""
+    global_key = _db_key(db_path)
+    with _shared_registry_lock:
+        conn = _shared_conns.pop(global_key, None)
+        _shared_locks.pop(global_key, None)
+        _shared_refs.pop(global_key, None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 class Database:
     """Central access to the canonical SQLite database (trading.db).
 
-    Thread safety: each thread gets its own connection (thread-local).  All
-    writes are additionally serialized through a process-wide lock to keep a
-    single-writer model.  Every connection enables ``foreign_keys=ON``.
+    Thread safety: all instances on the same db file SHARE one connection and
+    one process-wide write lock (module-level registry), so concurrent writers
+    can never contend on the file.  Every connection enables
+    ``foreign_keys=ON``.  Write transactions are serialized by the shared lock.
     """
 
     def __init__(self, db_path: str | Path | None = None):
@@ -565,34 +631,41 @@ class Database:
             db_path = Config.resolve_path(cfg_path)
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._local = threading.local()
-        self._write_lock = threading.RLock()
+        self._key = _db_key(self.db_path)
+        # Shared process-wide write lock for THIS db file.
+        self._write_lock = shared_path_lock(self.db_path)
+        with _shared_registry_lock:
+            _shared_refs[self._key] = _shared_refs.get(self._key, 0) + 1
         self.init_schema()
 
     # ── connection management ────────────────────────────────────
 
     def _new_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        # THE critical invariant — enforced on every connection:
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+        return _open_connection(self.db_path)
 
     def get_conn(self) -> sqlite3.Connection:
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            conn = self._new_connection()
-            self._local.conn = conn
-        return conn
+        return shared_connection(self.db_path)
 
     def close(self) -> None:
-        conn = getattr(self._local, "conn", None)
+        """Release this instance's reference to the shared connection.
+
+        The shared connection is actually closed only when the LAST live
+        Database instance for the path is closed.
+        """
+        with _shared_registry_lock:
+            ref = _shared_refs.get(self._key, 0) - 1
+            if ref <= 0:
+                _shared_refs.pop(self._key, None)
+                conn = _shared_conns.pop(self._key, None)
+                _shared_locks.pop(self._key, None)
+            else:
+                _shared_refs[self._key] = ref
+                conn = None
         if conn is not None:
-            conn.close()
-            self._local.conn = None
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     # ── transactions ─────────────────────────────────────────────
 
@@ -690,19 +763,26 @@ def get_database(db_path: str | Path | None = None) -> Database:
 
 
 def reset_database_for_tests(db_path: str | Path | None = None) -> Database:
-    """Replace the singleton (used by tests to point at a tmp DB file)."""
+    """Replace the canonical Database (used by tests to point at a tmp DB file)."""
     global _database
     with _database_lock:
         if _database is not None:
             _database.close()
+        if db_path is not None:
+            # Drop any shared connection already parked on this path so the
+            # test starts from a clean, freshly-opened connection/file.
+            _release_shared_connection(db_path)
         _database = Database(db_path)
     return _database
 
 
 def close_database() -> None:
-    """Close the singleton (call on application shutdown)."""
+    """Close the canonical Database (call on application shutdown)."""
     global _database
     with _database_lock:
         if _database is not None:
             _database.close()
             _database = None
+        with _shared_registry_lock:
+            for key in list(_shared_conns):
+                _release_shared_connection(key)

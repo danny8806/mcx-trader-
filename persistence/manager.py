@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from .database import Database
+from .database import Database, shared_path_lock
 
 
 class PersistenceManager:
@@ -31,32 +31,33 @@ class PersistenceManager:
         self.db_path = Path(db_path)
         # Public write methods call _get_conn while holding this lock.  It must
         # therefore be re-entrant; a plain Lock deadlocks on the first write.
-        self._lock = threading.RLock()
+        # This is the process-wide lock SHARED with every other Database
+        # instance writing the same file, so all writers serialize together.
+        self._lock = shared_path_lock(self.db_path)
 
-        # Initialize the canonical schema. Legacy table creation remains below
-        # only as a compatibility method for callers that invoke it directly;
-        # runtime construction always uses Database.
+        # Initialize the canonical schema eagerly (legacy behavior: existing
+        # databases get their tables/migrations on construction) but do not
+        # hold a connection afterwards.  Runtime writes share the
+        # process-wide connection created lazily on the first DB write.
         Database(self.db_path).close()
 
-        # Persistent connection (created lazily)
+        # Runtime writes open the schema via the shared Database, created
+        # lazily on the first DB write.
+        self._db: Optional[Database] = None
+
+        # Persistent connection (created lazily through the shared Database)
         self._conn: Optional[sqlite3.Connection] = None
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get or create persistent SQLite connection (thread-safe)."""
+        """Return the process-wide shared connection (thread-safe)."""
         if self._conn is not None:
             return self._conn
         with self._lock:
             if self._conn is not None:
                 return self._conn
-            self._conn = sqlite3.connect(
-                str(self.db_path),
-                check_same_thread=False,
-                timeout=30.0,
-            )
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
-            self._conn.execute("PRAGMA busy_timeout=30000")
-            self._conn.execute("PRAGMA foreign_keys=ON")
+            if self._db is None:
+                self._db = Database(self.db_path)
+            self._conn = self._db.get_conn()
             return self._conn
 
     def _init_db(self) -> None:
@@ -490,9 +491,13 @@ class PersistenceManager:
     def close(self) -> None:
         """Close the persistent database connection."""
         with self._lock:
-            if self._conn:
-                self._conn.close()
-                self._conn = None
+            self._conn = None
+            if self._db is not None:
+                try:
+                    self._db.close()
+                except Exception:
+                    pass
+            self._db = None
 
     def __del__(self) -> None:
         """Auto-close connection on garbage collection."""

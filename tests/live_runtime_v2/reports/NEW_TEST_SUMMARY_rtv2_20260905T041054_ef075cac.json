@@ -1,0 +1,25 @@
+{
+  "run_id": "rtv2_20260905T041054_ef075cac",
+  "suite_version": "2.0.0",
+  "total_tests": 2,
+  "phases": {
+    "phase6": {
+      "pass": 2,
+      "fail": 0,
+      "unverified": 0,
+      "tests": [
+        {
+          "test": "long_cross_formula",
+          "result": "PASS"
+        },
+        {
+          "test": "short_cross_formula",
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  "verdict": "SYSTEM_VERIFIED",
+  "failures": [],
+  "unverified": []
+}

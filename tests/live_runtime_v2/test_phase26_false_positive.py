@@ -50,6 +50,32 @@ class TestFalsePositiveDetection:
         assert result_wrong is False, "Should NOT detect LONG cross when close < htf"
         assert result_right is True, "Should detect LONG cross when close > htf"
 
+    def test_long_cross_uses_prev_htf_val(self):
+        """LONG cross must compare prev_close against prev_htf_val (h1[i-1]),
+        matching the reference backtest `close[i-1] <= h1[i-1]` — NOT htf_val
+        (h1[i]). Regression test for the pre-migration D1 divergence."""
+        from strategies.gold import GoldStrategy01
+        strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                              fast_timeframe="5m", htf_timeframe="1h")
+        # close crosses above h1[i] (101 > 100) BUT prev_close is ABOVE h1[i-1]
+        # (99.5 > 99): reference says NO LONG. The old buggy code used
+        # `prev_close <= htf_val` (99.5 <= 100 True) and wrongly fired.
+        r = strat._check_long_cross(
+            close=101.0, prev_close=99.5, htf_val=100.0, prev_htf_val=99.0)
+        assert r is False, "Long cross must use prev_htf_val, not htf_val"
+
+    def test_short_cross_uses_prev_htf_val(self):
+        """SHORT cross must compare prev_close against prev_htf_val (h1[i-1]),
+        matching `close[i-1] >= h1[i-1]` — NOT htf_val (h1[i])."""
+        from strategies.gold import GoldStrategy01
+        strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                              fast_timeframe="5m", htf_timeframe="1h")
+        # close crosses below h1[i] (98 < 100) BUT prev_close is BELOW h1[i-1]
+        # (98.5 < 99): reference says NO SHORT.
+        r = strat._check_short_cross(
+            close=98.0, prev_close=98.5, htf_val=100.0, prev_htf_val=99.0)
+        assert r is False, "Short cross must use prev_htf_val, not htf_val"
+
     def test_position_manager_detects_double_open(self):
         """PositionManager detects double-open attempt."""
         from portfolio.position_manager import PositionManager

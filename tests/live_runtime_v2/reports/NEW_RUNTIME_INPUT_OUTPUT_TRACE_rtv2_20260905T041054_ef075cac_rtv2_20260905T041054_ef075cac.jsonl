@@ -1,0 +1,2 @@
+{"run_id": "rtv2_20260905T041054_ef075cac", "timestamp": 1788581454.74805, "elapsed": 0.4225881099700928, "phase": "phase6", "test": "long_cross_formula", "result": "PASS", "data": {"runtime": true, "independent": true}}
+{"run_id": "rtv2_20260905T041054_ef075cac", "timestamp": 1788581454.7483826, "elapsed": 0.42292094230651855, "phase": "phase6", "test": "short_cross_formula", "result": "PASS", "data": {"runtime": true, "independent": true}}

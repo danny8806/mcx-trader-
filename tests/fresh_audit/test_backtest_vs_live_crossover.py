@@ -165,40 +165,55 @@ def filter_signals_with_position_state(raw_buy, raw_sell, sl_buy, sl_sell):
 
 
 # ---------------------------------------------------------------------------
-# Live strategy signal emulation (mirrors BaseDEMAStrategy._check_long_cross etc.)
+# Live strategy signal emulation
 # ---------------------------------------------------------------------------
-def run_live_signal_logic(close, high, low, dema_1h, dema_15m):
-    """Run the exact same crossover logic as the live strategy."""
+def run_live_signal_logic(close, high, low, dema_1h, dema_15m, use_production=False):
+    """Run the reference crossover formula (default) or the PRODUCTION
+    BaseDEMAStrategy._check_*_cross functions ('use_production=True').
+
+    Both sides share the exact reference validity gate
+    (h1[i], h1[i-1], h15[i] all required) and the position filter, so this
+    compares formula-level signal parity bar for bar.
+    """
+    from strategies.gold import GoldStrategy01
+    strat = GoldStrategy01(strategy_id="gold_01", instrument="GOLDM",
+                          fast_timeframe="5m", htf_timeframe="1h")
     n = len(close)
     live_buy = np.zeros(n, dtype=bool)
     live_sell = np.zeros(n, dtype=bool)
     live_sl_buy = np.full(n, np.nan)
     live_sl_sell = np.full(n, np.nan)
-    
+
     position_side = None
-    
+
     for i in range(1, n):
         htf_val = dema_1h[i]
         prev_htf_val = dema_1h[i - 1]
         mid_val = dema_15m[i]
-        
+
         if np.isnan(htf_val) or np.isnan(prev_htf_val) or np.isnan(mid_val):
             continue
-        
+
         curr_close = close[i]
         prev_close = close[i - 1]
         curr_high = high[i]
         prev_high = high[i - 1]
         curr_low = low[i]
         prev_low = low[i - 1]
-        
-        # LONG crossover: close > h1h AND prev_close <= prev_h1h AND h15 < h1h
-        buy = (curr_close > htf_val and prev_close <= prev_htf_val
-               and mid_val < htf_val)
-        # SHORT crossover: close < h1h AND prev_close >= prev_h1h AND h15 > h1h
-        sell = (curr_close < htf_val and prev_close >= prev_htf_val
-                and mid_val > htf_val)
-        
+
+        if use_production:
+            buy = bool(strat._check_long_cross(
+                curr_close, prev_close, htf_val, prev_htf_val, mid_val))
+            sell = bool(strat._check_short_cross(
+                curr_close, prev_close, htf_val, prev_htf_val, mid_val))
+        else:
+            # LONG crossover: close > h1h AND prev_close <= prev_h1h AND h15 < h1h
+            buy = (curr_close > htf_val and prev_close <= prev_htf_val
+                   and mid_val < htf_val)
+            # SHORT crossover: close < h1h AND prev_close >= prev_h1h AND h15 > h1h
+            sell = (curr_close < htf_val and prev_close >= prev_htf_val
+                    and mid_val > htf_val)
+
         if buy:
             if position_side is None or position_side == "SHORT":
                 live_buy[i] = True
@@ -209,7 +224,7 @@ def run_live_signal_logic(close, high, low, dema_1h, dema_15m):
                 live_sell[i] = True
                 live_sl_sell[i] = max(curr_high, prev_high)
                 position_side = "SHORT"
-    
+
     return live_buy, live_sell, live_sl_buy, live_sl_sell
 
 
@@ -246,10 +261,21 @@ def test_crossover_comparison():
     high = df_base["high"].to_numpy(dtype=float)
     low = df_base["low"].to_numpy(dtype=float)
 
+    # Independent reference-formula oracle
     live_buy, live_sell, live_sl_buy, live_sl_sell = run_live_signal_logic(
-        close, high, low, dema_1h, dema_15m,
+        close, high, low, dema_1h, dema_15m, use_production=False,
     )
-    print(f"Live signals:             BUY={int(np.sum(live_buy))}  SELL={int(np.sum(live_sell))}")
+    # PRODUCTION BaseDEMAStrategy._check_*_cross functions (D1 regression:
+    # must use prev_htf_val for the prev-close comparison)
+    prod_buy, prod_sell, prod_sl_buy, prod_sl_sell = run_live_signal_logic(
+        close, high, low, dema_1h, dema_15m, use_production=True,
+    )
+    print(f"Live oracle signals:      BUY={int(np.sum(live_buy))}  SELL={int(np.sum(live_sell))}")
+    print(f"Live PRODUCTION signals: BUY={int(np.sum(prod_buy))}  SELL={int(np.sum(prod_sell))}")
+
+    # Production functions must exactly agree with the reference formula
+    assert np.array_equal(prod_buy, live_buy), "PRODUCTION cross != reference oracle BUY"
+    assert np.array_equal(prod_sell, live_sell), "PRODUCTION cross != reference oracle SELL"
 
     # === COMPARE ===
     print("\n=== COMPARISON RESULTS ===")
@@ -303,13 +329,14 @@ def test_crossover_comparison():
     print(f"OVERALL SIGNAL MATCH: {overall}")
     print(f"{'='*60}")
 
-    return overall
+    assert buy_match, "Backtest filtered BUY != Live BUY"
+    assert sell_match, "Backtest filtered SELL != Live SELL"
 
 
 if __name__ == "__main__":
     try:
-        result = test_crossover_comparison()
-        sys.exit(0 if result else 1)
+        test_crossover_comparison()
+        sys.exit(0)
     except Exception as e:
         import traceback
         traceback.print_exc()
