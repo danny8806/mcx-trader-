@@ -1,7 +1,8 @@
 """Strategy Performance Engine - derives all analytics from canonical trades."""
 from __future__ import annotations
+
+from persistence.database import Database
 import math
-import sqlite3
 import statistics
 import time
 from collections import defaultdict
@@ -101,35 +102,29 @@ class PerformanceEngine:
     ANNUALIZATION_FACTOR = 252
 
     def __init__(self, db_path: str = "trading.db"):
-        self._db_path = db_path
+        self._db = Database(db_path)
 
     def get_closed_trades(self, strategy_id: Optional[str] = None,
                           instrument: Optional[str] = None,
                           date_from: Optional[float] = None,
                           date_to: Optional[float] = None) -> list[dict]:
         """Get closed trades from database."""
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        try:
-            query = "SELECT * FROM trades_analytics WHERE status = 'CLOSED'"
-            params: list[Any] = []
-            if strategy_id:
-                query += " AND strategy_id = ?"
-                params.append(strategy_id)
-            if instrument:
-                query += " AND instrument = ?"
-                params.append(instrument)
-            if date_from:
-                query += " AND closed_at >= ?"
-                params.append(date_from)
-            if date_to:
-                query += " AND closed_at <= ?"
-                params.append(date_to)
-            query += " ORDER BY closed_at ASC"
-            rows = conn.execute(query, params).fetchall()
-            return [dict(r) for r in rows]
-        finally:
-            conn.close()
+        query = "SELECT * FROM trades_analytics WHERE status = 'CLOSED'"
+        params: list[Any] = []
+        if strategy_id:
+            query += " AND strategy_id = ?"
+            params.append(strategy_id)
+        if instrument:
+            query += " AND instrument = ?"
+            params.append(instrument)
+        if date_from:
+            query += " AND closed_at >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND closed_at <= ?"
+            params.append(date_to)
+        query += " ORDER BY closed_at ASC"
+        return self._db.query(query, params)
 
     def calculate_trade_metrics(self, trade: dict) -> TradeMetrics:
         """Calculate metrics for a single closed trade."""

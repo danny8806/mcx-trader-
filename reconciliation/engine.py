@@ -5,7 +5,6 @@ to detect discrepancies after startup, reconnection, or restart.
 """
 from __future__ import annotations
 
-import sqlite3
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from persistence.manager import PersistenceManager
+from persistence.database import Database
 from portfolio.position_manager import PositionManager
 from portfolio.pnl import PNLEngine
 from portfolio.account import AccountEngine
@@ -104,15 +104,11 @@ class ReconciliationEngine:
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
-        # Open a read-only connection for the duration of the check
-        conn = sqlite3.connect(f"file:{self.persistence.db_path}?mode=ro", uri=True)
-        conn.row_factory = sqlite3.Row
-        try:
-            db_orders = self._load_db_orders(conn)
-            db_fills = self._load_db_fills(conn)
-            db_trades = self._load_db_trades(conn)
-        finally:
-            conn.close()
+        # Use the shared Database connection for the read-only check
+        db = Database(self.persistence.db_path)
+        db_orders = self._load_db_orders(db)
+        db_fills = self._load_db_fills(db)
+        db_trades = self._load_db_trades(db)
 
         # Collect in-memory state
         mem_orders = self._load_mem_orders()

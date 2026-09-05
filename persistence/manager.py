@@ -4,9 +4,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from .database import Database, shared_path_lock
 
@@ -59,6 +60,24 @@ class PersistenceManager:
                 self._db = Database(self.db_path)
             self._conn = self._db.get_conn()
             return self._conn
+
+    @contextmanager
+    def _tx(self) -> Iterator[sqlite3.Connection]:
+        """Run a DB write inside an EXPLICIT transaction on the process-wide
+        shared connection.
+
+        Every writer in the process (Database, TradeLedger, EventStore and this
+        manager) shares ONE connection and ONE write lock.  Write statements
+        MUST go through an explicit BEGIN/COMMIT (rollback on error); a bare
+        ``execute()`` would open a pysqlite implicit transaction and, if it
+        ever failed, leak an open transaction that would then break the next
+        ``BEGIN IMMEDIATE`` from any other component on the same connection.
+        """
+        with self._lock:
+            if self._db is None:
+                self._db = Database(self.db_path)
+            with self._db.transaction() as conn:
+                yield conn
 
     def _init_db(self) -> None:
         """Initialize SQLite database schema."""
@@ -221,8 +240,7 @@ class PersistenceManager:
 
     def save_trade(self, trade: dict) -> None:
         """Save a completed trade to database."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT INTO trades (
                     trade_id, strategy_id, instrument, side,
@@ -259,12 +277,10 @@ class PersistenceManager:
                 trade.get("entry_signal_id"),
                 trade.get("exit_signal_id"),
             ))
-            conn.commit()
 
     def save_order(self, order: dict) -> None:
         """Save order to database."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT INTO orders (
                     order_id, strategy_id, instrument, side,
@@ -293,12 +309,10 @@ class PersistenceManager:
                 order.get("signal_id", order.get("entry_signal_id")),
                 order.get("trade_id"),
             ))
-            conn.commit()
 
     def save_fill(self, fill: dict) -> None:
         """Save fill to database."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT INTO fills (
                     fill_id, order_id, strategy_id, instrument,
@@ -317,12 +331,10 @@ class PersistenceManager:
                 fill.get("trade_id"),
                 fill.get("entry_signal_id"),
             ))
-            conn.commit()
 
     def save_signal(self, signal_data: dict) -> None:
         """Save signal to the signals table for audit trail."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT OR IGNORE INTO signals (
                     signal_id, strategy_id, instrument, side, signal_type,
@@ -342,18 +354,15 @@ class PersistenceManager:
                 json.dumps(signal_data.get("candle_data")) if signal_data.get("candle_data") else None,
                 json.dumps(signal_data.get("indicator_data")) if signal_data.get("indicator_data") else None,
             ))
-            conn.commit()
 
     def save_trade_signal_link(self, trade_id: str, signal_id: str, relationship_type: str) -> None:
         """Save a trade-signal relationship link."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT OR IGNORE INTO trade_signal_link (
                     trade_id, signal_id, relationship_type
                 ) VALUES (?, ?, ?)
             """, (trade_id, signal_id, relationship_type))
-            conn.commit()
 
     def get_fill(self, fill_id: str) -> Optional[dict]:
         """Fetch a single fill row by fill_id (DB-backed idempotency guard)."""
@@ -367,54 +376,47 @@ class PersistenceManager:
 
     def save_trade_and_fill(self, trade: dict, fill: dict) -> None:
         """Persist a closed trade and its exit fill in one transaction."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                conn.execute("""
-                    INSERT INTO trades (
-                        trade_id, strategy_id, instrument, side,
-                        entry_timestamp, entry_price, exit_timestamp, exit_price,
-                        quantity, multiplier, gross_pnl, charges, net_pnl,
-                        exit_reason, status, entry_signal_id, exit_signal_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(trade_id) DO UPDATE SET
-                        exit_timestamp=excluded.exit_timestamp,
-                        exit_price=excluded.exit_price,
-                        gross_pnl=excluded.gross_pnl,
-                        charges=excluded.charges,
-                        net_pnl=excluded.net_pnl,
-                        exit_reason=excluded.exit_reason,
-                        status=excluded.status,
-                        exit_signal_id=excluded.exit_signal_id
-                """, (
-                    trade.get("trade_id"), trade.get("strategy_id"), trade.get("instrument"),
-                    trade.get("side"), trade.get("entry_timestamp"), trade.get("entry_price"),
-                    trade.get("exit_timestamp"), trade.get("exit_price"), trade.get("quantity"),
-                    trade.get("multiplier"), trade.get("gross_pnl"), trade.get("charges"),
-                    trade.get("net_pnl"), trade.get("exit_reason"), trade.get("status", "closed"),
-                    trade.get("entry_signal_id"), trade.get("exit_signal_id"),
-                ))
-                conn.execute("""
-                    INSERT INTO fills (
-                        fill_id, order_id, strategy_id, instrument,
-                        side, quantity, price, timestamp, trade_id, entry_signal_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(fill_id) DO NOTHING
-                """, (
-                    fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
-                    fill.get("instrument"), fill.get("side"), fill.get("quantity"),
-                    fill.get("price"), fill.get("timestamp"), fill.get("trade_id"),
-                    fill.get("entry_signal_id"),
-                ))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
+        with self._tx() as conn:
+            conn.execute("""
+                INSERT INTO trades (
+                    trade_id, strategy_id, instrument, side,
+                    entry_timestamp, entry_price, exit_timestamp, exit_price,
+                    quantity, multiplier, gross_pnl, charges, net_pnl,
+                    exit_reason, status, entry_signal_id, exit_signal_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(trade_id) DO UPDATE SET
+                    exit_timestamp=excluded.exit_timestamp,
+                    exit_price=excluded.exit_price,
+                    gross_pnl=excluded.gross_pnl,
+                    charges=excluded.charges,
+                    net_pnl=excluded.net_pnl,
+                    exit_reason=excluded.exit_reason,
+                    status=excluded.status,
+                    exit_signal_id=excluded.exit_signal_id
+            """, (
+                trade.get("trade_id"), trade.get("strategy_id"), trade.get("instrument"),
+                trade.get("side"), trade.get("entry_timestamp"), trade.get("entry_price"),
+                trade.get("exit_timestamp"), trade.get("exit_price"), trade.get("quantity"),
+                trade.get("multiplier"), trade.get("gross_pnl"), trade.get("charges"),
+                trade.get("net_pnl"), trade.get("exit_reason"), trade.get("status", "closed"),
+                trade.get("entry_signal_id"), trade.get("exit_signal_id"),
+            ))
+            conn.execute("""
+                INSERT INTO fills (
+                    fill_id, order_id, strategy_id, instrument,
+                    side, quantity, price, timestamp, trade_id, entry_signal_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(fill_id) DO NOTHING
+            """, (
+                fill.get("fill_id"), fill.get("order_id"), fill.get("strategy_id"),
+                fill.get("instrument"), fill.get("side"), fill.get("quantity"),
+                fill.get("price"), fill.get("timestamp"), fill.get("trade_id"),
+                fill.get("entry_signal_id"),
+            ))
 
     def save_event(self, event: dict) -> None:
         """Save event to audit log."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT INTO events (
                     timestamp, event_type, strategy_id, instrument, details
@@ -426,7 +428,6 @@ class PersistenceManager:
                 event.get("instrument"),
                 json.dumps(event.get("details", {})),
             ))
-            conn.commit()
 
     def get_trades(self, strategy_id: Optional[str] = None) -> list[dict]:
         """Get trades from database."""
@@ -457,13 +458,12 @@ class PersistenceManager:
 
     def save_account_snapshot(self, snapshot: dict) -> None:
         """Save account snapshot."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._tx() as conn:
             conn.execute("""
                 INSERT INTO account_snapshots (
                     timestamp, equity, realized_pnl, unrealized_pnl,
                     used_margin, available_margin
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?)
             """, (
                 snapshot.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 snapshot.get("equity"),
@@ -472,7 +472,6 @@ class PersistenceManager:
                 snapshot.get("used_margin"),
                 snapshot.get("available_margin"),
             ))
-            conn.commit()
 
     def save_account_snapshot_from_state(self, state: dict) -> None:
         """Derive and persist an account-snapshot row from an engine snapshot."""

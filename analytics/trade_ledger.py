@@ -1,13 +1,20 @@
-"""Trade Ledger - authoritative trade lifecycle management."""
+"""Trade Ledger - derived projection of canonical trades in trading.db.
+
+The ledger reads/writes derived ``trades_analytics`` / ``trade_legs`` tables
+through the central :class:`Database` connection so that all modules share
+one process-wide SQLite connection and write lock — eliminating
+``database is locked`` errors under concurrent load.
+"""
 from __future__ import annotations
 import json
-import sqlite3
 import threading
 import time
 import uuid
 from typing import Optional, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
+
+from persistence.database import Database
 
 
 class TradeStatus(Enum):
@@ -102,38 +109,26 @@ class TradeLedger:
     """Authoritative trade lifecycle management."""
 
     def __init__(self, db_path: str = "trading.db"):
-        self._db_path = db_path
+        self._db = Database(db_path)
         self._lock = threading.Lock()
         self._open_trades: dict[str, TradeRecord] = {}
-        self._local = threading.local()
         self._load_open_trades()
 
-    def _get_conn(self) -> sqlite3.Connection:
-        """Get thread-local persistent connection."""
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            conn = sqlite3.connect(self._db_path, timeout=30)
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=30000")
-            conn.execute("PRAGMA foreign_keys=ON")
-            self._local.conn = conn
-        return conn
+    def _get_conn(self):
+        """Get the shared process-wide connection from the central Database."""
+        return self._db.get_conn()
 
     def _load_open_trades(self):
         """Load open trades from database on startup."""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
         try:
-            rows = conn.execute(
+            rows = self._db.query(
                 "SELECT * FROM trades_analytics WHERE status IN ('OPEN', 'PARTIALLY_CLOSED')"
-            ).fetchall()
+            )
             for row in rows:
-                trade = TradeRecord(**{k: row[k] for k in row.keys() if hasattr(TradeRecord, k)})
+                trade = TradeRecord(**{k: k_val for k, k_val in row.items() if hasattr(TradeRecord, k)})
                 self._open_trades[trade.trade_id] = trade
         except Exception:
             pass
-        finally:
-            conn.row_factory = None
 
     def create_trade(self, strategy_id: str, instrument: str, side: str,
                      entry_quantity: int, signal_time: float,
@@ -241,22 +236,15 @@ class TradeLedger:
     def _get_leg_fill_id(self, fill_id: str) -> TradeLeg | None:
         """Return the existing leg for a fill_id, or None if not recorded."""
         try:
-            conn = self._get_conn()
-            conn.row_factory = sqlite3.Row
-        except Exception:
-            return None
-        try:
-            row = conn.execute(
+            row = self._db.query_one(
                 "SELECT * FROM trade_legs WHERE fill_id=?", (fill_id,)
-            ).fetchone()
+            )
         except Exception:
             return None
-        finally:
-            conn.row_factory = None
         if row is None:
             return None
         fields = set(TradeLeg.__dataclass_fields__.keys())
-        return TradeLeg(**{k: row[k] for k in row.keys() if k in fields})
+        return TradeLeg(**{k: v for k, v in row.items() if k in fields})
 
     def _update_entry_fill(self, trade: TradeRecord, leg: TradeLeg):
         """Update trade with entry fill."""
@@ -403,14 +391,14 @@ class TradeLedger:
         Used by get_trade and close_trade so CLOSED trades that have been
         purged from the in-memory open cache remain queryable/overridable.
         """
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM trades_analytics WHERE trade_id = ?", (trade_id,)
-        ).fetchone()
-        conn.row_factory = None
+        try:
+            row = self._db.query_one(
+                "SELECT * FROM trades_analytics WHERE trade_id = ?", (trade_id,)
+            )
+        except Exception:
+            return None
         if row:
-            return TradeRecord(**{k: row[k] for k in row.keys() if hasattr(TradeRecord, k)})
+            return TradeRecord(**{k: v for k, v in row.items() if hasattr(TradeRecord, k)})
         return None
 
     def get_open_trades(self, strategy_id: Optional[str] = None,
@@ -427,8 +415,6 @@ class TradeLedger:
                           instrument: Optional[str] = None,
                           limit: int = 1000) -> list[TradeRecord]:
         """Get closed trades."""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
         query = "SELECT * FROM trades_analytics WHERE status = 'CLOSED'"
         params: list[Any] = []
         if strategy_id:
@@ -439,46 +425,38 @@ class TradeLedger:
             params.append(instrument)
         query += " ORDER BY closed_at DESC LIMIT ?"
         params.append(limit)
-        rows = conn.execute(query, params).fetchall()
-        conn.row_factory = None
+        rows = self._db.query(query, params)
         fields = set(TradeRecord.__dataclass_fields__.keys())
-        return [TradeRecord(**{k: row[k] for k in row.keys() if k in fields}) for row in rows]
+        return [TradeRecord(**{k: v for k, v in row.items() if k in fields}) for row in rows]
 
     def get_trades_for_strategy(self, strategy_id: str,
                                 status: Optional[str] = None) -> list[TradeRecord]:
         """Get all trades for a strategy."""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
         if status:
-            rows = conn.execute(
+            rows = self._db.query(
                 "SELECT * FROM trades_analytics WHERE strategy_id = ? AND status = ? ORDER BY created_at DESC",
                 (strategy_id, status)
-            ).fetchall()
+            )
         else:
-            rows = conn.execute(
+            rows = self._db.query(
                 "SELECT * FROM trades_analytics WHERE strategy_id = ? ORDER BY created_at DESC",
                 (strategy_id,)
-            ).fetchall()
-        conn.row_factory = None
+            )
         fields = set(TradeRecord.__dataclass_fields__.keys())
-        return [TradeRecord(**{k: row[k] for k in row.keys() if k in fields}) for row in rows]
+        return [TradeRecord(**{k: v for k, v in row.items() if k in fields}) for row in rows]
 
     def get_legs_for_trade(self, trade_id: str) -> list[TradeLeg]:
         """Get all fill legs for a trade."""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
+        rows = self._db.query(
             "SELECT * FROM trade_legs WHERE trade_id = ? ORDER BY timestamp",
             (trade_id,)
-        ).fetchall()
-        conn.row_factory = None
+        )
         fields = set(TradeLeg.__dataclass_fields__.keys())
-        return [TradeLeg(**{k: row[k] for k in row.keys() if k in fields}) for row in rows]
+        return [TradeLeg(**{k: v for k, v in row.items() if k in fields}) for row in rows]
 
     def count_trades(self, strategy_id: Optional[str] = None,
                      status: Optional[str] = None) -> int:
         """Count trades."""
-        conn = self._get_conn()
         query = "SELECT COUNT(*) FROM trades_analytics WHERE 1=1"
         params: list[Any] = []
         if strategy_id:
@@ -487,35 +465,33 @@ class TradeLedger:
         if status:
             query += " AND status = ?"
             params.append(status)
-        return conn.execute(query, params).fetchone()[0]
+        return self._db.scalar(query, params)
 
     def _save_trade(self, trade: TradeRecord) -> None:
-        """Save trade to database."""
-        conn = self._get_conn()
+        """Save trade to database (idempotent UPSERT via shared transaction)."""
         d = trade.__dict__.copy()
         columns = list(d.keys())
         placeholders = ", ".join(["?"] * len(columns))
         col_names = ", ".join(columns)
         updates = ", ".join([f"{c} = excluded.{c}" for c in columns if c != "trade_id"])
 
-        conn.execute(
-            f"""INSERT INTO trades_analytics ({col_names}) VALUES ({placeholders})
-                ON CONFLICT(trade_id) DO UPDATE SET {updates}""",
-            list(d.values())
-        )
-        conn.commit()
+        with self._db.transaction() as conn:
+            conn.execute(
+                f"""INSERT INTO trades_analytics ({col_names}) VALUES ({placeholders})
+                    ON CONFLICT(trade_id) DO UPDATE SET {updates}""",
+                list(d.values())
+            )
 
     def _save_leg(self, leg: TradeLeg) -> None:
-        """Save trade leg to database."""
-        conn = self._get_conn()
+        """Save trade leg to database via shared transaction."""
         d = leg.__dict__.copy()
         d["is_entry"] = 1 if d["is_entry"] else 0
         columns = list(d.keys())
         placeholders = ", ".join(["?"] * len(columns))
         col_names = ", ".join(columns)
 
-        conn.execute(
-            f"INSERT OR IGNORE INTO trade_legs ({col_names}) VALUES ({placeholders})",
-            list(d.values())
-        )
-        conn.commit()
+        with self._db.transaction() as conn:
+            conn.execute(
+                f"INSERT OR IGNORE INTO trade_legs ({col_names}) VALUES ({placeholders})",
+                list(d.values())
+            )

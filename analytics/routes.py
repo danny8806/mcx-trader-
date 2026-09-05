@@ -6,6 +6,8 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from pathlib import Path
 
+from persistence.database import Database
+
 router = APIRouter()
 
 # Module-level state (initialized by init())
@@ -35,14 +37,10 @@ def _strategy_ids() -> list[str]:
         pass
     try:
         if _db_path:
-            import sqlite3
-            conn = sqlite3.connect(f"file:{_db_path}?mode=ro", uri=True)
-            try:
-                ids = [r[0] for r in conn.execute(
-                    "SELECT DISTINCT strategy_id FROM trades_analytics "
-                    "ORDER BY strategy_id")]
-            finally:
-                conn.close()
+            db = Database(_db_path)
+            ids = [r["strategy_id"] for r in db.query(
+                "SELECT DISTINCT strategy_id FROM trades_analytics "
+                "ORDER BY strategy_id")]
             if ids:
                 return ids
     except Exception:
