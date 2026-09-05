@@ -39,6 +39,7 @@ from strategies.instance import StrategyInstance
 from strategies.types import SignalType, StrategyState
 from strategies.gold import create_gold_5m, create_gold_15m
 from strategies.silver import create_silver_5m, create_silver_15m
+from indicators.shared import SharedNativeIndicatorEngine
 from execution.paper_broker import PaperExecutionEngine, Fill
 from execution.fee_model import MCXFeeModel
 from execution.order_manager import OrderManager, OrderManagerFacade
@@ -102,6 +103,12 @@ class TradingEngine:
         # ── Shared infrastructure ──
         self.event_bus = EventBus()
         self.candle_distributor = NativeCandleDistributor(self.event_bus)
+        indicator_cfg = self.config.get("indicators", {})
+        self.indicator_engine = SharedNativeIndicatorEngine(
+            dema_period=indicator_cfg.get("dema_period", 3),
+            atr_period=indicator_cfg.get("atr_period", 6),
+            atr_factor=indicator_cfg.get("atr_factor", 1.0),
+        )
 
         # ── Initialize ──
         self._init_market_status()
@@ -206,6 +213,13 @@ class TradingEngine:
             self.event_bus = EventBus()
         if not hasattr(self, 'candle_distributor') or self.candle_distributor is None:
             self.candle_distributor = NativeCandleDistributor(self.event_bus)
+        if not hasattr(self, 'indicator_engine') or self.indicator_engine is None:
+            indicator_cfg = self.config.get("indicators", {})
+            self.indicator_engine = SharedNativeIndicatorEngine(
+                dema_period=indicator_cfg.get("dema_period", 3),
+                atr_period=indicator_cfg.get("atr_period", 6),
+                atr_factor=indicator_cfg.get("atr_factor", 1.0),
+            )
         self.strategies: dict[str, StrategyInstance] = {}
         strategies_config = self.config.get("strategies", {})
         instruments_config = self.config.get("instruments", {})
@@ -228,6 +242,12 @@ class TradingEngine:
                 multiplier=inst_cfg.get("multiplier", 10.0),
             )
             self.strategies[strat_name] = strategy
+
+            # Bind this strategy's indicator slots to the shared indicator
+            # engine so each (security_id, timeframe) DEMA-ATR is computed once
+            # (mission §7–§12). The strategy's own math objects are replaced
+            # with shared views; on_bar behavior is unchanged.
+            strategy.bind_shared_indicators(self.indicator_engine)
 
             # Subscribe to candle events
             for sub in strategy.subscriptions:

@@ -17,6 +17,9 @@ from strategies.htf_state import HTFState
 from strategies.types import (
     SignalType, StrategyState, Signal, PendingEntry,
 )
+from indicators.shared import (
+    IndicatorStream, StrategyIndicatorView, StreamHTFStateView,
+)
 
 log = logging.getLogger(__name__)
 
@@ -114,12 +117,55 @@ class StrategyInstance:
         # ── Current trade reference ──
         self.current_trade_id: Optional[str] = None
 
+        # ── Shared indicator binding (set by bind_shared_indicators) ──
+        self._shared_indicators_bound: bool = False
+        self._shared_streams: dict = {}
+
         # ── Audit trail ──
         self._signals: list[Signal] = []
         self._events: list[dict] = []
 
         log.info("[StrategyInstance] %s initialized: %s %s/%s/%s",
                  strategy_id, instrument, fast_timeframe, mid_timeframe, htf_timeframe)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # SHARED INDICATOR BINDING (mission §7–§12)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def bind_shared_indicators(self, engine) -> None:
+        """Bind this strategy's indicator slots to shared IndicatorStreams.
+
+        Minimal-bind: replaces the strategy's self-owned DEMAATR / HTFState
+        objects with thin views over the SharedNativeIndicatorEngine's streams,
+        keyed by (security_id, timeframe). The strategy evaluation hot path
+        (on_bar) is NOT changed — it keeps calling .update / .get_mapped_value
+        / .value exactly as before, only the underlying storage is now shared
+        so each (security_id, timeframe) DEMA-ATR is calculated once.
+
+        The previous fast/mid/slow splitting on a single stream collapses to
+        one stream per timeframe: fast == mid for anything whose fast timeframe
+        equals a shared 15m stream, and the slow 1H stream serves the 1H line.
+        """
+        mid = engine.get_or_create(self.security_id, self.mid_timeframe)
+        slow = engine.get_or_create(self.security_id, self.htf_timeframe)
+
+        # fast indicator stream: the strategy's primary timeframe. For a 5m
+        # strategy this is its own 5m stream; for a 15m strategy it is the same
+        # 15m stream it shares with the 5m strategy's mid timeframe.
+        fast = engine.get_or_create(self.security_id, self.fast_timeframe)
+
+        self.fast_indicator = StrategyIndicatorView(fast)
+        self.mid_indicator = StrategyIndicatorView(mid)
+        self.slow_indicator = StrategyIndicatorView(slow)
+        self.mid_htf_state = StreamHTFStateView(mid)
+        self.slow_htf_state = StreamHTFStateView(slow)
+
+        self._shared_streams = {
+            "fast": fast,
+            "mid": mid,
+            "slow": slow,
+        }
+        self._shared_indicators_bound = True
 
     # ═══════════════════════════════════════════════════════════════════════
     # EVENT HANDLERS — called by EventBus routing
@@ -157,8 +203,8 @@ class StrategyInstance:
             volume=int(event.volume),
         )
 
-        # 1. Update own fast indicator
-        self.fast_indicator.update(bar.open, bar.high, bar.low, bar.close)
+        # 1. Update own fast indicator (idempotent by candle_end_ts)
+        self.fast_indicator.update(bar.open, bar.high, bar.low, bar.close, bar.end_ts)
         fast_dema_atr = self.fast_indicator.value
 
         # 1b. For strategies where fast == mid, the fast bar IS the mid bar —
@@ -634,7 +680,7 @@ class StrategyInstance:
 
     def warmup_indicator(self, bar: Bar) -> None:
         """Warm up fast indicator from a historical bar."""
-        self.fast_indicator.update(bar.open, bar.high, bar.low, bar.close)
+        self.fast_indicator.update(bar.open, bar.high, bar.low, bar.close, bar.end_ts)
 
     def warmup_htf(self, bar: Bar) -> None:
         """Warm up HTF state from a historical bar."""
@@ -648,9 +694,9 @@ class StrategyInstance:
         """Warm up HTF indicator (not state) from historical bar."""
         tf_min = self._tf_to_minutes(bar.timeframe)
         if tf_min == self._tf_to_minutes(self.mid_timeframe):
-            self.mid_indicator.update(bar.open, bar.high, bar.low, bar.close)
+            self.mid_indicator.update(bar.open, bar.high, bar.low, bar.close, bar.end_ts)
         elif tf_min == self._tf_to_minutes(self.htf_timeframe):
-            self.slow_indicator.update(bar.open, bar.high, bar.low, bar.close)
+            self.slow_indicator.update(bar.open, bar.high, bar.low, bar.close, bar.end_ts)
 
     def reset(self) -> None:
         """Reset all strategy state. Used before warmup."""
@@ -666,11 +712,15 @@ class StrategyInstance:
         self._prev_fast_high = None
         self._prev_fast_low = None
         self.current_trade_id = None
-        self.fast_indicator.reset()
-        self.mid_indicator.reset()
-        self.slow_indicator.reset()
-        self.mid_htf_state.reset()
-        self.slow_htf_state.reset()
+        # §9: bound strategies MUST NOT mutate shared indicator state — the
+        # shared streams belong to SharedNativeIndicatorEngine and are used by
+        # every strategy subscribed to the same (security_id, timeframe).
+        if not getattr(self, "_shared_indicators_bound", False):
+            self.fast_indicator.reset()
+            self.mid_indicator.reset()
+            self.slow_indicator.reset()
+            self.mid_htf_state.reset()
+            self.slow_htf_state.reset()
 
     @staticmethod
     def _tf_to_minutes(tf: str) -> int:
