@@ -955,6 +955,7 @@ class TestPersistence:
         import tempfile
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
+        fd = fd2 = None
         try:
             fd = FillDeduplicator(db_path=db_path)
             assert fd.is_processed("fill_1") is False
@@ -964,6 +965,10 @@ class TestPersistence:
             count = fd2.load_from_database()
             assert count >= 1
         finally:
+            if fd2:
+                fd2.close()
+            if fd:
+                fd.close()
             os.unlink(db_path)
 
 

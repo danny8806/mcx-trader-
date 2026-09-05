@@ -569,6 +569,7 @@ class TestSection25_CandleDedup:
         from core.fill_dedup import FillDeduplicator
         tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         tmp.close()
+        dedup = None
         try:
             dedup = FillDeduplicator(db_path=tmp.name)
             fill_id = "test_fill_001"
@@ -576,6 +577,8 @@ class TestSection25_CandleDedup:
             dedup.mark_processed(fill_id)
             assert dedup.is_duplicate(fill_id)
         finally:
+            if dedup:
+                dedup.close()
             os.unlink(tmp.name)
 
     def test_dedup_across_2_5_100_duplicates(self):

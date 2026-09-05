@@ -173,6 +173,7 @@ class TestPositionManagerConcurrentAdd:
 class TestFillDedupConcurrentInsert:
     def test_fill_dedup_concurrent_insert(self):
         db = _temp_db()
+        dedup = None
         try:
             dedup = FillDeduplicator(db_path=db)
             errors: list[Exception] = []
@@ -193,6 +194,8 @@ class TestFillDedupConcurrentInsert:
             assert not errors, f"Concurrent fill dedup errors: {errors}"
             assert dedup.count == 400
         finally:
+            if dedup:
+                dedup.close()
             os.unlink(db)
 
 
@@ -407,12 +410,15 @@ class TestEdgeCasesRESTHandling:
 class TestEdgeCasesDBLockHandling:
     def test_db_lock_handling(self):
         db = _temp_db()
+        dedup = None
         try:
             dedup = FillDeduplicator(db_path=db)
             result = dedup.mark_processed("lock_test_fill")
             assert result is True
             assert dedup.is_duplicate("lock_test_fill") is True
         finally:
+            if dedup:
+                dedup.close()
             os.unlink(db)
 
 

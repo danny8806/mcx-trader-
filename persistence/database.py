@@ -683,20 +683,27 @@ class Database:
                 raise
 
     # ── query helpers ────────────────────────────────────────────
+    # All queries go through the shared write lock to prevent
+    # "database is locked" errors when multiple threads access the
+    # single shared connection concurrently.
 
     def execute(self, sql: str, params: tuple | list = ()) -> sqlite3.Cursor:
-        return self.get_conn().execute(sql, params)
+        with self._write_lock:
+            return self.get_conn().execute(sql, params)
 
     def query(self, sql: str, params: tuple | list = ()) -> list[dict]:
-        rows = self.get_conn().execute(sql, params).fetchall()
+        with self._write_lock:
+            rows = self.get_conn().execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
     def query_one(self, sql: str, params: tuple | list = ()) -> Optional[dict]:
-        row = self.get_conn().execute(sql, params).fetchone()
+        with self._write_lock:
+            row = self.get_conn().execute(sql, params).fetchone()
         return dict(row) if row else None
 
     def scalar(self, sql: str, params: tuple | list = ()):
-        row = self.get_conn().execute(sql, params).fetchone()
+        with self._write_lock:
+            row = self.get_conn().execute(sql, params).fetchone()
         return row[0] if row else None
 
     # ── schema / migration ───────────────────────────────────────

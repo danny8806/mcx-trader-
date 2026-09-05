@@ -130,3 +130,9 @@ class FillDeduplicator:
         """Number of processed fills tracked."""
         with self._lock:
             return len(self._processed_fills)
+
+    def close(self) -> None:
+        """Release the shared database connection reference."""
+        if hasattr(self, "_db") and self._db:
+            self._db.close()
+            self._db = None

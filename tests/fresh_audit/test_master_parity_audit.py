@@ -685,18 +685,21 @@ class TestIdempotency:
         import tempfile, os, concurrent.futures
         tmpdir = tempfile.mkdtemp()
         fd = FillDeduplicator(db_path=os.path.join(tmpdir, "test.db"))
-        results = []
-        def check_and_mark(fid):
-            is_dup = fd.is_duplicate(fid)
-            if not is_dup:
-                fd.note_processed(fid)
-            return (fid, is_dup)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-            futures = [ex.submit(check_and_mark, f"F_CONC_{i}") for i in range(100)]
-            for f in concurrent.futures.as_completed(futures):
-                results.append(f.result())
-        dupes = [r for r in results if r[1] is True]
-        assert len(dupes) == 0, "No duplicates should exist on first pass"
+        try:
+            results = []
+            def check_and_mark(fid):
+                is_dup = fd.is_duplicate(fid)
+                if not is_dup:
+                    fd.note_processed(fid)
+                return (fid, is_dup)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+                futures = [ex.submit(check_and_mark, f"F_CONC_{i}") for i in range(100)]
+                for f in concurrent.futures.as_completed(futures):
+                    results.append(f.result())
+            dupes = [r for r in results if r[1] is True]
+            assert len(dupes) == 0, "No duplicates should exist on first pass"
+        finally:
+            fd.close()
 
     def test_persistence_concurrent_writes(self):
         """Thread-safe concurrent writes to persistence."""
