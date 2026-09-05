@@ -848,10 +848,18 @@ class TradingEngine:
                 return
             if self._trade_close_manager is None:
                 raise RuntimeError("trade close manager is not initialized")
+            # §27 — stop-loss closes carry NO strategy signal: exit_signal_id
+            # must stay NULL and exit_reason must be the canonical STOP_LOSS.
+            # Reversal/signal exits keep their explicit exit signal id.
+            raw_reason = (self.strategies[fill.strategy_id].last_exit_reason
+                          or "signal_exit")
+            is_stop_loss = (raw_reason or "").lower() in ("stop_loss_hit", "stop_loss")
+            exit_reason = "STOP_LOSS" if is_stop_loss else raw_reason
+            exit_signal_id = "" if is_stop_loss else (signal_id or "")
             result = self._trade_close_manager.close_position(
                 fill, current, fill.strategy_id, fill.multiplier,
-                exit_reason=(self.strategies[fill.strategy_id].last_exit_reason or "signal_exit"),
-                exit_signal_id=signal_id,
+                exit_reason=exit_reason,
+                exit_signal_id=exit_signal_id or None,
             )
             if result is False:
                 return
@@ -862,7 +870,7 @@ class TradingEngine:
                     log.error("[Engine] close_position_record failed for %s: %s",
                               current.position_id, e)
             lifecycle.register_exit_fill(current.trade_id, fill.fill_id, fill.price,
-                fill.timestamp, signal_id or "", exit_reason=self.strategies[fill.strategy_id].last_exit_reason or "signal_exit")
+                fill.timestamp, exit_signal_id, exit_reason=exit_reason)
             lifecycle.close_trade(current.trade_id, result["gross_pnl"], result["charges"], result["net_pnl"])
             # Reversal exits arm an OPPOSITE pending breakout entry which must
             # survive the close: keep it if the strategy has one armed.

@@ -1,0 +1,28 @@
+services:
+  mcx-trader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcx-trader
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - mcx-trader.env
+    environment:
+      DASHBOARD_HOST: 0.0.0.0
+    volumes:
+      # The canonical trading.db (db_path=/app/data/db/trading.db per settings)
+      # must SURVIVE container rebuilds/recreation — never container-local.
+      - mcx_trader_data:/app/data/db
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  mcx_trader_data:
+    name: mcx_trader_data
