@@ -1,39 +1,34 @@
 {
-  "status": "BLOCKED",
   "replay_start": "2026-09-02T09:00:00+05:30",
-  "replay_end": null,
-  "system_time": "2026-09-04T18:59:42.113695+05:30",
-  "reason": "DATA_ACQUISITION_BLOCKED: DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+  "replay_end": "2026-09-04T23:25:00",
+  "system_time": "2026-09-05T19:47:46.287133+05:30",
   "strategies": {
     "gold_01": {
-      "metal": "GOLDM",
-      "base": 5,
-      "mid": 15,
-      "htf": 60,
-      "multiplier": 10.0
+      "signals": 18,
+      "trades": 8,
+      "closed": 7,
+      "net_pnl": -851.0500000001281
     },
     "gold_02": {
-      "metal": "GOLDM",
-      "base": 15,
-      "mid": 15,
-      "htf": 60,
-      "multiplier": 10.0
+      "signals": 12,
+      "trades": 6,
+      "closed": 6,
+      "net_pnl": -532.7799999997264
     },
     "silver_01": {
-      "metal": "SILVERM",
-      "base": 5,
-      "mid": 15,
-      "htf": 60,
-      "multiplier": 5.0
+      "signals": 12,
+      "trades": 8,
+      "closed": 7,
+      "net_pnl": -635.7100000000231
     },
     "silver_02": {
-      "metal": "SILVERM",
-      "base": 15,
-      "mid": 15,
-      "htf": 60,
-      "multiplier": 5.0
+      "signals": 9,
+      "trades": 6,
+      "closed": 5,
+      "net_pnl": -1180.6300000000174
     }
   },
-  "reference": "C:\\Users\\pc\\Desktop\\nifty dema backtest\\project\\core\\dema_mtf.py",
-  "database_used_as_expected_input": false
+  "db_rows_read_only": 3,
+  "data_source": "offline_csv",
+  "reference": "C:\\Users\\pc\\Desktop\\nifty dema backtest\\project\\core\\dema_mtf.py"
 }

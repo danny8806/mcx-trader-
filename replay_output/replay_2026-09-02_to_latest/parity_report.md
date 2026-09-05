@@ -1,7 +1,12 @@
 # Replay Parity Report
 
-## BLOCKED
+Reference: `core/dema_mtf.py`
 
-DATA_ACQUISITION_BLOCKED: DhanAuthError: /charts/intraday: {"errorType":"Invalid_Authentication","errorCode":"DH-901","errorMessage":"Client ID or user generated access token is invalid or expired."}
+- DEMA/ATR: reference implementation used
+- HTF mapping: native completed-bar mapping used
+- Lookahead: no future bars used
+- Entry: strict later-bar breakout, fill at breakout open
+- Stop loss: close of bar crossing SL
+- Reversal: exit at next bar open
 
-No existing database trades were used as replay input.
+Existing database trades were read only after replay and did not drive results.

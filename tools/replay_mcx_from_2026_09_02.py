@@ -119,6 +119,21 @@ def charges(entry: float, exit_price: float, multiplier: float, side: str) -> fl
 def run_strategy(strategy_id: str, frames, reference) -> tuple[list[dict], list[dict], list[dict]]:
     config = STRATEGIES[strategy_id]
     base5, native15, native60 = frames
+
+    # The reference oracle does numpy timedelta64 arithmetic on the datetime
+    # column, which requires a distance-preserving naive (M8) array. tz-aware
+    # datetime64 columns become object dtype on this numpy and crash the
+    # ufunc. Drop tz (naive UTC keeps ordering and durations exact).
+    def _naive(frame: pd.DataFrame) -> pd.DataFrame:
+        out = frame.copy()
+        if isinstance(out["datetime"].dtype, pd.DatetimeTZDtype):
+            out["datetime"] = out["datetime"].dt.tz_localize(None)
+        return out
+
+    base5 = _naive(base5)
+    native15 = _naive(native15)
+    native60 = _naive(native60)
+
     base = base5 if config["base"] == 5 else native15
     if base.empty or native15.empty or native60.empty:
         return [], [], []
@@ -160,8 +175,9 @@ def run_strategy(strategy_id: str, frames, reference) -> tuple[list[dict], list[
             return
         side = position["side"]
         exit_price = float(bar.close if reason == "STOP_LOSS" else bar.open)
-        gross = ((exit_price - position["entry_price"]) if side == "LONG" else (position["entry_price"] - exit_price)) * config["multiplier"]
-        fee = charges(position["entry_price"], exit_price, config["multiplier"], side)
+        entry_price = position["entry_execution_price"]
+        gross = ((exit_price - entry_price) if side == "LONG" else (entry_price - exit_price)) * config["multiplier"]
+        fee = charges(entry_price, exit_price, config["multiplier"], side)
         record = {**position, "exit_signal_id": exit_signal["signal_id"] if exit_signal else None,
                   "exit_signal_timestamp": exit_signal["signal_timestamp"] if exit_signal else None,
                   "exit_type": exit_type or ("EXIT_LONG" if side == "LONG" else "EXIT_SHORT"),
