@@ -212,6 +212,7 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
   const [drawdownCurve, setDrawdownCurve] = useState<DrawdownPoint[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [equityPeriod, setEquityPeriod] = useState("ALL");
+  const [params, setParams] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -228,13 +229,14 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
           return null;
         }
       };
-      const [d, a, t, eq, dd, ev] = await Promise.all([
+      const [d, a, t, eq, dd, ev, pr] = await Promise.all([
         api.strategy(strategyId),
         safeFetch(`/api/analytics/strategies/${strategyId}`),
         safeFetch(`/api/analytics/strategies/${strategyId}/trades?limit=5`),
         safeFetch(`/api/analytics/strategies/${strategyId}/equity`),
         safeFetch(`/api/analytics/strategies/${strategyId}/drawdown`),
         safeFetch(`/api/analytics/events?strategy_id=${strategyId}&limit=20`),
+        api.strategyParams(strategyId),
       ]);
       setDetail(d);
       setAnalytics(a);
@@ -242,6 +244,7 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
       setEquityCurve(eq?.equity_curve || []);
       setDrawdownCurve(dd?.drawdown_curve || []);
       setEvents(ev?.events || []);
+      setParams(pr);
       setLoading(false);
       setError(false);
     } catch (e) {
@@ -434,6 +437,46 @@ export default function StrategyDetail({ strategyId, marketData }: Props) {
               <MetricBox label="Quantity" value={String(cfg.quantity)} />
               <MetricBox label="Instrument" value={cfg.instrument} />
               <MetricBox label="Multiplier" value={cfg.instrument === "GOLDM" ? "10" : "5"} />
+              {params && (
+                <>
+                  <MetricBox
+                    label="Daily Loss Limit"
+                    value={params.risk?.max_daily_loss != null ? `₹${params.risk.max_daily_loss.toLocaleString("en-IN")}` : "—"}
+                  />
+                  <MetricBox
+                    label="Max Positions"
+                    value={params.risk?.max_open_positions_total != null ? String(params.risk.max_open_positions_total) : "—"}
+                  />
+                  <MetricBox
+                    label="Per-Strat Positions"
+                    value={params.risk?.max_open_positions_per_strategy != null ? String(params.risk.max_open_positions_per_strategy) : "—"}
+                  />
+                  <MetricBox
+                    label="Margin/Trade"
+                    value={params.risk?.margin_per_trade_pct != null ? `${params.risk.margin_per_trade_pct}%` : "—"}
+                  />
+                  <MetricBox
+                    label="Slippage (ticks)"
+                    value={params.execution?.slippage_ticks != null ? String(params.execution.slippage_ticks) : "—"}
+                  />
+                  <MetricBox
+                    label="Brokerage/Order"
+                    value={
+                      params.charges?.brokerage_per_side != null
+                        ? `₹${params.charges.brokerage_per_side.toLocaleString("en-IN")}`
+                        : "—"
+                    }
+                  />
+                  <MetricBox
+                    label="STT"
+                    value={params.charges?.stt_sell_pct != null ? `${params.charges.stt_sell_pct * 100}%` : "—"}
+                  />
+                  <MetricBox
+                    label="Exchange"
+                    value={params.charges?.exchange_pct != null ? `${params.charges.exchange_pct * 100}%` : "—"}
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>

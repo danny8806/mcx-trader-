@@ -67,6 +67,7 @@ def _get_instrument_pnl_sync(instrument: str):
         inst = instrument.upper()
         strategies_cfg = _engine.config.get("strategies", {})
         aggregated = {"realized_gross": 0, "realized_charges": 0, "realized_net": 0, "trade_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0}
+        by_strategy = {}
         for strat_name, eng in _engine.pnl_engines.items():
             cfg = strategies_cfg.get(strat_name, {})
             if cfg.get("instrument", "") != inst:
@@ -78,6 +79,17 @@ def _get_instrument_pnl_sync(instrument: str):
             aggregated["trade_count"] += snap.get("trade_count", 0)
             aggregated["wins"] += snap.get("wins", 0)
             aggregated["losses"] += snap.get("losses", 0)
+            by_strategy[strat_name] = {
+                "realized": {
+                    "realized_gross": snap.get("realized_gross", 0),
+                    "realized_charges": snap.get("realized_charges", 0),
+                    "realized_net": snap.get("realized_net", 0),
+                    "trade_count": snap.get("trade_count", 0),
+                    "wins": snap.get("wins", 0),
+                    "losses": snap.get("losses", 0),
+                    "win_rate": snap.get("win_rate", 0),
+                },
+            }
         tc = aggregated["trade_count"]
         aggregated["win_rate"] = aggregated["wins"] / tc if tc > 0 else 0.0
         account = _engine.account_engine.snapshot()
@@ -86,7 +98,9 @@ def _get_instrument_pnl_sync(instrument: str):
         return {
             "instrument": inst,
             "realized": aggregated,
+            "strategies": by_strategy,
             "unrealized": unrealized,
+            "position_count": len([p for p in positions if p.is_open]),
             "timestamp": time.time(),
         }
     except Exception as e:
@@ -134,3 +148,62 @@ def _get_equity_curve_sync():
 @router.get("/api/equity-curve")
 async def get_equity_curve():
     return await asyncio.to_thread(_get_equity_curve_sync)
+
+def _get_instrument_equity_curve_sync(instrument: str):
+    """Per-instrument equity curve derived from the canonical trades ledger.
+
+    Account snapshots are portfolio-level only, so the per-instrument curve is
+    built from each closed trade's net PnL for that instrument, ordered by exit
+    time, as a cumulative realized-PnL journey.  If no trades exist yet the
+    route falls back to the portfolio account snapshot so the endpoint always
+    returns a shape the equity chart can render.
+    """
+    try:
+        inst = instrument.upper()
+        points = []
+        if _persistence:
+            trades = _persistence.get_trades()
+            inst_trades = [
+                t for t in trades
+                if (t.get("instrument") or "").upper() == inst
+                and t.get("net_pnl") is not None
+            ]
+            for t in sorted(
+                inst_trades,
+                key=lambda x: x.get("exit_timestamp") or x.get("entry_timestamp") or "",
+            ):
+                ts = t.get("exit_timestamp") or t.get("entry_timestamp") or ""
+                ts_num = 0
+                if isinstance(ts, (int, float)):
+                    ts_num = float(ts)
+                elif isinstance(ts, str) and ts:
+                    try:
+                        parsed = time.mktime(time.strptime(ts.replace("Z", ""), "%Y-%m-%dT%H:%M:%S"))
+                        ts_num = parsed
+                    except Exception:
+                        try:
+                            ts_num = time.mktime(time.strptime(ts.split(".")[0], "%Y-%m-%dT%H:%M:%S"))
+                        except Exception:
+                            ts_num = 0
+                points.append({
+                    "timestamp": ts_num,
+                    "equity": float(t.get("net_pnl", 0) or 0),
+                    "trade_id": t.get("trade_id"),
+                })
+        if not points:
+            if not _engine:
+                return {"error": "Engine not initialized"}
+            account = _engine.account_engine.snapshot()
+            points = [{"timestamp": time.time(), "equity": account.get("equity", 0)}]
+        # Running cumulative total (per-instrument realized journey)
+        acc = 0.0
+        for pt in sorted(points, key=lambda x: x["timestamp"]):
+            acc += pt["equity"]
+            pt["equity"] = acc
+        return {"instrument": inst, "equity_curve": points, "count": len(points)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@router.get("/api/equity-curve/{instrument}")
+async def get_instrument_equity_curve(instrument: str):
+    return await asyncio.to_thread(_get_instrument_equity_curve_sync, instrument)

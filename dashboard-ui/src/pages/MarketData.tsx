@@ -1,8 +1,31 @@
+import { useState, useCallback } from "react";
 import { useDataSelector } from "../store/DataProvider";
 import { safeINR } from "../lib/utils";
+import { api } from "../lib/api";
 
 export default function MarketData() {
   const marketData = useDataSelector<any>((s) => s.marketData);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+
+  const toggleDetail = useCallback(async (name: string) => {
+    if (expanded === name) {
+      setExpanded(null);
+      setDetail(null);
+      return;
+    }
+    setExpanded(name);
+    setDetail(null);
+    setBusy(true);
+    try {
+      const d = await api.marketDataInstrument(name);
+      if (!d?.error) setDetail(d);
+    } catch { /* ignore */ } finally {
+      setBusy(false);
+    }
+  }, [expanded]);
+
   if (!marketData) return (
     <div style={{ padding: "20px", color: "var(--text-muted)" }}>
       <div className="skeleton" style={{ width: "300px", height: "32px", marginBottom: "12px" }} />
@@ -24,8 +47,9 @@ export default function MarketData() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
         {Object.entries(instruments).map(([name, data]: [string, any]) => {
           const isLive = data.ltp > 0;
+          const isExpanded = expanded === name;
           return (
-            <div key={name} className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
+            <div key={name} className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", cursor: "pointer" }} onClick={() => toggleDetail(name)}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>{name}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -47,6 +71,36 @@ export default function MarketData() {
                   </div>
                 ))}
               </div>
+              {isExpanded && (
+                <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--border-subtle)", fontSize: "9px" }}>
+                  <div style={{ color: "var(--text-disabled)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
+                    INSTRUMENT DETAIL
+                    {busy && <span style={{ marginLeft: "6px", fontWeight: 400 }}>loading...</span>}
+                  </div>
+                  {detail?.error ? (
+                    <div style={{ color: "var(--red)" }}>{detail.error}</div>
+                  ) : detail ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "6px" }}>
+                      {[
+                        ["LTP", detail.ltp ? safeINR(detail.ltp) : "—"],
+                        ["Security ID", detail.config?.security_id ?? "—"],
+                        ["Exchange", detail.config?.exchange_segment ?? "—"],
+                        ["Segment", detail.config?.instrument ?? "—"],
+                        ["Symbol", detail.config?.symbol ?? "—"],
+                        ["Multiplier", String(detail.config?.multiplier ?? detail.config?.lot_size ?? "—")],
+                        ["Updated", detail.timestamp ? new Date(detail.timestamp * 1000).toLocaleTimeString("en-IN", { hour12: false }) : "—"],
+                      ].map(([k, v]) => (
+                        <div key={String(k)}>
+                          <span style={{ color: "var(--text-disabled)" }}>{String(k)}: </span>
+                          <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: "var(--text-muted)" }}>{busy ? "Fetching..." : "Detail unavailable"}</div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

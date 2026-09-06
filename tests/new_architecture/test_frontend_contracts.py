@@ -39,19 +39,30 @@ def _frontend_paths() -> set[str]:
     cleaned = set()
     for p in found:
         clean = p.split("?")[0]
+        # templated path params -> "{}" placeholders that the matcher treats as
+        # wildcards (multi-param paths like /api/pnl/${inst}/strategy/${sid})
         clean = re.sub(r"\$\{[^}]+\}", "{}", clean)
+        # aggregate the ${qs} query-string suffix ("/api/strategies{}") back to
+        # the bare path, but keep real "{}" segment placeholders
+        clean = re.sub(r"([^/]){\}", r"\1", clean)
         clean = re.sub(r"/+", "/", clean)
-        clean = clean.removesuffix("{}")  # trailing ${qs} param placeholder
-        cleaned.add(clean)
+        cleaned.add(clean.rstrip("/"))
     return cleaned
 
 
 def _match_exist(backend: set[str], path: str) -> bool:
-    def rx(t):
-        t = re.sub(r"\{[^}]*\}", "[^/]+", t)
-        return re.compile("^" + re.escape("/") + t[1:] + "/?$")
+    def segs(t: str):
+        return [s for s in t.strip("/").split("/") if s]
+
+    def is_param(s: str) -> bool:
+        return "{" in s
+
+    bp = segs(path)
     for b in backend:
-        if rx(b).match(path):
+        bs = segs(b)
+        if len(bp) != len(bs):
+            continue
+        if all(a == bb or is_param(a) or is_param(bb) for a, bb in zip(bp, bs)):
             return True
     return False
 

@@ -1,7 +1,12 @@
+import { useState, useCallback } from "react";
 import { useDataSelector } from "../store/DataProvider";
+import { api } from "../lib/api";
 
 export default function Reconciliation() {
   const reconciliation = useDataSelector<any>((s) => s.reconciliation);
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [running, setRunning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   if (!reconciliation || Object.keys(reconciliation).length === 0) return (
     <div style={{ padding: "20px", color: "var(--text-muted)" }}>
       <div className="skeleton" style={{ width: "350px", height: "48px", marginBottom: "12px" }} />
@@ -10,6 +15,21 @@ export default function Reconciliation() {
     </div>
   );
 
+  const runScan = useCallback(async (kind: "orphan" | "lifecycle") => {
+    setRunning(kind);
+    setError(null);
+    setScanResult(null);
+    try {
+      const d = kind === "orphan" ? await api.orphanScan() : await api.lifecycleReconcile();
+      if (d?.error) setError(d.error);
+      else setScanResult({ kind, data: d });
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRunning(null);
+    }
+  }, []);
+
   const stats: Record<string, any> = reconciliation.stats || {};
   const errors: string[] = reconciliation.errors || [];
   const warnings: string[] = reconciliation.warnings || [];
@@ -17,7 +37,7 @@ export default function Reconciliation() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
         <div>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
             Reconciliation — {(reconciliation.phase || "live").toUpperCase()}
@@ -36,6 +56,60 @@ export default function Reconciliation() {
           </span>
         </div>
       </div>
+
+      <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-primary)" }}>Actions</div>
+        <button
+          onClick={() => runScan("orphan")}
+          disabled={running !== null}
+          style={{
+            background: running === "orphan" ? "var(--bg-panel-active)" : "var(--bg-input)",
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            color: "var(--text-primary)",
+            padding: "4px 12px",
+            fontSize: 9,
+            fontWeight: 600,
+            cursor: running !== null ? "wait" : "pointer",
+          }}
+        >
+          {running === "orphan" ? "Scanning..." : "Run Orphan Scan"}
+        </button>
+        <button
+          onClick={() => runScan("lifecycle")}
+          disabled={running !== null}
+          style={{
+            background: running === "lifecycle" ? "var(--bg-panel-active)" : "var(--bg-input)",
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            color: "var(--text-primary)",
+            padding: "4px 12px",
+            fontSize: 9,
+            fontWeight: 600,
+            cursor: running !== null ? "wait" : "pointer",
+          }}
+        >
+          {running === "lifecycle" ? "Reconciling..." : "Run Lifecycle Reconcile"}
+        </button>
+        {error && <span style={{ fontSize: "9px", color: "var(--red)" }}>{error}</span>}
+      </div>
+
+      {scanResult && (
+        <div className="lift animate-fade-in-up" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>
+            {scanResult.kind === "orphan" ? "ORPHAN SCAN" : "LIFECYCLE RECONCILE"} — {scanResult.kind === "orphan" ? (scanResult.data.orphans != null ? `${scanResult.data.orphans.length} orphan(s)` : "complete") : "complete"}
+          </div>
+          {scanResult.kind === "orphan" ? (
+            <div style={{ fontSize: "9px", fontFamily: "monospace", color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(scanResult.data, null, 2)}
+            </div>
+          ) : (
+            <div style={{ fontSize: "9px", fontFamily: "monospace", color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(scanResult.data, null, 2)}
+            </div>
+          )}
+        </div>
+      )}
 
       {Object.keys(stats).length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "8px" }}>

@@ -16,10 +16,17 @@ def _get_all_indicators_sync():
     if not _engine:
         return {"error": "Engine not initialized"}
     try:
+        inst_by_sid = {sid: s.instrument for sid, s in _engine.strategies.items()}
         result = {}
         for key, ind in _engine.indicators.items():
-            if ind is not None:
-                result[key] = _with_flat_indicators(_flat_indicator(ind))
+            if ind is None:
+                continue
+            entry = _with_flat_indicators(_flat_indicator(ind))
+            sid = next((s for s in inst_by_sid if key.startswith(s + "_")), None)
+            entry["instrument"] = inst_by_sid.get(sid)
+            entry["timeframe"] = "slow" if key.endswith("_slow") else (
+                "mid" if key.endswith("_mid") else "fast")
+            result[key] = entry
         return {"indicators": result, "count": len(result)}
     except Exception as e:
         return {"error": str(e)}
@@ -54,6 +61,8 @@ def _strategy_htf_entry(strategy_id: str, strat) -> dict:
     except Exception:
         return {}
     hts["strategy_id"] = strategy_id
+    hts["instrument"] = getattr(strat, "instrument", None)
+    hts["timeframe"] = getattr(strat, "htf_timeframe", None)
     snap = hts.get("latest_snapshot")
     if snap is not None:
         if isinstance(snap, dict):

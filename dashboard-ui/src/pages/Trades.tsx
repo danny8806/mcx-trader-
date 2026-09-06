@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDataSelector } from "../store/DataProvider";
 import { formatDT, formatINR, pnlColor, safeNum } from "../lib/utils";
+import { api } from "../lib/api";
 
 interface Trade {
   trade_id: string;
@@ -44,6 +45,24 @@ function TradeRow({ trade, isExpanded, onToggle }: {
   const statusColor = trade.status === "CLOSED" ? "var(--text-muted)" :
     trade.status === "OPEN" ? "var(--green)" :
     trade.status === "PENDING" ? "var(--amber)" : "var(--text-muted)";
+
+  const [detail, setDetail] = useState<any>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    let alive = true;
+    setDetailBusy(true);
+    (async () => {
+      try {
+        const d = await api.trade(trade.trade_id);
+        if (alive && d && !d.error) setDetail(d);
+      } catch { /* ignore */ } finally {
+        if (alive) setDetailBusy(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [isExpanded, trade.trade_id]);
 
   return (
     <>
@@ -172,6 +191,41 @@ function TradeRow({ trade, isExpanded, onToggle }: {
             <div style={{ color: pnlColor(Number(trade.net_pnl)), fontWeight: 600 }}>
               Net: {formatINR(safeNum(trade.net_pnl))}
             </div>
+          </div>
+
+          {/* Live Detail */}
+          <div style={{ gridColumn: "1/-1", borderTop: "1px solid var(--border-subtle)", paddingTop: "6px" }}>
+            <div style={{ color: "var(--text-disabled)", marginBottom: "4px", fontWeight: 600 }}>
+              LIVE TRADE DETAIL
+              {detailBusy && <span style={{ marginLeft: "6px", fontWeight: 400, color: "var(--text-muted)" }}>loading...</span>}
+            </div>
+            {detail ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "6px" }}>
+                {[
+                  ["Strategy", detail.strategy_id ?? "—"],
+                  ["Instrument", detail.instrument ?? "—"],
+                  ["Side", detail.side ?? "—"],
+                  ["Status", detail.status ?? "—"],
+                  ["Qty", detail.quantity ?? "—"],
+                  ["Entry", detail.entry_price != null ? `₹${safeNum(detail.entry_price).toLocaleString("en-IN")}` : "—"],
+                  ["Exit", detail.exit_price != null ? `₹${safeNum(detail.exit_price).toLocaleString("en-IN")}` : "—"],
+                  ["Net P&L", detail.net_pnl != null ? formatINR(safeNum(detail.net_pnl)) : "—"],
+                  ["Exit Reason", detail.exit_reason ?? "—"],
+                  ["Signal", detail.signal_candle_open ? formatDT(detail.signal_candle_open) : "—"],
+                ].map(([k, v]) => (
+                  <div key={String(k)} style={{ fontSize: "9px" }}>
+                    <span style={{ color: "var(--text-disabled)" }}>{String(k)}: </span>
+                    <span className="tabular-nums" style={{ color: k === "Net P&L" ? pnlColor(safeNum(detail.net_pnl)) : "var(--text-primary)", fontWeight: k === "Net P&L" ? 600 : 400 }}>
+                      {String(v)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>
+                {detailBusy ? "Fetching canonical lifecycle record..." : "Detail unavailable"}
+              </div>
+            )}
           </div>
         </div>
       )}

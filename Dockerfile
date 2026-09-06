@@ -17,6 +17,7 @@ COPY dashboard-ui/index.html ./
 COPY dashboard-ui/vite.config.ts ./
 COPY dashboard-ui/tsconfig*.json ./
 COPY dashboard-ui/.oxlintrc.json ./
+COPY dashboard-ui/public ./public
 
 # Build production
 RUN npm run build

@@ -32,6 +32,7 @@ export const api = {
     return fetchJSON<any>(`/api/positions${qs}`);
   },
   position: (id: string) => fetchJSON<any>(`/api/positions/${id}`),
+  positionPnl: (id: string) => fetchJSON<any>(`/api/positions/${id}/pnl`),
   orders: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
     return fetchJSON<any>(`/api/orders${qs}`);
@@ -47,7 +48,9 @@ export const api = {
   trade: (id: string) => fetchJSON<any>(`/api/trades/${id}`),
   pnl: () => fetchJSON<any>("/api/pnl"),
   pnlInstrument: (inst: string) => fetchJSON<any>(`/api/pnl/${inst}`),
+  pnlStrategy: (inst: string, strategyId: string) => fetchJSON<any>(`/api/pnl/${inst}/strategy/${strategyId}`),
   equityCurve: () => fetchJSON<any>("/api/equity-curve"),
+  equityCurveInstrument: (inst: string) => fetchJSON<any>(`/api/equity-curve/${inst}`),
   marketData: () => fetchJSON<any>("/api/market-data"),
   marketDataInstrument: (inst: string) => fetchJSON<any>(`/api/market-data/${inst}`),
   risk: () => fetchJSON<any>("/api/risk"),
