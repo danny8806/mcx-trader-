@@ -281,6 +281,10 @@ def main():
         run_ssh(ssh, (
             "docker rm -f $(docker ps -aq --filter name=mcx-trader) "
             "2>/dev/null || true"))
+        # Remove previous images (old containers are gone, so they are free).
+        run_ssh(ssh, (
+            "docker rmi mcx-trader:latest mcx-trader:fulltest "
+            "2>/dev/null || true"))
         run_ssh(ssh, (
             f"docker run -d --name mcx-trader --restart unless-stopped "
             f"--env-file {vps_env_path} "
