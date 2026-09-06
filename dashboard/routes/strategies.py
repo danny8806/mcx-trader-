@@ -19,16 +19,54 @@ def init(engine, event_bus):
 def _with_flat_indicators(ind_snap: dict) -> dict:
     """Flatten the persistence-shaped DEMA/ATR snapshot into the field names the
     UI reads (dema_value / atr_value) while KEEPING the raw nested snapshot
-    (dema/atr dicts) intact for backward compatibility."""
+    (dema/atr dicts) intact for backward compatibility.
+
+    For shared-stream indicators the snapshot has no persistence-shaped
+    dema/atr dicts, so any values the serializer already resolved are kept.
+    """
     out = dict(ind_snap)
     dema = ind_snap.get("dema") or {}
     atr = ind_snap.get("atr") or {}
     dema_val = None
     if dema.get("ema1") is not None and dema.get("ema2") is not None:
         dema_val = 2 * dema["ema1"] - dema["ema2"]
+    if dema_val is None:
+        dema_val = out.get("dema_value")
     out["dema_value"] = dema_val
-    out["atr_value"] = atr.get("atr")
+    atr_val = atr.get("atr")
+    if atr_val is None:
+        atr_val = out.get("atr_value")
+    out["atr_value"] = atr_val
     return out
+
+
+def _snapshot_view(obj) -> dict:
+    """Pull value / dema / atr / prev from the latest IndicatorSnapshot, whether
+    exposed on the object itself, its shared stream, or a raw dict."""
+    snap = None
+    if isinstance(obj, dict):
+        snap = obj.get("latest_snapshot")
+    else:
+        snap = getattr(obj, "latest_snapshot", None)
+        if snap is None:
+            stream = getattr(obj, "_stream", None)
+            if stream is not None:
+                snap = getattr(stream, "latest_snapshot", None)
+    if snap is None:
+        return {}
+    if isinstance(snap, dict):
+        return {
+            "value": snap.get("dema_atr"),
+            "dema_value": snap.get("dema"),
+            "atr_value": snap.get("atr"),
+            "prev_output": snap.get("previous_dema_atr"),
+        }
+    return {
+        "value": getattr(snap, "dema_atr", None),
+        "dema_value": getattr(snap, "dema", None),
+        "atr_value": getattr(snap, "atr", None),
+        "prev_output": getattr(snap, "previous_dema_atr", None),
+    }
 
 
 def _flat_indicator(ind) -> dict:
@@ -42,13 +80,20 @@ def _flat_indicator(ind) -> dict:
         out.update(_with_flat_indicators(raw))
         if raw.get("value") is not None and out.get("value") is None:
             out["value"] = raw["value"]
-        return out
-    out = {}
-    for attr in ("value", "dema_value", "atr_value", "_count", "initialized"):
-        try:
-            out[attr.lstrip("_")] = getattr(ind, attr)
-        except Exception:
-            out[attr.lstrip("_")] = None
+        if out.get("count") is None:
+            out["count"] = raw.get("indicator_count")
+        if out.get("initialized") is None:
+            out["initialized"] = raw.get("indicator_initialized")
+    else:
+        out = {}
+        for attr in ("value", "dema_value", "atr_value", "_count", "initialized"):
+            try:
+                out[attr.lstrip("_")] = getattr(ind, attr)
+            except Exception:
+                out[attr.lstrip("_")] = None
+    for key, val in _snapshot_view(ind).items():
+        if val is not None:
+            out[key] = val
     return out
 
 

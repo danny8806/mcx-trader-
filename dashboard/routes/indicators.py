@@ -54,6 +54,16 @@ def _strategy_htf_entry(strategy_id: str, strat) -> dict:
     except Exception:
         return {}
     hts["strategy_id"] = strategy_id
+    snap = hts.get("latest_snapshot")
+    if snap is not None:
+        if isinstance(snap, dict):
+            hts["last_confirmed_value"] = snap.get("dema_atr")
+            hts["prev_confirmed_value"] = snap.get("previous_dema_atr")
+            hts["source_timestamp"] = snap.get("candle_end_ts")
+        else:
+            hts["last_confirmed_value"] = getattr(snap, "dema_atr", None)
+            hts["prev_confirmed_value"] = getattr(snap, "previous_dema_atr", None)
+            hts["source_timestamp"] = getattr(snap, "candle_end_ts", None)
     slow_ind = getattr(strat, "slow_indicator", None)
     if slow_ind is not None:
         slow_flat = _flat_indicator(slow_ind)
