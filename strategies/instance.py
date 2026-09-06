@@ -97,6 +97,7 @@ class StrategyInstance:
         self.pending_entry: Optional[PendingEntry] = None
         self.just_entered: bool = False
         self.last_exit_reason: Optional[str] = None
+        self.enabled: bool = True
 
         # ── Deferred reversal exit ──
         self.pending_exit_at_open: bool = False
@@ -743,7 +744,11 @@ class StrategyInstance:
 
     @property
     def enabled(self) -> bool:
-        return True
+        return getattr(self, "_enabled", True)
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self._enabled = bool(value)
 
     @property
     def is_flat(self) -> bool:
@@ -763,6 +768,7 @@ class StrategyInstance:
             "strategy_id": self.strategy_id,
             "instrument": self.instrument,
             "fast_timeframe": self.fast_timeframe,
+            "enabled": self.enabled,
             "state": self.state.value,
             "position_side": self.position_side,
             "stop_price": self.stop_price,
@@ -811,6 +817,7 @@ class StrategyInstance:
         self.pending_exit_bar_start = snapshot.get("pending_exit_bar_start")
         self.same_bar_stop = snapshot.get("same_bar_stop")
         self.current_trade_id = snapshot.get("current_trade_id")
+        self.enabled = bool(snapshot.get("enabled", True))
 
         pending_entry = snapshot.get("pending_entry")
         if pending_entry:

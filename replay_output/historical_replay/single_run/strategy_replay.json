@@ -1,0 +1,28 @@
+{
+ "strategies": {
+  "gold_01": {
+   "bars_processed": 523,
+   "state": "short_position",
+   "position_side": "SHORT",
+   "signals_count": 14
+  },
+  "gold_02": {
+   "bars_processed": 175,
+   "state": "short_position",
+   "position_side": "SHORT",
+   "signals_count": 6
+  },
+  "silver_01": {
+   "bars_processed": 175,
+   "state": "flat",
+   "position_side": null,
+   "signals_count": 6
+  },
+  "silver_02": {
+   "bars_processed": 523,
+   "state": "flat",
+   "position_side": null,
+   "signals_count": 14
+  }
+ }
+}

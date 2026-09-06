@@ -1,0 +1,83 @@
+{
+  "test": "replay_vs_backtest_aggregation_parity",
+  "window": "2026-09-02 09:00 IST .. last closed candle",
+  "native_mode": "native Dhan 5/15/60 rows (replay directive)",
+  "aggregated_mode": "reference backtest aggregation of native 5m (full_simulator.build_bars)",
+  "report": {
+    "signals": {
+      "count_native": 40,
+      "count_aggregated": 37,
+      "checksum_native": "063b5e4911243db6eb55cf957442bb37c978216049d39bdf7a763774deb87474",
+      "checksum_aggregated": "2e63a802fe70a38a05c11cf1b8a0cf3e47d48bf4a28d680026d825326eb48c0d",
+      "identical": false
+    },
+    "trades": {
+      "count_native": 23,
+      "count_aggregated": 22,
+      "checksum_native": "e4a9f7b3c8c8105c3c5be3ca2b6495debec077189f0dc1deb7a0971f23410e4e",
+      "checksum_aggregated": "f260642062d84b95fbaa25e48447c5952120ad42a808bb93efedd43961f326c5",
+      "identical": false
+    },
+    "orders": {
+      "count_native": 44,
+      "count_aggregated": 42,
+      "checksum_native": "841c0df486f585bb5f28d2087c1767c181bed7a1634842b4826e71c779ab6d1d",
+      "checksum_aggregated": "af2c0b2dba9a0e790851389987bbe281ef132e74e823fbde48e8a77dd86c6750",
+      "identical": false
+    },
+    "fills": {
+      "count_native": 44,
+      "count_aggregated": 42,
+      "checksum_native": "2d3185b90684002a1054919c9581798c8da71b97b260e54d697c0df18a935a79",
+      "checksum_aggregated": "96b4d267c69d34cfc00c93c60c9921f3dc7098a210593ef7d7bbb1f53dbfccaf",
+      "identical": false
+    },
+    "positions": {
+      "count_native": 23,
+      "count_aggregated": 22,
+      "checksum_native": "cd4307e16adc47bce8a00d3ea3bb535425ef8ed36e3715603cbabeb6656b32ed",
+      "checksum_aggregated": "4480049fc7cc12bad72ba5fd83295e6c4d3e0c4ee7662980f0f2a484209a7aab",
+      "identical": false
+    },
+    "evaluation_stream": {
+      "count_native": 4184,
+      "count_aggregated": 4184,
+      "checksum_native": "170ed9b5b069639fb7e2ea6d25b16e66245177513692f85056742345edb0fa4d",
+      "checksum_aggregated": "d8810e8b40ca96f3705ecbde57a12ec1fe8ccad64902e8caa69f2e11ad66496f",
+      "identical": false
+    },
+    "strategies": {
+      "gold_01": {
+        "native": 14,
+        "aggregated": 11
+      },
+      "gold_02": {
+        "native": 6,
+        "aggregated": 6
+      },
+      "silver_01": {
+        "native": 6,
+        "aggregated": 6
+      },
+      "silver_02": {
+        "native": 14,
+        "aggregated": 14
+      }
+    },
+    "signal_timestamp_sets": {
+      "n_native": 40,
+      "n_aggregated": 37,
+      "n_common": 23,
+      "only_native": 4,
+      "only_aggregated": 1
+    },
+    "trade_key_comparison": {
+      "n_native": 23,
+      "n_aggregated": 22,
+      "n_common": 18,
+      "only_native": 5,
+      "only_aggregated": 4
+    },
+    "warmup_fetch_calls_equal": false
+  }
+}

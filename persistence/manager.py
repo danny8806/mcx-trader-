@@ -598,7 +598,7 @@ class PersistenceManager:
                 INSERT INTO account_snapshots (
                     timestamp, equity, realized_pnl, unrealized_pnl,
                     used_margin, available_margin
-                ) VALUES (?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 snapshot.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 snapshot.get("equity"),

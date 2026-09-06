@@ -130,7 +130,19 @@ class IndicatorStream:
         construction or direct strategy warmup before binding).
         """
         if end_ts is not None:
-            if self._last_end_ts is not None and end_ts == self._last_end_ts:
+            # §11 — one calculation per (security_id, timeframe, candle_end_ts).
+            # Dedup is by candle identity, not merely by "same as the previous
+            # feed". In both the live router and the warmup replay the same HTF
+            # bar is fed once per subscribed strategy; those feeds may arrive
+            # non-consecutively (interleaved with other timeframes/strategies).
+            # A previous consecutive-only check let a re-feed of an OLD end_ts
+            # re-advance the DEMA/ATR, multiplying the bar count and corrupting
+            # shared-stream values on restart (warmup != live). Re-feeding an
+            # already-accepted candle_id must always be a no-op.
+            if self._end_times and self._end_times[-1] == end_ts:
+                self._dedup_count += 1
+                return self.latest_snapshot
+            if end_ts in self._end_times:
                 self._dedup_count += 1
                 return self.latest_snapshot
             if (self._last_end_ts is not None

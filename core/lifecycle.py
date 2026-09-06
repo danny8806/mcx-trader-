@@ -905,6 +905,26 @@ class TradeLifecycleManager:
                     if trade.pending_order_id:
                         self._pending_to_trade[trade.pending_order_id] = trade.trade_id
 
+                # Rebuild trade -> position links from the canonical positions
+                # table. trades.position_id is intentionally NOT persisted (the
+                # identities are separate; positions are linked by trade_id).
+                # Without this an open trade restored from DB has no position,
+                # which orphan_scan/reconciliation then flag even though the
+                # linkage exists in the positions table.
+                try:
+                    conn = self._persistence._get_conn()
+                    pos_rows = conn.execute(
+                        "SELECT position_id, trade_id FROM positions WHERE strategy_id=? AND trade_id IS NOT NULL AND trade_id != ''",
+                        (self._strategy_id,),
+                    ).fetchall()
+                    for position_id, trade_id in pos_rows:
+                        trade = self._trades.get(trade_id)
+                        if trade is not None:
+                            trade.position_id = position_id
+                            self._position_to_trade[position_id] = trade_id
+                except Exception:
+                    pass
+
                 print(f"[Lifecycle] Restored {len(self._trades)} trades from DB", flush=True)
             except Exception as e:
                 print(f"[Lifecycle] ERROR: failed to restore trades from DB: {e}", flush=True)
@@ -988,9 +1008,17 @@ class TradeLifecycleManager:
                 try:
                     conn = self._persistence._get_conn()
                     conn.row_factory = __import__("sqlite3").Row
+                    # §34 quarantine — every StrategyRuntime owns ONE strategy's
+                    # identity maps, so the global fills/orders tables MUST be
+                    # scoped to this lifecycle's own strategy. Without the
+                    # strategy_id filter the aggregate engine-level orphan scan
+                    # re-flags every other strategy's fills/orders as orphans
+                    # (cross-strategy contamination of the report).
+                    my_strategy = self._strategy_id
                     # Fills without trade_id
                     rows = conn.execute(
-                        "SELECT fill_id, order_id, trade_id FROM fills WHERE trade_id IS NULL OR trade_id = ''"
+                        "SELECT fill_id, order_id, trade_id FROM fills WHERE strategy_id=? AND (trade_id IS NULL OR trade_id = '')",
+                        (my_strategy,),
                     ).fetchall()
                     for r in rows:
                         report["orphan_fills"].append({
@@ -1000,7 +1028,8 @@ class TradeLifecycleManager:
                         })
                     # Orders without trade_id
                     rows = conn.execute(
-                        "SELECT order_id, trade_id FROM orders WHERE trade_id IS NULL OR trade_id = ''"
+                        "SELECT order_id, trade_id FROM orders WHERE strategy_id=? AND (trade_id IS NULL OR trade_id = '')",
+                        (my_strategy,),
                     ).fetchall()
                     for r in rows:
                         report["orphan_orders"].append({
@@ -1008,7 +1037,10 @@ class TradeLifecycleManager:
                             "reason": "order has no trade_id",
                         })
                     # Fills linked to trade_id not in lifecycle
-                    rows = conn.execute("SELECT fill_id, trade_id FROM fills WHERE trade_id IS NOT NULL AND trade_id != ''").fetchall()
+                    rows = conn.execute(
+                        "SELECT fill_id, trade_id FROM fills WHERE strategy_id=? AND trade_id IS NOT NULL AND trade_id != ''",
+                        (my_strategy,),
+                    ).fetchall()
                     for r in rows:
                         if r["trade_id"] not in self._trades:
                             report["orphan_fills"].append({
@@ -1017,7 +1049,10 @@ class TradeLifecycleManager:
                                 "reason": f"fill references non-existent trade {r['trade_id']}",
                             })
                     # Orders linked to trade_id not in lifecycle
-                    rows = conn.execute("SELECT order_id, trade_id FROM orders WHERE trade_id IS NOT NULL AND trade_id != ''").fetchall()
+                    rows = conn.execute(
+                        "SELECT order_id, trade_id FROM orders WHERE strategy_id=? AND trade_id IS NOT NULL AND trade_id != ''",
+                        (my_strategy,),
+                    ).fetchall()
                     for r in rows:
                         if r["trade_id"] not in self._trades:
                             report["orphan_orders"].append({

@@ -1,0 +1,30 @@
+{
+ "signals": 40,
+ "trades": 23,
+ "orders": 44,
+ "fills": 44,
+ "positions": 23,
+ "pnl_groups": 0,
+ "strategies": {
+  "gold_01": 14,
+  "gold_02": 6,
+  "silver_01": 6,
+  "silver_02": 14
+ },
+ "artifacts": [
+  "replay_output\\historical_replay\\single_run\\checksums.json",
+  "replay_output\\historical_replay\\single_run\\crossover_replay.json",
+  "replay_output\\historical_replay\\single_run\\db_integrity.json",
+  "replay_output\\historical_replay\\single_run\\evaluation_stream.jsonl",
+  "replay_output\\historical_replay\\single_run\\fill_replay.json",
+  "replay_output\\historical_replay\\single_run\\full_replay.json",
+  "replay_output\\historical_replay\\single_run\\order_replay.json",
+  "replay_output\\historical_replay\\single_run\\persisted_signal_replay.json",
+  "replay_output\\historical_replay\\single_run\\pnl_replay.json",
+  "replay_output\\historical_replay\\single_run\\position_replay.json",
+  "replay_output\\historical_replay\\single_run\\signal_replay.json",
+  "replay_output\\historical_replay\\single_run\\strategy_replay.json",
+  "replay_output\\historical_replay\\single_run\\summary.json",
+  "replay_output\\historical_replay\\single_run\\trade_replay.json"
+ ]
+}

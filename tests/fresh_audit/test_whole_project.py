@@ -980,7 +980,7 @@ class TestWebSocketAndMisc:
 
     def test_websocket_endpoint_exists(self):
         from dashboard.server import app
-        routes = [r.path for r in app.routes]
+        routes = [getattr(r, "path", None) for r in app.routes]
         assert "/ws" in routes
 
     def test_websocket_manager_connect_disconnect(self):

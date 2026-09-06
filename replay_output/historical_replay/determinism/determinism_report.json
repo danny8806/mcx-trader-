@@ -1,0 +1,53 @@
+{
+  "test": "restart_determinism_vs_uninterrupted",
+  "warmup_frozen_clock": "2026-09-02T09:00:00+05:30",
+  "replay_bar_count": 1486,
+  "verdict": "VERIFIED",
+  "report": {
+    "signals": {
+      "count_a": 40,
+      "count_b": 40,
+      "checksum_a": "063b5e4911243db6eb55cf957442bb37c978216049d39bdf7a763774deb87474",
+      "checksum_b": "063b5e4911243db6eb55cf957442bb37c978216049d39bdf7a763774deb87474",
+      "equal": true
+    },
+    "trades": {
+      "count_a": 23,
+      "count_b": 23,
+      "checksum_a": "e4a9f7b3c8c8105c3c5be3ca2b6495debec077189f0dc1deb7a0971f23410e4e",
+      "checksum_b": "e4a9f7b3c8c8105c3c5be3ca2b6495debec077189f0dc1deb7a0971f23410e4e",
+      "equal": true
+    },
+    "orders": {
+      "count_a": 44,
+      "count_b": 44,
+      "checksum_a": "841c0df486f585bb5f28d2087c1767c181bed7a1634842b4826e71c779ab6d1d",
+      "checksum_b": "841c0df486f585bb5f28d2087c1767c181bed7a1634842b4826e71c779ab6d1d",
+      "equal": true
+    },
+    "fills": {
+      "count_a": 44,
+      "count_b": 44,
+      "checksum_a": "2d3185b90684002a1054919c9581798c8da71b97b260e54d697c0df18a935a79",
+      "checksum_b": "2d3185b90684002a1054919c9581798c8da71b97b260e54d697c0df18a935a79",
+      "equal": true
+    },
+    "positions": {
+      "count_a": 23,
+      "count_b": 23,
+      "checksum_a": "cd4307e16adc47bce8a00d3ea3bb535425ef8ed36e3715603cbabeb6656b32ed",
+      "checksum_b": "cd4307e16adc47bce8a00d3ea3bb535425ef8ed36e3715603cbabeb6656b32ed",
+      "equal": true
+    },
+    "evaluation_stream": {
+      "count_a": 4184,
+      "count_b": 4184,
+      "checksum_a": "170ed9b5b069639fb7e2ea6d25b16e66245177513692f85056742345edb0fa4d",
+      "checksum_b": "170ed9b5b069639fb7e2ea6d25b16e66245177513692f85056742345edb0fa4d",
+      "equal": true
+    },
+    "indicator_streams_equal": true,
+    "warmup_fetch_calls_equal": true,
+    "crossover_log_equal": true
+  }
+}

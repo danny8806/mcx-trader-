@@ -445,17 +445,33 @@ class PositionManagerFacade:
         if not data:
             return
         if "open_positions" in data or "closed_positions" in data:
-            # Flat shape: dispatch each open position by its strategy_id.
+            # Flat shape: group rows by owning strategy and restore each
+            # strategy's manager ONCE. Two passes over the per-row restore
+            # (open then closed) would clear the freshly restored open
+            # positions again because PositionManager.restore clears first
+            # (A12 fix) — a snapshot carrying any closed history silently
+            # dropped open positions. Aggregating keeps clear-once semantics.
+            by_sid: dict[str, dict] = {}
             for pid, pos_data in (data.get("open_positions") or {}).items():
                 sid = (pos_data or {}).get("strategy_id")
-                mgr = self._managers.get(sid)
-                if mgr is not None and mgr.get_position(pid) is None:
-                    mgr.restore({"open_positions": {pid: pos_data}, "closed_positions": []})
+                if sid is None:
+                    continue
+                slot = by_sid.setdefault(sid, {"open_positions": {}, "closed_positions": []})
+                slot["open_positions"][pid] = pos_data
+            seen_closed: set[str] = set()
             for cp_data in (data.get("closed_positions") or []):
                 sid = (cp_data or {}).get("strategy_id")
+                if sid is None:
+                    continue
+                cid = cp_data.get("position_id")
+                if cid in seen_closed:
+                    continue
+                seen_closed.add(cid)
+                by_sid.setdefault(sid, {"open_positions": {}, "closed_positions": []})["closed_positions"].append(cp_data)
+            for sid, mgr_data in by_sid.items():
                 mgr = self._managers.get(sid)
-                if mgr is not None and mgr.get_position(cp_data.get("position_id")) is None:
-                    mgr.restore({"open_positions": {}, "closed_positions": [cp_data]})
+                if mgr is not None:
+                    mgr.restore(mgr_data)
             return
         # Per-strategy shape: strategy_id -> manager snapshot.
         for sid, mgr_data in data.items():

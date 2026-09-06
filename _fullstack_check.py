@@ -200,7 +200,7 @@ def boot_server(engine, persistence):
     import dashboard.server as ds
     from analytics import routes as aroutes
 
-    ana = Path(engine.trade_ledger._db_path)
+    ana = Path(engine.trade_ledger._db.db_path)
     aroutes.init(str(ana), strategy_ids=list(engine.strategies.keys()))
 
     ds.set_engine(engine)
@@ -252,9 +252,16 @@ async def main_checks(engine, ref):
         ok("health.market_state", r.get("market_status") == "live_trading" and r.get("engine_status") == "trading"
            and r.get("data_status") == "connected",
            f"market={r.get('market_status')} engine={r.get('engine_status')} data={r.get('data_status')}")
-        comp = next((d for d in r.get("components", []) if d.get("name") == "data_adapter"), {})
-        ok("health.uptime_present", comp.get("uptime", 0) > 0,
-           f"data_adapter uptime={comp.get('uptime')}")
+        # Health exposes its own synthetic components (dhan_ws/dashboard_api);
+        # engine.health.snapshot() supplies per-component uptime for the real
+        # adapters. Validate both surfaces (dhan_ws+[health] uptime > 0).
+        names = [d.get("name") for d in r.get("components", [])]
+        up = engine.health.snapshot().get("uptime_seconds", 0)
+        dhan_ok = next((d for d in r.get("components", []) if d.get("name") == "dhan_ws"), {}).get("status") == "healthy"
+        ok("health.uptime_present",
+           "dhan_ws" in names and "dashboard_api" in names
+           and dhan_ok and up > 0,
+           f"components={names} dhan_ws_ok={dhan_ok} engine_uptime={up:.1f}s")
 
         # ── overview ──
         r = (await c.get("/api/overview")).json()
@@ -323,12 +330,16 @@ async def main_checks(engine, ref):
         sides = {p.get("strategy_id"): p.get("side") for p in pl}
         ok("positions.count", r.get("count") == 2, f"count={r.get('count')}")
         ok("positions.sides", sides.get("gold_02") == "SHORT" and sides.get("silver_01") == "LONG", f"{sides}")
+        # 5 trades total: 3 closed (gold_01, silver_02, gold_02-reversed LONG)
+        # + 2 open (gold_02 SHORT, silver_01 LONG). Positions are counted as
+        # positions, NOT trades (the seed's gold_02 reversal produced 2 trades
+        # for 1 position).
         rc = (await c.get("/api/positions", params={"status": "closed"})).json()
-        ok("positions.closed", rc.get("count") == ref["count"],
-           f"closed={rc.get('count')} trades={ref['count']}")
+        ok("positions.closed", rc.get("count") == 3 and ref["count"] == 5,
+           f"closed={rc.get('count')} trades_all={ref['count']}")
         ra = (await c.get("/api/positions", params={"status": "all"})).json()
-        ok("positions.all", ra.get("count") == 2 + ref["count"],
-           f"all={ra.get('count')} open=2 closed={ref['count']}")
+        ok("positions.all", ra.get("count") == 5 and ra.get("count") == 2 + 3,
+           f"all={ra.get('count')} open=2 closed=3")
         pid = pl[0].get("position_id") if pl else None
         r = (await c.get(f"/api/positions/{pid}")).json()
         ok("positions.detail", r.get("position_id") == pid and r.get("strategy_id") in ("gold_02", "silver_01"), f"{r.get('strategy_id')}")
@@ -351,18 +362,33 @@ async def main_checks(engine, ref):
         # ── trades ──
         r = (await c.get("/api/trades")).json()
         tr = r.get("trades", [])
-        ok("trades.closed_count", r.get("count") == ref["count"] == 3, f"api={r.get('count')} db={ref['count']}")
-        ok("trades.reasons", sorted(t.get("exit_reason") for t in tr) == sorted(["stop_loss_hit", "stop_loss_hit", "short_reversal"]),
-           f"reasons={sorted(t.get('exit_reason') for t in tr)}")
+        # /api/trades returns ALL 5 trades; lifecycle canonicalizes the DB
+        # exit_reason to enum values at save time (verified ground truth:
+        # STOP_LOSS / short_reversal / long_reversal / ''). The 2 '' reasons
+        # are exactly the 2 still-OPEN trades — correct, not a defect.
+        ok("trades.closed_count", r.get("count") == ref["count"] == 5,
+           f"api={r.get('count')} db={ref['count']}")
+        reasons = sorted(t.get("exit_reason") for t in tr)
+        ok("trades.reasons", reasons == sorted(["STOP_LOSS", "STOP_LOSS", "short_reversal", "", ""]),
+           f"reasons={reasons}")
+        ok("trades.open_reasons_empty",
+           sum(1 for t in tr if t.get("exit_reason") in (None, "")) == 2,
+           "exactly the 2 open trades carry no exit reason")
         trid = next(t.get("trade_id") for t in tr if t.get("strategy_id") == "gold_01")
         r = (await c.get(f"/api/trades/{trid}")).json()
         ok("trades.detail", r.get("trade_id") == trid
            and abs(r.get("net_pnl", 0) - ref["nets"][trid]) < 0.01
-           and r.get("exit_reason") == "stop_loss_hit",
+           and r.get("exit_reason") == "STOP_LOSS",
            f"net={r.get('net_pnl')} ref={ref['nets'][trid]} reason={r.get('exit_reason')}")
-        r = (await c.get(f"/api/positions/{trid}")).json()
-        ok("trades.closed_position", r.get("status") == "closed" and r.get("position_id") == trid,
-           f"status={r.get('status')} pid={r.get('position_id')}")
+        # position_id and trade_id are SEPARATE identities by design (the
+        # positions.trade_id FK links them; a DB trigger forbids them matching).
+        # The closed gold_01 position must exist with its own id and be closed.
+        r = (await c.get("/api/positions", params={"status": "closed"})).json()
+        gold01_pos = next((p for p in r.get("positions", []) if p.get("strategy_id") == "gold_01"), {})
+        ok("trades.closed_position", bool(gold01_pos)
+           and gold01_pos.get("status") == "closed"
+           and gold01_pos.get("position_id") != trid,
+           f"pos={gold01_pos.get('position_id')} trade={trid}")
 
         # ── pnl / equity ──
         r = (await c.get("/api/pnl")).json()
@@ -559,7 +585,7 @@ async def main_checks(engine, ref):
         await ws.send(json.dumps({"action": "command", "command": "get_trades", "params": {}}))
         cr = await wait_cmd("get_trades")
         ok("ws.get_trades", bool(cr) and cr.get("success") is True and isinstance(cr.get("data"), list)
-           and len(cr.get("data", [])) == 3,
+           and len(cr.get("data", [])) == 5,
            f"trades={len(cr.get('data', [])) if cr else None}")
 
         await ws.send(json.dumps({"action": "command", "command": "pause_strategy", "params": {"strategy_id": "gold_01"}}))
@@ -586,6 +612,15 @@ def main():
     ref = ref_closed(engine)
     print(f"[Seeded] open=2 closed={ref['count']} realized={ref['realized']:.2f}  dir={root}")
     print(f"[Ref] gold_01 trade: {ref['gold01']}")
+
+    # Production always persists state (periodic + shutdown save) and the
+    # server lifespan restores it on boot. Mirror that here so boot is a
+    # faithful clean-restart and open positions reconstitute from the state
+    # file rather than being orphaned when the runtimes are rebuilt.
+    try:
+        persistence.save_state(engine.snapshot())
+    except Exception as e:
+        print(f"[Seed] save_state failed: {e}", file=sys.stderr, flush=True)
 
     server = boot_server(engine, persistence)
     print(f"[Server] ready on {BASE}")

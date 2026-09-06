@@ -31,6 +31,45 @@ def _with_flat_indicators(ind_snap: dict) -> dict:
     return out
 
 
+def _flat_indicator(ind) -> dict:
+    """Serialize either a raw DEMAATR (dict snapshot) or a
+    StrategyIndicatorView / IndicatorStream (flat property surface)."""
+    if ind is None:
+        return {}
+    raw = ind.snapshot() if hasattr(ind, "snapshot") else None
+    if isinstance(raw, dict):
+        out = dict(raw)
+        out.update(_with_flat_indicators(raw))
+        if raw.get("value") is not None and out.get("value") is None:
+            out["value"] = raw["value"]
+        return out
+    out = {}
+    for attr in ("value", "dema_value", "atr_value", "_count", "initialized"):
+        try:
+            out[attr.lstrip("_")] = getattr(ind, attr)
+        except Exception:
+            out[attr.lstrip("_")] = None
+    return out
+
+
+def _strategy_htf_state(strategy_id: str, strat) -> dict:
+    """HTF state lives per-strategy since the per-strategy runtime refactor;
+    expose it (plus a flattened slow-indicator snapshot) instead of the removed
+    aggregate htf engine."""
+    hts = {}
+    try:
+        hts = dict(strat.slow_htf_state.snapshot())
+    except Exception:
+        return {}
+    hts["strategy_id"] = strategy_id
+    slow_ind = getattr(strat, "slow_indicator", None)
+    if slow_ind is not None:
+        slow_flat = _flat_indicator(slow_ind)
+        if slow_flat:
+            hts["indicator"] = slow_flat
+    return hts
+
+
 def _reconcile_open_position(strategy_id: str, snap: dict) -> dict:
     """Reconcile the visible strategy state against the open-position truth so
     the Strategy Matrix / Positions panel can never disagree.
@@ -122,15 +161,11 @@ def _get_strategy_sync(strategy_id: str):
         pnl_snap = pnl_eng.snapshot() if pnl_eng else {}
         cfg = _engine.config.strategy(strategy_id)
 
-        fast_key = f"{inst}:{strat.fast_timeframe}"
+        fast_key = f"{strategy_id}_fast"
         fast_ind = _engine.indicators.get(fast_key)
-        ind_snap = fast_ind.snapshot() if fast_ind else {}
+        ind_snap = _flat_indicator(fast_ind)
 
-        htf_snap = _engine.htf_engine.snapshot()
-        htf_key = f"{inst}:{strat.htf_timeframe}"
-        htf_state = htf_snap.get(htf_key, {})
-        if isinstance(htf_state, dict) and isinstance(htf_state.get("indicator"), dict):
-            htf_state = {**htf_state, "indicator": _with_flat_indicators(htf_state["indicator"])}
+        htf_state = _strategy_htf_state(strategy_id, strat)
 
         positions = _engine.position_manager.get_positions_by_strategy(strategy_id)
         pos_list = []

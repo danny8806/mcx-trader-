@@ -41,6 +41,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY config/ ./config/
 COPY core/ ./core/
+COPY events/ ./events/
 COPY data/ ./data/
 COPY strategies/ ./strategies/
 COPY htf/ ./htf/

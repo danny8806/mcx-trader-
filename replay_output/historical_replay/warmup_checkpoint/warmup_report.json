@@ -1,0 +1,89 @@
+{
+ "as_of": "2026-09-02T09:00:00+05:30",
+ "fetch_calls": [
+  {
+   "symbol": "GOLDM",
+   "timeframe": "5",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 1740
+  },
+  {
+   "symbol": "GOLDM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "GOLDM",
+   "timeframe": "60",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 149
+  },
+  {
+   "symbol": "GOLDM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "GOLDM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "GOLDM",
+   "timeframe": "60",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 149
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "60",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 149
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "5",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 1740
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "15",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 580
+  },
+  {
+   "symbol": "SILVERM",
+   "timeframe": "60",
+   "from": "2026-08-19",
+   "to": "2026-09-02",
+   "n": 149
+  }
+ ]
+}

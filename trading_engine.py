@@ -1067,6 +1067,12 @@ class TradingEngine:
                 if not candles:
                     continue
                 df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                # The raw epoch is already a true UTC instant of the bar open.
+                # Convert once for CALENDAR-DAY filtering only (IST wall clock);
+                # never re-derive the feed timestamp from the tz-converted
+                # wall time, which is host-tz-dependent (naive .timestamp()
+                # resolves in the process locale and silently shifts every bar
+                # by +5:30 on non-IST hosts, mis-anchoring DEMA/ATR streams).
                 df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
                 df = df.sort_values("datetime").reset_index(drop=True)
                 if last_days > 0:
@@ -1074,10 +1080,11 @@ class TradingEngine:
                     keep = set(dates[-last_days:])
                     df = df[df["datetime"].dt.date.isin(keep)].reset_index(drop=True)
                 for _, row in df.iterrows():
+                    open_ts = float(row["timestamp"])
                     strategy.warmup_indicator(Bar(
                         instrument=strategy.instrument, timeframe=strategy.fast_timeframe,
-                        start_ts=row["datetime"].timestamp(),
-                        end_ts=row["datetime"].timestamp() + fast_minutes * 60,
+                        start_ts=open_ts,
+                        end_ts=open_ts + fast_minutes * 60,
                         open=row["open"], high=row["high"], low=row["low"], close=row["close"],
                         volume=int(row["volume"]),
                     ))
@@ -1144,6 +1151,7 @@ class TradingEngine:
             "running": self._running,
             "strategies": {name: strat.snapshot() for name, strat in self.strategies.items()},
             "positions": self.position_manager.snapshot(),
+            "account": self.account_engine.snapshot(),
             "event_bus": self.event_bus.snapshot(),
             "candle_distributor": self.candle_distributor.candle_count,
             "candle_router": router_stats,
