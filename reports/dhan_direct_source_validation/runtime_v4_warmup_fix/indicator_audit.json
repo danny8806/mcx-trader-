@@ -1,0 +1,8 @@
+{
+  "phase": "indicator_audit",
+  "ts": 1788692030.9007485,
+  "result": {
+    "ok": false,
+    "error": "ValueError: 6 columns passed, passed data had 7 columns"
+  }
+}

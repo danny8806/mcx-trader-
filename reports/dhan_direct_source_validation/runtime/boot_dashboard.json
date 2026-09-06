@@ -1,0 +1,10 @@
+{
+  "phase": "boot_dashboard",
+  "ts": 1788686447.7882857,
+  "result": {
+    "ok": true,
+    "port": 62454,
+    "base": "http://127.0.0.1:62454",
+    "api_key_gate": false
+  }
+}

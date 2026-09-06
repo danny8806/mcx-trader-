@@ -1,0 +1,9 @@
+{
+  "phase": "dashboard",
+  "elapsed_s": 0.97,
+  "deadline_hit": false,
+  "result": {
+    "ok": false,
+    "error": "TypeError: argument of type 'bool' is not a container or iterable"
+  }
+}

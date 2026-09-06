@@ -1,0 +1,87 @@
+{
+  "phase": "rest_probe",
+  "ts": 1788684234.7636657,
+  "result": {
+    "ok": true,
+    "auth": {
+      "authenticated": true,
+      "auth_state": "valid"
+    },
+    "expiry": {
+      "expires_at": 1788770633,
+      "remaining_hours": 23.999510309563743,
+      "expires_soon": false
+    },
+    "instruments": {
+      "GOLDM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.138,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.064,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 0.053,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        }
+      },
+      "SILVERM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.109,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.271,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 2.337,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        }
+      }
+    },
+    "rest_stats": {
+      "ok": 6,
+      "empty": 0,
+      "retry": 1
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "phase": "rest_fault_test",
+  "ts": 1788676593.8543808,
+  "result": {
+    "ok": true,
+    "injected_raised": true,
+    "first_result_count": 0,
+    "second_result_count": 0,
+    "engine_alive": true,
+    "graceful_no_crash": true,
+    "bounded": true,
+    "auth_note": "reconcile returns [] on DhanAuthError by design (adapter.reconcile_candles)"
+  }
+}

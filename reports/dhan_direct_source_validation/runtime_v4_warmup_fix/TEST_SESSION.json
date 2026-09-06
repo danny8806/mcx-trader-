@@ -1,0 +1,11 @@
+{
+  "test_id": "clm-20260906-162144",
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "failures": [],
+  "errors": [
+    {
+      "phase": "indicator_audit",
+      "type": "ValueError"
+    }
+  ]
+}

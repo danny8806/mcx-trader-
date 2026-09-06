@@ -1,0 +1,39 @@
+{
+  "phase": "real_live_boot",
+  "elapsed_s": 13.28,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "engine_running": true,
+    "ws_connected": true,
+    "ws_retries_observed": 0,
+    "ws_last_error": "",
+    "ws_error_environmental_429": false,
+    "market_state": "OVERNIGHT",
+    "engine_status": "READY",
+    "warmup_forensics_keys": [
+      "gold_01_15",
+      "gold_01_5",
+      "gold_01_60",
+      "gold_02_15",
+      "gold_02_60",
+      "silver_01_15",
+      "silver_01_60",
+      "silver_02_15",
+      "silver_02_5",
+      "silver_02_60"
+    ],
+    "warmup_accepted_by_tf": {
+      "5m": 1740,
+      "15m": 1160,
+      "1h": 300
+    },
+    "strategies": {
+      "gold_01": true,
+      "gold_02": true,
+      "silver_01": true,
+      "silver_02": true
+    },
+    "snapshot_account": true
+  }
+}

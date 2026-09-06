@@ -1,0 +1,79 @@
+{
+  "phase": "dashboard",
+  "elapsed_s": 3.9,
+  "deadline_hit": false,
+  "result": {
+    "ok": false,
+    "rows": {
+      "health": true,
+      "/api/strategies": {
+        "status": 200,
+        "count": 2
+      },
+      "/api/positions": {
+        "status": 200,
+        "count": 2
+      },
+      "/api/trades": {
+        "status": 200,
+        "count": 3
+      },
+      "/api/pnl": {
+        "status": 200,
+        "count": 3
+      },
+      "/api/overview": {
+        "status": 200,
+        "count": 15
+      },
+      "/api/orders": {
+        "status": 200,
+        "count": 2
+      },
+      "/api/fills": {
+        "status": 200,
+        "count": 2
+      },
+      "/api/reconciliation": {
+        "status": 200,
+        "count": 6
+      },
+      "/api/indicators": {
+        "status": 200,
+        "count": 2
+      },
+      "/api/risk": {
+        "status": 200,
+        "count": 15
+      },
+      "/api/health/system": {
+        "status": 200,
+        "count": null
+      },
+      "/api/audit": {
+        "status": 200,
+        "count": 2
+      }
+    },
+    "db_counts": {
+      "trades": 79,
+      "orders": 156,
+      "fills": 156
+    },
+    "memory_counts": {
+      "trades": 79,
+      "fills": 156
+    },
+    "reconcile_diffs": [
+      [
+        "trades api-vs-db",
+        -76
+      ],
+      [
+        "fills mem-vs-db",
+        0
+      ]
+    ],
+    "ws_ok": false
+  }
+}

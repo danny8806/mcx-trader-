@@ -1,0 +1,11 @@
+{
+  "phase": "rest_fault_test",
+  "ts": 1788675730.145122,
+  "result": {
+    "ok": true,
+    "injected_raised": true,
+    "first_result_count": 0,
+    "second_result_count": 0,
+    "engine_alive": true
+  }
+}

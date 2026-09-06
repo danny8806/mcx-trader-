@@ -1,0 +1,25 @@
+{
+  "phase": "final_reconcile",
+  "ts": 1788675744.1798494,
+  "result": {
+    "ok": false,
+    "db": {
+      "signals": 3,
+      "trades": 3,
+      "trade_signal_link": 0,
+      "pending_orders": 0,
+      "orders": 4,
+      "fills": 4,
+      "positions": 3,
+      "trade_events": 0,
+      "account_snapshots": 2,
+      "positions_open": 2,
+      "integrity": "ok",
+      "fk": 0
+    },
+    "memory": {
+      "trades": 1,
+      "open_positions": 0
+    }
+  }
+}

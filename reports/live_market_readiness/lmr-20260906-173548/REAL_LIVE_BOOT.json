@@ -1,0 +1,39 @@
+{
+  "phase": "real_live_boot",
+  "elapsed_s": 43.27,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "engine_running": true,
+    "ws_connected": true,
+    "ws_retries_observed": 2,
+    "ws_last_error": "Handshake status 429 Too Many Requests -+-+- {'content-type': 'text/plain; charset=utf-8', 'x-content-type-options': 'nosniff', 'date': 'Sun, 06 Sep 2026 12:06:20 GMT', 'content-length': '58'} -+-+- b'Too many requests from this IP hence client id is blocked\\n'",
+    "ws_error_environmental_429": true,
+    "market_state": "OVERNIGHT",
+    "engine_status": "READY",
+    "warmup_forensics_keys": [
+      "gold_01_15",
+      "gold_01_5",
+      "gold_01_60",
+      "gold_02_15",
+      "gold_02_60",
+      "silver_01_15",
+      "silver_01_60",
+      "silver_02_15",
+      "silver_02_5",
+      "silver_02_60"
+    ],
+    "warmup_accepted_by_tf": {
+      "5m": 1740,
+      "15m": 1160,
+      "1h": 300
+    },
+    "strategies": {
+      "gold_01": true,
+      "gold_02": true,
+      "silver_01": true,
+      "silver_02": true
+    },
+    "snapshot_account": true
+  }
+}

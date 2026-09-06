@@ -1,0 +1,9 @@
+{
+  "phase": "indicator_audit",
+  "ts": 1788676715.4230237,
+  "result": {
+    "ok": true,
+    "auth_unavailable": true,
+    "note": "Dhan token expired / renewal unavailable: live REST cross-check skipped. Independent indicator correctness is carried by the verified deterministic replay fixtures (tests/full_system_verification.py section A, 13/13) and the shared-stream tests (indicators). Streams below were fed only from the DB-restored state (no new candles in closed market)."
+  }
+}

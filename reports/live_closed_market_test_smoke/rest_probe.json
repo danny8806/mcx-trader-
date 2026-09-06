@@ -1,0 +1,50 @@
+{
+  "phase": "rest_probe",
+  "ts": 1788675623.970437,
+  "result": {
+    "ok": false,
+    "auth": {
+      "authenticated": false
+    },
+    "expiry": {
+      "expires_at": 1788015978,
+      "remaining_hours": -183.2349915938245,
+      "expires_soon": true
+    },
+    "instruments": {
+      "GOLDM": {
+        "5": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.237
+        },
+        "15": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.084
+        },
+        "60": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.081
+        }
+      },
+      "SILVERM": {
+        "5": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.089
+        },
+        "15": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.161
+        },
+        "60": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.299
+        }
+      }
+    },
+    "rest_stats": {
+      "ok": 0,
+      "empty": 0,
+      "retry": 0
+    }
+  }
+}

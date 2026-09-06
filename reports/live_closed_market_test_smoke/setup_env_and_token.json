@@ -1,0 +1,28 @@
+{
+  "phase": "setup_env_and_token",
+  "ts": 1788675622.8920908,
+  "result": {
+    "ok": true,
+    "client_id_length": 10,
+    "token_length": 304,
+    "token_file": "C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\db\\dhan_token.json",
+    "token_file_seeded": true,
+    "token_file_existed": true,
+    "env_keys": [
+      "DASHBOARD_API_KEY",
+      "DHAN_ACCESS_TOKEN",
+      "DHAN_CLIENT_ID",
+      "TOTP_SECRET",
+      "TRADING_PIN"
+    ],
+    "pin_configured": false,
+    "totp_configured": false,
+    "token_expiry": {
+      "expires_at": 1788015978,
+      "remaining_hours": -183.23469223512544,
+      "expires_soon": true
+    },
+    "backup_dir": "reports\\live_closed_market_test_smoke\\_pre_run_backup",
+    "backed_up": true
+  }
+}

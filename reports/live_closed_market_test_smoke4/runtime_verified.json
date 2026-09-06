@@ -1,0 +1,26 @@
+{
+  "phase": "runtime_verified",
+  "ts": 1788676712.3925724,
+  "result": {
+    "ok": true,
+    "engine_running": true,
+    "ws_connected": false,
+    "adapter_connected": false,
+    "ws_stats": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 0,
+      "tick": 0
+    },
+    "market_state": "OVERNIGHT",
+    "engine_status": "READY",
+    "market_closed_idle_safe": true,
+    "strategies": {
+      "gold_01": true,
+      "gold_02": true,
+      "silver_01": true,
+      "silver_02": true
+    },
+    "snapshot_has_account": true
+  }
+}

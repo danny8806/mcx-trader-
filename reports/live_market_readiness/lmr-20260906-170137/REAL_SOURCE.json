@@ -1,0 +1,96 @@
+{
+  "ok": true,
+  "stream_len": 4940,
+  "counts": {
+    "1h": 300,
+    "15m": 1160,
+    "5m": 3480
+  },
+  "raw": {
+    "GOLDM:60": {
+      "dhan_return_count": 150,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788543000.0,
+      "latency_s": 0.122,
+      "accepted_count": 150,
+      "rejected_count": 0,
+      "echo/session_rejected": []
+    },
+    "GOLDM:15": {
+      "dhan_return_count": 581,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788543900.0,
+      "latency_s": 0.079,
+      "accepted_count": 580,
+      "rejected_count": 1,
+      "echo/session_rejected": [
+        {
+          "ts": 1788458400,
+          "reason": "OUTSIDE_SUPPORTED_SESSION"
+        }
+      ]
+    },
+    "GOLDM:5": {
+      "dhan_return_count": 1741,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788544500.0,
+      "latency_s": 0.095,
+      "accepted_count": 1740,
+      "rejected_count": 1,
+      "echo/session_rejected": [
+        {
+          "ts": 1788458400,
+          "reason": "OUTSIDE_SUPPORTED_SESSION"
+        }
+      ]
+    },
+    "SILVERM:60": {
+      "dhan_return_count": 150,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788543000.0,
+      "latency_s": 0.062,
+      "accepted_count": 150,
+      "rejected_count": 0,
+      "echo/session_rejected": []
+    },
+    "SILVERM:15": {
+      "dhan_return_count": 581,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788543900.0,
+      "latency_s": 0.275,
+      "accepted_count": 580,
+      "rejected_count": 1,
+      "echo/session_rejected": [
+        {
+          "ts": 1788458400,
+          "reason": "OUTSIDE_SUPPORTED_SESSION"
+        }
+      ]
+    },
+    "SILVERM:5": {
+      "dhan_return_count": 1741,
+      "first_ts": 1787542200.0,
+      "last_ts": 1788544500.0,
+      "latency_s": 2.445,
+      "accepted_count": 1740,
+      "rejected_count": 1,
+      "echo/session_rejected": [
+        {
+          "ts": 1788458400,
+          "reason": "OUTSIDE_SUPPORTED_SESSION"
+        }
+      ]
+    }
+  },
+  "security_ids": {
+    "GOLDM": "569003",
+    "SILVERM": "483080"
+  },
+  "clock": {
+    "fetch_days": 14,
+    "from": "2026-08-23",
+    "to": "2026-09-06",
+    "now_epoch": 1788694297
+  },
+  "note": "rows are REAL Dhan candles; only the verified completion/session classifier is applied; no synthetic timestamps or OHLC"
+}

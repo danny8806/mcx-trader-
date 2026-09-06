@@ -1,0 +1,13 @@
+{
+  "phase": "crash_kid_test",
+  "ts": 1788692093.056267,
+  "result": {
+    "ok": true,
+    "child_rc": 1,
+    "died_mid_transaction": true,
+    "child_stdout": "MID-TRANSACTION-DEATH\n",
+    "integrity": "ok",
+    "marker_rows_visible": 0,
+    "wal_recovery": "uncommitted frames rolled back on next read"
+  }
+}

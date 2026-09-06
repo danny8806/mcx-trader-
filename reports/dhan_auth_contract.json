@@ -1,0 +1,36 @@
+{
+  "scope": "MCX-TRADER Dhan authentication contract as implemented by the application (no values included)",
+  "broker": "Dhan (api.dhan.co) via official dhanhq SDK + pyotp",
+  "required_credentials": [
+    {"name": "DHAN_CLIENT_ID", "source": "mcx-trader.env (gitignored, *.env) + ${DHAN_CLIENT_ID} placeholder in config/settings.json dhan.client_id", "format": "10-digit Dhan client id, e.g. 1*************1"},
+    {"name": "DHAN_ACCESS_TOKEN", "source": "mcx-trader.env (seeded by runner into data/db/dhan_token.json)", "format": "JWT (HS512, payload claims iat/exp/iss=dhan)"}
+  ],
+  "optional_credentials": [
+    {"name": "TRADING_PIN", "source": "mcx-trader.env / deploy env -e TRADING_PIN", "format": "6-digit Dhan login PIN", "purpose": "PIN+TOTP auto-renewal (no browser) via DhanLogin.generate_token(pin, totp)"},
+    {"name": "TOTP_SECRET", "source": "mcx-trader.env / deploy env -e TOTP_SECRET", "format": "base32 TOTP seed", "purpose": "pyotp.TOTP(seed).now()"}
+  ],
+  "token_location": {"path": "data/db/dhan_token.json", "gitignored": "data/db/dhan_token.json (yes, .gitignore:16)", "schema": "{'access_token': '<JWT>'}"},
+  "renewal": {
+    "mechanism": "data/dhan/rest_client.py DhanRESTClient.renew_token(): pyotp.TOTP(totp_secret).now() -> dhanhq.DhanLogin(client_id).generate_token(pin, totp) -> write access_token to token_file",
+    "triggers": ["ensure_token() on missing token", "ensure_token() when JWT exp within 1h grace", "daily 7 AM scheduler", "6-hourly safety check (2h grace)", "REST _post/_get on DhanAuthError"],
+    "cooldown": "130s per attempt (Dhan 2-min rate limit)",
+    "renewal_source_of_truth": "JWT exp claim (no API validate call to avoid waste)"
+  },
+  "rest_auth": {
+    "base_url": "https://api.dhan.co/v2",
+    "header": {"name": "access-token", "value": "<JWT>", "additional": "Content-Type/Accept application/json"},
+    "rate_limit": "3.5 req/s burst 3 via TokenBucket"
+  },
+  "websocket_auth": {
+    "url": "wss://api.dhan.co (v2 market feed)",
+    "params": ["authType=2", "clientId=<DHAN_CLIENT_ID>", "token=<JWT>", "version=1.3"],
+    "reconnect": "bounded backoff 10s->30s; watchdog stale threshold",
+    "tick_seen_lock": "ws _seen_ltt capped 10000; closed-market idle safe"
+  },
+  "engine_integration": {
+    "trading_engine.py:181-182": "DhanDataAdapter(client_id=dhan_config['client_id'], token_file=dhan_config.get('token_file','dhan_token.json'))",
+    "config/settings.json": "dhan.* entries use ${...} env placeholders resolved by Config.load() against os.environ",
+    "runner tools/closed_market_runtime_test.py": "setup_env_and_token loads mcx-trader.env, exports to os.environ, seeds data/db/dhan_token.json from DHAN_ACCESS_TOKEN, builds DhanDataAdapter(client_id, token_file, pin=TRADING_PIN, totp_secret=TOTP_SECRET)"
+  },
+  "auth_state_definition": "runner: 'valid' if JWT exp in future; 'expired_renewal_possible' if expired but TRADING_PIN+TOTP_SECRET both set; 'expired_no_renewal' otherwise"
+}

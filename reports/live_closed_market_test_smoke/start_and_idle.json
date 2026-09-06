@@ -1,0 +1,24 @@
+{
+  "phase": "start_and_idle",
+  "ts": 1788675664.900719,
+  "result": {
+    "ok": true,
+    "ws_connected": false,
+    "adapter_connected": false,
+    "ws_stats_at_start": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 4,
+      "tick": 0
+    },
+    "market_state": "OVERNIGHT",
+    "engine_status": "READY",
+    "market_closed_idle_safe": true,
+    "strategies": {
+      "gold_01": true,
+      "gold_02": true,
+      "silver_01": true,
+      "silver_02": true
+    }
+  }
+}

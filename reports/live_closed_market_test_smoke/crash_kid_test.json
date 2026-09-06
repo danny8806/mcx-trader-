@@ -1,0 +1,12 @@
+{
+  "phase": "crash_kid_test",
+  "ts": 1788675730.7047384,
+  "result": {
+    "ok": true,
+    "child_rc": 1,
+    "integrity": "ok",
+    "marker_rows_visible": 0,
+    "wal_recovery": "uncommitted frames rolled back on next read",
+    "child_exit_before_commit": true
+  }
+}

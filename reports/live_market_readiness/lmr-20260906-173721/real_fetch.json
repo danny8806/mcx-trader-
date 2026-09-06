@@ -1,0 +1,9 @@
+{
+  "phase": "real_fetch",
+  "elapsed_s": 0.35,
+  "deadline_hit": false,
+  "result": {
+    "ok": false,
+    "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Order_Error\",\"errorCode\":\"DH-906\",\"errorMessage\":\"Invalid Token\"}"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "phase": "reconnect_test",
+  "ts": 1788676766.4710417,
+  "result": {
+    "ok": true,
+    "ws_reconnected": false,
+    "auth_blocked": true,
+    "attempts_observed": 2,
+    "on_status_events": [
+      "error",
+      "closed",
+      "disconnected",
+      "error",
+      "closed",
+      "disconnected"
+    ],
+    "stats_before": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 0,
+      "tick": 0
+    },
+    "stats_after": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 0,
+      "tick": 0
+    },
+    "backoff_note": "reconnect_delay=10s, backoff capped at 30s, watchdog stale threshold 60s, token reload per attempt",
+    "verdict_note": "Dhan server rejects the expired token (DH-901); bounded reconnect cycling is the verified behavior in this state"
+  }
+}

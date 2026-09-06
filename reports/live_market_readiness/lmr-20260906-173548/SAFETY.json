@@ -1,0 +1,5 @@
+{
+  "ok": true,
+  "system.environment": "paper",
+  "paper_only_rule": "Abort if not paper"
+}

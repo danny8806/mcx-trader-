@@ -1,0 +1,18 @@
+{
+  "phase": "restart_test",
+  "ts": 1788676315.161774,
+  "result": {
+    "ok": true,
+    "strategy_ids_match": true,
+    "engine_ready": true,
+    "auth_unavailable_warmup": true,
+    "bars_processed_per_strategy": {
+      "gold_01": 0,
+      "gold_02": 0,
+      "silver_01": 0,
+      "silver_02": 0
+    },
+    "positions_after_restore": [],
+    "snapshot_account_present": true
+  }
+}

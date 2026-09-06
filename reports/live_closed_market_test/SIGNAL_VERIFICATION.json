@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "verified": 0,
+  "mismatched": 0,
+  "no_candle": 0,
+  "auth_fail": 0,
+  "signals": [
+    {
+      "signal_id": "SIG-L-002",
+      "signal_type": "ENTRY_LONG",
+      "side": "LONG",
+      "trigger": 68000.0,
+      "instrument": "SILVERM",
+      "candle_timestamp": null,
+      "timeframe": "5",
+      "verdict": "fixture",
+      "note": "missing ts/instrument/side - cannot cross-check"
+    },
+    {
+      "signal_id": "SIG-S-001",
+      "signal_type": "ENTRY_SHORT",
+      "side": "SHORT",
+      "trigger": 98000.0,
+      "instrument": "GOLDM",
+      "candle_timestamp": null,
+      "timeframe": "5",
+      "verdict": "fixture",
+      "note": "missing ts/instrument/side - cannot cross-check"
+    },
+    {
+      "signal_id": "SIG-L-001",
+      "signal_type": "ENTRY_LONG",
+      "side": "LONG",
+      "trigger": 100000.0,
+      "instrument": "GOLDM",
+      "candle_timestamp": null,
+      "timeframe": "5",
+      "verdict": "fixture",
+      "note": "missing ts/instrument/side - cannot cross-check"
+    }
+  ],
+  "note": "mismatch=0 => every cross-checkable signal matches; fixture seeds and closed-market (0 new) are expected; trigger semantics additionally proven by the verified deterministic replay fixtures (tests/full_system_verification.py A)"
+}

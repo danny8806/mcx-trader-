@@ -10,6 +10,18 @@ from typing import Any, Optional
 
 import requests
 
+# Process-global last-renew timestamp.  Multiple DhanDataAdapter instances can
+# be constructed in one process (engine restarts, probes).  Each constructor
+# mints a fresh token via renew_token(); Dhan however only permits ONE token
+# generation per ~2-minute TOTP window *per client id*.  Without a shared
+# cooldown, rapidly re-constructed adapters hammer the login endpoint, hit the
+# 2-minute rate limit, lose the token, and every REST call fails with
+# DH-906 Invalid Token.  Sharing the cooldown across the process makes repeated
+# adapter construction reuse an already-minted (JWT-valid) token instead of
+# re-issuing.  This is guarded, so a genuinely expired token still renews.
+_RENEW_GLOBAL_LOCK = threading.Lock()
+_RENEW_LAST_ATTEMPT: float = 0.0
+
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -155,28 +167,49 @@ class DhanRESTClient:
 
     def renew_token(self) -> str:
         """Auto-renew Dhan token using PIN + TOTP (no browser needed).
-        
-        Thread-safe: only one renewal can happen at a time.
-        Respects Dhan's 2-minute rate limit.
+
+        Thread-safe and process-wide rate-limited: only one renewal can happen
+        at a time across ALL DhanRESTClient instances, respecting Dhan's
+        ~2-minute per-client generation limit.  When rate-limited we fall back
+        to the cached/on-disk token if it is still JWT-valid, so a fresh token
+        is reused instead of lost.  Returns "" only if no usable token exists.
         """
-        # Quick check without lock — avoids contention for common case
-        now = time.monotonic()
-        if (now - self._last_renew_attempt) < self._renew_cooldown:
-            remaining = int(self._renew_cooldown - (now - self._last_renew_attempt))
-            print("[auth] rate-limited, wait %ds before retry" % remaining, flush=True)
+        global _RENEW_LAST_ATTEMPT
+
+        def _fallback() -> str:
+            tok = self._token_cache or self.load_token()
+            if tok and not self.token_expires_soon(grace_hours=1.0):
+                return tok
             return self._token_cache or ""
 
+        # Unique per-instance cooldown value; the shared cooldown is global.
+        cooldown = self._renew_cooldown
+
         with self._renew_lock:
-            # Double-check after acquiring lock
-            now = time.monotonic()
-            if (now - self._last_renew_attempt) < self._renew_cooldown:
-                remaining = int(self._renew_cooldown - (now - self._last_renew_attempt))
-                print("[auth] rate-limited (lock), wait %ds" % remaining, flush=True)
-                return self._token_cache or ""
-            self._last_renew_attempt = now
+            # Local instance guard: another thread already minted for us.
+            now_local = time.monotonic()
+            if (now_local - self._last_renew_attempt) < cooldown:
+                print("[auth] rate-limited (local), wait %ds"
+                      % int(cooldown - (now_local - self._last_renew_attempt)),
+                      flush=True)
+                return _fallback()
+
+            # Process-wide guard: some OTHER adapter just minted.  If it minted
+            # within the cooldown we must not mint again (Dhan 2-min limit) --
+            # reuse the fresh shared token from disk instead.
+            with _RENEW_GLOBAL_LOCK:
+                now_global = time.monotonic()
+                if (now_global - _RENEW_LAST_ATTEMPT) < cooldown:
+                    print("[auth] rate-limited (global), wait %ds"
+                          % int(cooldown - (now_global - _RENEW_LAST_ATTEMPT)),
+                          flush=True)
+                    return _fallback()
+                _RENEW_LAST_ATTEMPT = now_global
+            self._last_renew_attempt = now_global
 
             if not self.pin or not self.totp_secret:
-                print("[auth] no PIN/TOTP configured, cannot auto-renew", flush=True)
+                print("[auth] no PIN/TOTP configured, cannot auto-renew",
+                      flush=True)
                 return ""
             try:
                 import pyotp

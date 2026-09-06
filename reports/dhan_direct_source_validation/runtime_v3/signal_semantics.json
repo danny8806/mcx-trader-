@@ -1,0 +1,44 @@
+{
+  "phase": "signal_semantics",
+  "ts": 1788688914.8668487,
+  "result": {
+    "ok": true,
+    "checked": [
+      {
+        "signal_id": "SIG-L-002",
+        "signal_type": "ENTRY_LONG",
+        "side": "LONG",
+        "trigger": 68000.0,
+        "instrument": "SILVERM",
+        "candle_timestamp": null,
+        "timeframe": "5",
+        "verdict": "fixture",
+        "note": "missing ts/instrument/side - cannot cross-check"
+      },
+      {
+        "signal_id": "SIG-S-001",
+        "signal_type": "ENTRY_SHORT",
+        "side": "SHORT",
+        "trigger": 98000.0,
+        "instrument": "GOLDM",
+        "candle_timestamp": null,
+        "timeframe": "5",
+        "verdict": "fixture",
+        "note": "missing ts/instrument/side - cannot cross-check"
+      },
+      {
+        "signal_id": "SIG-L-001",
+        "signal_type": "ENTRY_LONG",
+        "side": "LONG",
+        "trigger": 100000.0,
+        "instrument": "GOLDM",
+        "candle_timestamp": null,
+        "timeframe": "5",
+        "verdict": "fixture",
+        "note": "missing ts/instrument/side - cannot cross-check"
+      }
+    ],
+    "verified": 0,
+    "no_candle": 0
+  }
+}

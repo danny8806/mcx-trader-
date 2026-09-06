@@ -1,0 +1,957 @@
+{
+  "phase": "lineage",
+  "elapsed_s": 0.02,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "counts": {
+      "signals": 142,
+      "trades": 79,
+      "pending_orders": 0,
+      "orders": 156,
+      "fills": 156,
+      "positions": 79,
+      "events": 528,
+      "trade_events": 389,
+      "quarantine_records": 0
+    },
+    "flags": [
+      "sl_exits=47",
+      "reversal_exits=30",
+      "reversal_follow=26",
+      "reversal_no_follow=4"
+    ],
+    "analytics_vs_trades": [
+      {
+        "strategy_id": "gold_01",
+        "trades_db": 23,
+        "pnl_db": 2784.000000000005,
+        "trades_analytics": 23,
+        "pnl_analytics": 2784.000000000005,
+        "diff_count": 0,
+        "diff_pnl": 0.0
+      },
+      {
+        "strategy_id": "gold_02",
+        "trades_db": 15,
+        "pnl_db": 27717.840000000007,
+        "trades_analytics": 15,
+        "pnl_analytics": 27717.840000000007,
+        "diff_count": 0,
+        "diff_pnl": 0.0
+      },
+      {
+        "strategy_id": "silver_01",
+        "trades_db": 17,
+        "pnl_db": 3301.5899999999992,
+        "trades_analytics": 17,
+        "pnl_analytics": 3301.5899999999992,
+        "diff_count": 0,
+        "diff_pnl": 0.0
+      },
+      {
+        "strategy_id": "silver_02",
+        "trades_db": 24,
+        "pnl_db": -11581.970000000001,
+        "trades_analytics": 24,
+        "pnl_analytics": -11581.970000000001,
+        "diff_count": 0,
+        "diff_pnl": 0.0
+      }
+    ],
+    "check_results": [
+      {
+        "ok": true,
+        "check": "lineage invariants: no NULL/empty trade_id on lifecycle tables; trade_id disjoint from signal/pending/order/fill/position ids; every entry references a real signal",
+        "data": {
+          "failures": []
+        }
+      },
+      {
+        "ok": true,
+        "check": "no duplicate ids in trades/orders/fills/positions"
+      },
+      {
+        "ok": true,
+        "check": "no cross-strategy contamination on order/fill/position edges",
+        "data": {
+          "order_vs_trade": [],
+          "fill_vs_trade": [],
+          "fill_vs_order": [],
+          "position_vs_trade": []
+        }
+      },
+      {
+        "ok": true,
+        "check": "SL exits carry no fabricated exit signal",
+        "data": []
+      },
+      {
+        "ok": true,
+        "check": "reversal exit_signal_id == next trade entry_signal_id in real data (SIG-NEW shared); no orphan exit signals",
+        "data": {
+          "total": [
+            {
+              "exit_trade_id": "3e701ab4-c8f4-4131-bb80-70e6fe450d83",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "54cbdb6a-dafb-40dd-be6d-7ad2697dd307",
+              "follow_through": true,
+              "reuse_trade_id": "599fdde3-3495-4e4d-83d1-c632f73c9b3b",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "ade97065-6913-4884-ba57-ecb83b54136c",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "30f29539-0a22-45c1-ae02-cbceca3cc305",
+              "follow_through": true,
+              "reuse_trade_id": "cf952af5-275d-42ca-8acf-d20971654308",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "8c1b8a4c-d1e6-4516-b6e8-4395616ff836",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "704c4db4-7b24-48e1-8d0d-ed4cdb191920",
+              "follow_through": true,
+              "reuse_trade_id": "68da447b-4aac-4da5-a049-a021ddd15e45",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "d6038aec-5f1f-42fb-b636-2bb4822eda4d",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "20b6ef21-c92a-4f45-a049-034402eecff1",
+              "follow_through": false
+            },
+            {
+              "exit_trade_id": "bdc0d5a1-b767-470c-bdc8-0a56ff40a524",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "7f2117ae-538b-4725-8ac5-39e89c25ce58",
+              "follow_through": true,
+              "reuse_trade_id": "90c79564-90e2-4deb-9889-188f9bd31aca",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "8d7dcfdd-9e6f-4041-89a8-de00a15b4591",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "294ddba5-5fff-4723-8ce3-d3927f54369f",
+              "follow_through": true,
+              "reuse_trade_id": "4525173d-dd24-4810-97ce-24a6fe414a2a",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "6cf9dcdc-e688-40c6-be1c-676631ba8e7f",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "43c5dbb0-96c0-40d6-9bdc-90294f769239",
+              "follow_through": true,
+              "reuse_trade_id": "5a67b361-f6bd-4704-bebf-a062e6538f1b",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "7bc0adb8-7d16-4971-900c-90737d102b3c",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "7bdb0145-9fda-465e-82ac-398c2ae8833b",
+              "follow_through": true,
+              "reuse_trade_id": "10b69ce8-40eb-4b31-9a82-944eb5a047b8",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "4525173d-dd24-4810-97ce-24a6fe414a2a",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "de28d51c-d5be-4bc1-a4f8-f9f1516c4417",
+              "follow_through": true,
+              "reuse_trade_id": "5d835026-055d-4150-9613-036134ba2460",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "d7ad8577-73cb-4724-a18f-1dc4bae90e21",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "85baf1e8-673d-42e4-ad3a-442e06a0d220",
+              "follow_through": true,
+              "reuse_trade_id": "915990b5-5a2a-46c5-a5ca-c15adcf2cc7e",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "5a15f4ec-7662-4d86-a1ec-204089d135fc",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "17820438-cfb0-45c3-be5f-a1feebffacd2",
+              "follow_through": false
+            },
+            {
+              "exit_trade_id": "a93f5860-b329-413c-91e5-3aca9ff96370",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "c469dd80-3c4a-428c-a197-ad9aa962666a",
+              "follow_through": true,
+              "reuse_trade_id": "43e0ffd8-69ce-4d15-a4bd-4780bb92ca3e",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "704efde5-fe02-425c-b61e-ee3cfe9374e8",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "4a4fd779-bc1e-456b-bb9e-1aa4b64ba90c",
+              "follow_through": false
+            },
+            {
+              "exit_trade_id": "677936bd-7e83-4252-99fe-ac0a59042086",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "f08ee166-3d0a-49de-b231-52cfd2182af1",
+              "follow_through": true,
+              "reuse_trade_id": "35ec4d0c-ac41-4164-9d34-436f2736774c",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "43e0ffd8-69ce-4d15-a4bd-4780bb92ca3e",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "592546d0-4725-4d26-9497-e800af16b323",
+              "follow_through": true,
+              "reuse_trade_id": "60432ab0-ee49-427b-86ce-a94a035a862c",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "46a29af5-c259-402b-be35-5c60555534a5",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "9db3d7b0-3be2-41ec-ab85-b7594afd03d5",
+              "follow_through": true,
+              "reuse_trade_id": "5657521c-bc8c-4b0a-b8e4-e746acec686a",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "5657521c-bc8c-4b0a-b8e4-e746acec686a",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "3001b35f-2ac3-4362-b22b-bc915b6af5fa",
+              "follow_through": true,
+              "reuse_trade_id": "f6c5b13d-c36e-4861-aecd-4ae5a7dc2c63",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "6e7add50-e3b8-4ee7-bc57-59529489efbc",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "b12f5504-e094-4917-8bc2-8260b14116a9",
+              "follow_through": true,
+              "reuse_trade_id": "e7f69b2f-e666-4180-beb2-9d28bb0cbfdd",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "60432ab0-ee49-427b-86ce-a94a035a862c",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "813a4c16-dad9-477a-ab6e-4a7fcc9ead4e",
+              "follow_through": true,
+              "reuse_trade_id": "3007d0a4-4d67-43e8-86a2-e5f685d15653",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "f6c5b13d-c36e-4861-aecd-4ae5a7dc2c63",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "185436bc-935d-4547-82a6-e1ff6f312b1a",
+              "follow_through": true,
+              "reuse_trade_id": "b1e39527-e902-416d-b01c-2d8a333c06d9",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "fb89dbf4-f6a3-4796-b5d2-3264279b3c55",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "4f51c22e-c423-49fa-a325-58d19c4f7fe0",
+              "follow_through": true,
+              "reuse_trade_id": "e3bf5ae6-9726-421d-9f1f-2a7e80196233",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "3007d0a4-4d67-43e8-86a2-e5f685d15653",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "6989ab85-d9b7-4754-80e8-fa16fc1d2229",
+              "follow_through": true,
+              "reuse_trade_id": "c2b3764b-d0e1-4b3d-9eaa-048751186c62",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "e7f69b2f-e666-4180-beb2-9d28bb0cbfdd",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "63d4d8ca-ba75-4760-b503-bfa6258d8bcb",
+              "follow_through": true,
+              "reuse_trade_id": "7b4ca169-2998-4232-b3b0-0a7237215bbf",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "7930d6b6-0a7f-42bd-b068-25818df733e3",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "6f8e4b43-f6b2-4171-9c47-cb6a0b328d0b",
+              "follow_through": true,
+              "reuse_trade_id": "639b3433-2087-4a8b-97f9-72b8332a5f7d",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "f3ada834-7680-4349-af65-6e96a00129e4",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "9a355781-4cf7-4e8f-a8ab-cb6ae1dcedb5",
+              "follow_through": true,
+              "reuse_trade_id": "030a4e1b-bfa5-451e-8a7c-0d176dd0678a",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "4bc0c108-7757-4ec9-b6c5-36c75bcf93d8",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "c1cb27ed-e279-4af6-9a8b-a614a2bd8282",
+              "follow_through": true,
+              "reuse_trade_id": "090dae13-624a-4478-86c4-beb7951166d0",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "800a422f-a678-4810-94ce-f55809f77780",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "c9b996f1-5c4e-449d-9b47-e57f3dad68f1",
+              "follow_through": false
+            },
+            {
+              "exit_trade_id": "639b3433-2087-4a8b-97f9-72b8332a5f7d",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "7abbb5da-28c7-4e9e-bfd3-75f397951eef",
+              "follow_through": true,
+              "reuse_trade_id": "beb1d212-faab-4467-a67e-fe8e6642e10c",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "030a4e1b-bfa5-451e-8a7c-0d176dd0678a",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "f7ae2bfa-41e8-423f-a43f-72378ec07cb5",
+              "follow_through": true,
+              "reuse_trade_id": "51af4ab4-4900-45d8-b198-a0e401c562c0",
+              "reuse_side": "LONG",
+              "opposite_side": true
+            },
+            {
+              "exit_trade_id": "a88b03d0-5777-457f-bee2-bbf4671fb54b",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "f120cb2d-61f3-4cbf-ba38-163abbb8b319",
+              "follow_through": true,
+              "reuse_trade_id": "9f266c21-7e7e-4ba3-a45e-71d16ccfd250",
+              "reuse_side": "SHORT",
+              "opposite_side": true
+            }
+          ],
+          "no_follow_through": [
+            {
+              "trade_id": "d6038aec-5f1f-42fb-b636-2bb4822eda4d",
+              "exit_reason": "long_reversal",
+              "exit_signal_id": "20b6ef21-c92a-4f45-a049-034402eecff1",
+              "entry_signal_id": "ae22a37c-1bbc-4634-a828-5612486ce012",
+              "side": "SHORT"
+            },
+            {
+              "trade_id": "5a15f4ec-7662-4d86-a1ec-204089d135fc",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "17820438-cfb0-45c3-be5f-a1feebffacd2",
+              "entry_signal_id": "230816f4-6171-46a0-a662-7bda447be507",
+              "side": "LONG"
+            },
+            {
+              "trade_id": "704efde5-fe02-425c-b61e-ee3cfe9374e8",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "4a4fd779-bc1e-456b-bb9e-1aa4b64ba90c",
+              "entry_signal_id": "08d3eb34-ceac-460d-8622-cae3d4da2eca",
+              "side": "LONG"
+            },
+            {
+              "trade_id": "800a422f-a678-4810-94ce-f55809f77780",
+              "exit_reason": "short_reversal",
+              "exit_signal_id": "c9b996f1-5c4e-449d-9b47-e57f3dad68f1",
+              "entry_signal_id": "da307ea6-8898-49ab-9f9f-5aff1e20560e",
+              "side": "LONG"
+            }
+          ]
+        }
+      },
+      {
+        "ok": true,
+        "check": "no lifecycle events quarantined during the rehearsal"
+      }
+    ],
+    "forensics": {
+      "pragmas": {
+        "foreign_keys": [
+          {
+            "foreign_keys": 1
+          }
+        ]
+      },
+      "duplicate_ids": {
+        "trades": [],
+        "orders": [],
+        "fills": [],
+        "positions": [],
+        "pending_orders": [],
+        "broker_mappings": []
+      },
+      "trades_without_entry_signal": [],
+      "position_equals_trade": [],
+      "orphans": {
+        "pending_orders": [],
+        "orders": [],
+        "fills": [],
+        "positions": [],
+        "trade_legs": [],
+        "trade_signal_link": [],
+        "trade_events": [],
+        "trade_snapshots": [],
+        "fills_without_order": []
+      },
+      "unknown_broker_orders": [],
+      "cross_strategy": {
+        "order_vs_trade": [],
+        "fill_vs_trade": [],
+        "fill_vs_order": [],
+        "position_vs_trade": []
+      },
+      "sl_invariant_violations": [],
+      "reversal_exits": [
+        {
+          "trade_id": "3e701ab4-c8f4-4131-bb80-70e6fe450d83",
+          "strategy_id": "silver_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "54cbdb6a-dafb-40dd-be6d-7ad2697dd307"
+        },
+        {
+          "trade_id": "ade97065-6913-4884-ba57-ecb83b54136c",
+          "strategy_id": "silver_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "30f29539-0a22-45c1-ae02-cbceca3cc305"
+        },
+        {
+          "trade_id": "8c1b8a4c-d1e6-4516-b6e8-4395616ff836",
+          "strategy_id": "gold_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "704c4db4-7b24-48e1-8d0d-ed4cdb191920"
+        },
+        {
+          "trade_id": "d6038aec-5f1f-42fb-b636-2bb4822eda4d",
+          "strategy_id": "gold_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "20b6ef21-c92a-4f45-a049-034402eecff1"
+        },
+        {
+          "trade_id": "bdc0d5a1-b767-470c-bdc8-0a56ff40a524",
+          "strategy_id": "silver_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "7f2117ae-538b-4725-8ac5-39e89c25ce58"
+        },
+        {
+          "trade_id": "8d7dcfdd-9e6f-4041-89a8-de00a15b4591",
+          "strategy_id": "silver_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "294ddba5-5fff-4723-8ce3-d3927f54369f"
+        },
+        {
+          "trade_id": "6cf9dcdc-e688-40c6-be1c-676631ba8e7f",
+          "strategy_id": "gold_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "43c5dbb0-96c0-40d6-9bdc-90294f769239"
+        },
+        {
+          "trade_id": "7bc0adb8-7d16-4971-900c-90737d102b3c",
+          "strategy_id": "gold_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "7bdb0145-9fda-465e-82ac-398c2ae8833b"
+        },
+        {
+          "trade_id": "4525173d-dd24-4810-97ce-24a6fe414a2a",
+          "strategy_id": "silver_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "de28d51c-d5be-4bc1-a4f8-f9f1516c4417"
+        },
+        {
+          "trade_id": "d7ad8577-73cb-4724-a18f-1dc4bae90e21",
+          "strategy_id": "silver_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "85baf1e8-673d-42e4-ad3a-442e06a0d220"
+        },
+        {
+          "trade_id": "5a15f4ec-7662-4d86-a1ec-204089d135fc",
+          "strategy_id": "silver_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "17820438-cfb0-45c3-be5f-a1feebffacd2"
+        },
+        {
+          "trade_id": "a93f5860-b329-413c-91e5-3aca9ff96370",
+          "strategy_id": "gold_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "c469dd80-3c4a-428c-a197-ad9aa962666a"
+        },
+        {
+          "trade_id": "704efde5-fe02-425c-b61e-ee3cfe9374e8",
+          "strategy_id": "gold_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "4a4fd779-bc1e-456b-bb9e-1aa4b64ba90c"
+        },
+        {
+          "trade_id": "677936bd-7e83-4252-99fe-ac0a59042086",
+          "strategy_id": "gold_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "f08ee166-3d0a-49de-b231-52cfd2182af1"
+        },
+        {
+          "trade_id": "43e0ffd8-69ce-4d15-a4bd-4780bb92ca3e",
+          "strategy_id": "gold_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "592546d0-4725-4d26-9497-e800af16b323"
+        },
+        {
+          "trade_id": "46a29af5-c259-402b-be35-5c60555534a5",
+          "strategy_id": "silver_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "9db3d7b0-3be2-41ec-ab85-b7594afd03d5"
+        },
+        {
+          "trade_id": "5657521c-bc8c-4b0a-b8e4-e746acec686a",
+          "strategy_id": "silver_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "3001b35f-2ac3-4362-b22b-bc915b6af5fa"
+        },
+        {
+          "trade_id": "6e7add50-e3b8-4ee7-bc57-59529489efbc",
+          "strategy_id": "silver_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "b12f5504-e094-4917-8bc2-8260b14116a9"
+        },
+        {
+          "trade_id": "60432ab0-ee49-427b-86ce-a94a035a862c",
+          "strategy_id": "gold_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "813a4c16-dad9-477a-ab6e-4a7fcc9ead4e"
+        },
+        {
+          "trade_id": "f6c5b13d-c36e-4861-aecd-4ae5a7dc2c63",
+          "strategy_id": "silver_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "185436bc-935d-4547-82a6-e1ff6f312b1a"
+        },
+        {
+          "trade_id": "fb89dbf4-f6a3-4796-b5d2-3264279b3c55",
+          "strategy_id": "gold_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "4f51c22e-c423-49fa-a325-58d19c4f7fe0"
+        },
+        {
+          "trade_id": "3007d0a4-4d67-43e8-86a2-e5f685d15653",
+          "strategy_id": "gold_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "6989ab85-d9b7-4754-80e8-fa16fc1d2229"
+        },
+        {
+          "trade_id": "e7f69b2f-e666-4180-beb2-9d28bb0cbfdd",
+          "strategy_id": "silver_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "63d4d8ca-ba75-4760-b503-bfa6258d8bcb"
+        },
+        {
+          "trade_id": "7930d6b6-0a7f-42bd-b068-25818df733e3",
+          "strategy_id": "gold_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "6f8e4b43-f6b2-4171-9c47-cb6a0b328d0b"
+        },
+        {
+          "trade_id": "f3ada834-7680-4349-af65-6e96a00129e4",
+          "strategy_id": "gold_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "9a355781-4cf7-4e8f-a8ab-cb6ae1dcedb5"
+        },
+        {
+          "trade_id": "4bc0c108-7757-4ec9-b6c5-36c75bcf93d8",
+          "strategy_id": "silver_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "c1cb27ed-e279-4af6-9a8b-a614a2bd8282"
+        },
+        {
+          "trade_id": "800a422f-a678-4810-94ce-f55809f77780",
+          "strategy_id": "silver_01",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "c9b996f1-5c4e-449d-9b47-e57f3dad68f1"
+        },
+        {
+          "trade_id": "639b3433-2087-4a8b-97f9-72b8332a5f7d",
+          "strategy_id": "gold_01",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "7abbb5da-28c7-4e9e-bfd3-75f397951eef"
+        },
+        {
+          "trade_id": "030a4e1b-bfa5-451e-8a7c-0d176dd0678a",
+          "strategy_id": "gold_02",
+          "exit_reason": "long_reversal",
+          "exit_signal_id": "f7ae2bfa-41e8-423f-a43f-72378ec07cb5"
+        },
+        {
+          "trade_id": "a88b03d0-5777-457f-bee2-bbf4671fb54b",
+          "strategy_id": "gold_02",
+          "exit_reason": "short_reversal",
+          "exit_signal_id": "f120cb2d-61f3-4cbf-ba38-163abbb8b319"
+        }
+      ],
+      "duplicate_trade_events": [
+        {
+          "idempotency_key": null,
+          "n": 389
+        }
+      ],
+      "processed_fill_dups": [],
+      "analytics_vs_trades": [
+        {
+          "strategy_id": "gold_01",
+          "trades_db": 23,
+          "pnl_db": 2784.000000000005,
+          "trades_analytics": 23,
+          "pnl_analytics": 2784.000000000005,
+          "diff_count": 0,
+          "diff_pnl": 0.0
+        },
+        {
+          "strategy_id": "gold_02",
+          "trades_db": 15,
+          "pnl_db": 27717.840000000007,
+          "trades_analytics": 15,
+          "pnl_analytics": 27717.840000000007,
+          "diff_count": 0,
+          "diff_pnl": 0.0
+        },
+        {
+          "strategy_id": "silver_01",
+          "trades_db": 17,
+          "pnl_db": 3301.5899999999992,
+          "trades_analytics": 17,
+          "pnl_analytics": 3301.5899999999992,
+          "diff_count": 0,
+          "diff_pnl": 0.0
+        },
+        {
+          "strategy_id": "silver_02",
+          "trades_db": 24,
+          "pnl_db": -11581.970000000001,
+          "trades_analytics": 24,
+          "pnl_analytics": -11581.970000000001,
+          "diff_count": 0,
+          "diff_pnl": 0.0
+        }
+      ],
+      "counts": {
+        "signals": 142,
+        "trades": 79,
+        "pending_orders": 0,
+        "orders": 156,
+        "fills": 156,
+        "positions": 79,
+        "events": 528,
+        "trade_events": 389,
+        "quarantine_records": 0
+      }
+    },
+    "reversal_summary": [
+      {
+        "exit_trade_id": "3e701ab4-c8f4-4131-bb80-70e6fe450d83",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "54cbdb6a-dafb-40dd-be6d-7ad2697dd307",
+        "follow_through": true,
+        "reuse_trade_id": "599fdde3-3495-4e4d-83d1-c632f73c9b3b",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "ade97065-6913-4884-ba57-ecb83b54136c",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "30f29539-0a22-45c1-ae02-cbceca3cc305",
+        "follow_through": true,
+        "reuse_trade_id": "cf952af5-275d-42ca-8acf-d20971654308",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "8c1b8a4c-d1e6-4516-b6e8-4395616ff836",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "704c4db4-7b24-48e1-8d0d-ed4cdb191920",
+        "follow_through": true,
+        "reuse_trade_id": "68da447b-4aac-4da5-a049-a021ddd15e45",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "d6038aec-5f1f-42fb-b636-2bb4822eda4d",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "20b6ef21-c92a-4f45-a049-034402eecff1",
+        "follow_through": false
+      },
+      {
+        "exit_trade_id": "bdc0d5a1-b767-470c-bdc8-0a56ff40a524",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "7f2117ae-538b-4725-8ac5-39e89c25ce58",
+        "follow_through": true,
+        "reuse_trade_id": "90c79564-90e2-4deb-9889-188f9bd31aca",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "8d7dcfdd-9e6f-4041-89a8-de00a15b4591",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "294ddba5-5fff-4723-8ce3-d3927f54369f",
+        "follow_through": true,
+        "reuse_trade_id": "4525173d-dd24-4810-97ce-24a6fe414a2a",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "6cf9dcdc-e688-40c6-be1c-676631ba8e7f",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "43c5dbb0-96c0-40d6-9bdc-90294f769239",
+        "follow_through": true,
+        "reuse_trade_id": "5a67b361-f6bd-4704-bebf-a062e6538f1b",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "7bc0adb8-7d16-4971-900c-90737d102b3c",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "7bdb0145-9fda-465e-82ac-398c2ae8833b",
+        "follow_through": true,
+        "reuse_trade_id": "10b69ce8-40eb-4b31-9a82-944eb5a047b8",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "4525173d-dd24-4810-97ce-24a6fe414a2a",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "de28d51c-d5be-4bc1-a4f8-f9f1516c4417",
+        "follow_through": true,
+        "reuse_trade_id": "5d835026-055d-4150-9613-036134ba2460",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "d7ad8577-73cb-4724-a18f-1dc4bae90e21",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "85baf1e8-673d-42e4-ad3a-442e06a0d220",
+        "follow_through": true,
+        "reuse_trade_id": "915990b5-5a2a-46c5-a5ca-c15adcf2cc7e",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "5a15f4ec-7662-4d86-a1ec-204089d135fc",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "17820438-cfb0-45c3-be5f-a1feebffacd2",
+        "follow_through": false
+      },
+      {
+        "exit_trade_id": "a93f5860-b329-413c-91e5-3aca9ff96370",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "c469dd80-3c4a-428c-a197-ad9aa962666a",
+        "follow_through": true,
+        "reuse_trade_id": "43e0ffd8-69ce-4d15-a4bd-4780bb92ca3e",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "704efde5-fe02-425c-b61e-ee3cfe9374e8",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "4a4fd779-bc1e-456b-bb9e-1aa4b64ba90c",
+        "follow_through": false
+      },
+      {
+        "exit_trade_id": "677936bd-7e83-4252-99fe-ac0a59042086",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "f08ee166-3d0a-49de-b231-52cfd2182af1",
+        "follow_through": true,
+        "reuse_trade_id": "35ec4d0c-ac41-4164-9d34-436f2736774c",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "43e0ffd8-69ce-4d15-a4bd-4780bb92ca3e",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "592546d0-4725-4d26-9497-e800af16b323",
+        "follow_through": true,
+        "reuse_trade_id": "60432ab0-ee49-427b-86ce-a94a035a862c",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "46a29af5-c259-402b-be35-5c60555534a5",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "9db3d7b0-3be2-41ec-ab85-b7594afd03d5",
+        "follow_through": true,
+        "reuse_trade_id": "5657521c-bc8c-4b0a-b8e4-e746acec686a",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "5657521c-bc8c-4b0a-b8e4-e746acec686a",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "3001b35f-2ac3-4362-b22b-bc915b6af5fa",
+        "follow_through": true,
+        "reuse_trade_id": "f6c5b13d-c36e-4861-aecd-4ae5a7dc2c63",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "6e7add50-e3b8-4ee7-bc57-59529489efbc",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "b12f5504-e094-4917-8bc2-8260b14116a9",
+        "follow_through": true,
+        "reuse_trade_id": "e7f69b2f-e666-4180-beb2-9d28bb0cbfdd",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "60432ab0-ee49-427b-86ce-a94a035a862c",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "813a4c16-dad9-477a-ab6e-4a7fcc9ead4e",
+        "follow_through": true,
+        "reuse_trade_id": "3007d0a4-4d67-43e8-86a2-e5f685d15653",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "f6c5b13d-c36e-4861-aecd-4ae5a7dc2c63",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "185436bc-935d-4547-82a6-e1ff6f312b1a",
+        "follow_through": true,
+        "reuse_trade_id": "b1e39527-e902-416d-b01c-2d8a333c06d9",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "fb89dbf4-f6a3-4796-b5d2-3264279b3c55",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "4f51c22e-c423-49fa-a325-58d19c4f7fe0",
+        "follow_through": true,
+        "reuse_trade_id": "e3bf5ae6-9726-421d-9f1f-2a7e80196233",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "3007d0a4-4d67-43e8-86a2-e5f685d15653",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "6989ab85-d9b7-4754-80e8-fa16fc1d2229",
+        "follow_through": true,
+        "reuse_trade_id": "c2b3764b-d0e1-4b3d-9eaa-048751186c62",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "e7f69b2f-e666-4180-beb2-9d28bb0cbfdd",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "63d4d8ca-ba75-4760-b503-bfa6258d8bcb",
+        "follow_through": true,
+        "reuse_trade_id": "7b4ca169-2998-4232-b3b0-0a7237215bbf",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "7930d6b6-0a7f-42bd-b068-25818df733e3",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "6f8e4b43-f6b2-4171-9c47-cb6a0b328d0b",
+        "follow_through": true,
+        "reuse_trade_id": "639b3433-2087-4a8b-97f9-72b8332a5f7d",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "f3ada834-7680-4349-af65-6e96a00129e4",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "9a355781-4cf7-4e8f-a8ab-cb6ae1dcedb5",
+        "follow_through": true,
+        "reuse_trade_id": "030a4e1b-bfa5-451e-8a7c-0d176dd0678a",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "4bc0c108-7757-4ec9-b6c5-36c75bcf93d8",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "c1cb27ed-e279-4af6-9a8b-a614a2bd8282",
+        "follow_through": true,
+        "reuse_trade_id": "090dae13-624a-4478-86c4-beb7951166d0",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "800a422f-a678-4810-94ce-f55809f77780",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "c9b996f1-5c4e-449d-9b47-e57f3dad68f1",
+        "follow_through": false
+      },
+      {
+        "exit_trade_id": "639b3433-2087-4a8b-97f9-72b8332a5f7d",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "7abbb5da-28c7-4e9e-bfd3-75f397951eef",
+        "follow_through": true,
+        "reuse_trade_id": "beb1d212-faab-4467-a67e-fe8e6642e10c",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "030a4e1b-bfa5-451e-8a7c-0d176dd0678a",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "f7ae2bfa-41e8-423f-a43f-72378ec07cb5",
+        "follow_through": true,
+        "reuse_trade_id": "51af4ab4-4900-45d8-b198-a0e401c562c0",
+        "reuse_side": "LONG",
+        "opposite_side": true
+      },
+      {
+        "exit_trade_id": "a88b03d0-5777-457f-bee2-bbf4671fb54b",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "f120cb2d-61f3-4cbf-ba38-163abbb8b319",
+        "follow_through": true,
+        "reuse_trade_id": "9f266c21-7e7e-4ba3-a45e-71d16ccfd250",
+        "reuse_side": "SHORT",
+        "opposite_side": true
+      }
+    ],
+    "reversal_no_follow": [
+      {
+        "trade_id": "d6038aec-5f1f-42fb-b636-2bb4822eda4d",
+        "exit_reason": "long_reversal",
+        "exit_signal_id": "20b6ef21-c92a-4f45-a049-034402eecff1",
+        "entry_signal_id": "ae22a37c-1bbc-4634-a828-5612486ce012",
+        "side": "SHORT"
+      },
+      {
+        "trade_id": "5a15f4ec-7662-4d86-a1ec-204089d135fc",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "17820438-cfb0-45c3-be5f-a1feebffacd2",
+        "entry_signal_id": "230816f4-6171-46a0-a662-7bda447be507",
+        "side": "LONG"
+      },
+      {
+        "trade_id": "704efde5-fe02-425c-b61e-ee3cfe9374e8",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "4a4fd779-bc1e-456b-bb9e-1aa4b64ba90c",
+        "entry_signal_id": "08d3eb34-ceac-460d-8622-cae3d4da2eca",
+        "side": "LONG"
+      },
+      {
+        "trade_id": "800a422f-a678-4810-94ce-f55809f77780",
+        "exit_reason": "short_reversal",
+        "exit_signal_id": "c9b996f1-5c4e-449d-9b47-e57f3dad68f1",
+        "entry_signal_id": "da307ea6-8898-49ab-9f9f-5aff1e20560e",
+        "side": "LONG"
+      }
+    ]
+  }
+}

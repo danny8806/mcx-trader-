@@ -1,0 +1,35 @@
+{
+  "test_id": "clm-20260906-115022",
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "failures": [
+    "Dhan REST authentication failed - see AUTH.json (verdict cannot be VERIFIED without real Dhan connectivity)",
+    "DB<>MEMORY mismatch: ['trades db=3 mem=1', 'fills db=4 mem=0', 'positions_open db=2 mem=0']",
+    "gold_01:fast independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "gold_01:mid independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "gold_01:slow independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "gold_02:fast independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "gold_02:mid independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "gold_02:slow independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_01:fast independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_01:mid independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_01:slow independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_02:fast independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_02:mid independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "silver_02:slow independent fetch failed: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+    "test-session record not persisted to canonical DB",
+    "DB<>MEMORY mismatch: ['trades db=3 mem=1', 'fills db=4 mem=0', 'positions_open db=2 mem=0']",
+    "DB<>MEMORY mismatch: ['trades db=3 mem=1', 'fills db=4 mem=0', 'positions_open db=2 mem=0']",
+    "DB<>MEMORY mismatch: ['trades db=3 mem=1', 'fills db=4 mem=0', 'positions_open db=2 mem=0']",
+    "REST-fault recovery: second call returned no candles"
+  ],
+  "errors": [
+    {
+      "phase": "db_persistence_probe",
+      "type": "IntegrityError"
+    },
+    {
+      "phase": "session_end_evidence",
+      "type": "IntegrityError"
+    }
+  ]
+}

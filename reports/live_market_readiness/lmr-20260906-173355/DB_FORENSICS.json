@@ -1,0 +1,276 @@
+{
+  "pragmas": {
+    "foreign_keys": [
+      {
+        "foreign_keys": 1
+      }
+    ]
+  },
+  "duplicate_ids": {
+    "trades": [],
+    "orders": [],
+    "fills": [],
+    "positions": [],
+    "pending_orders": [],
+    "broker_mappings": []
+  },
+  "trades_without_entry_signal": [],
+  "position_equals_trade": [],
+  "orphans": {
+    "pending_orders": [],
+    "orders": [],
+    "fills": [],
+    "positions": [],
+    "trade_legs": [],
+    "trade_signal_link": [],
+    "trade_events": [],
+    "trade_snapshots": [],
+    "fills_without_order": []
+  },
+  "unknown_broker_orders": [],
+  "cross_strategy": {
+    "order_vs_trade": [],
+    "fill_vs_trade": [],
+    "fill_vs_order": [],
+    "position_vs_trade": []
+  },
+  "sl_invariant_violations": [],
+  "reversal_exits": [
+    {
+      "trade_id": "9c71c976-60ef-493d-a5ce-229cf30b561a",
+      "strategy_id": "silver_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "de25c1d7-889b-498f-83c1-7cd28072a9be"
+    },
+    {
+      "trade_id": "fe62962a-92dc-43ff-b4b3-9156ef1a5502",
+      "strategy_id": "silver_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "b2a0659e-3896-4148-bb2e-dcb2c99d3e11"
+    },
+    {
+      "trade_id": "0b54b4cb-b704-466e-8933-fd55079d8c90",
+      "strategy_id": "gold_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "8f2e5a02-642b-40e9-8daf-c06c687a85cf"
+    },
+    {
+      "trade_id": "21018965-a7d9-47f5-8f2f-9a3a3059a9a4",
+      "strategy_id": "gold_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "da7d4248-0bce-4f75-9a9a-f94815916e60"
+    },
+    {
+      "trade_id": "7456ace2-477d-4eef-bb6a-57c8a822ce05",
+      "strategy_id": "silver_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "67042414-9b07-4fac-a72c-1ce99660ceab"
+    },
+    {
+      "trade_id": "2bd04feb-9740-441e-8b9f-1d02429ce466",
+      "strategy_id": "silver_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "738305f0-0984-4f72-8fbd-dfb132053eb6"
+    },
+    {
+      "trade_id": "c5eb030a-0592-4024-8396-3e968cb00625",
+      "strategy_id": "gold_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "c59e3033-c7a1-47a5-bc6a-3c0afa6c3dc8"
+    },
+    {
+      "trade_id": "1a908b5e-7953-4d9a-b649-8bd31633883d",
+      "strategy_id": "gold_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "25a453aa-94dc-497e-b566-dd5c0668d993"
+    },
+    {
+      "trade_id": "b4376043-85a3-422e-8ed6-1ce0fae273c2",
+      "strategy_id": "silver_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "708120e2-80c2-425e-8b2f-5ce363424b63"
+    },
+    {
+      "trade_id": "c54b3e01-0eb0-44ca-b68c-b9bc751474ee",
+      "strategy_id": "silver_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "2d9e7c33-9a71-442a-84e4-f08f833279a5"
+    },
+    {
+      "trade_id": "68cec45b-ddbf-4d10-8feb-d1c61326bcb4",
+      "strategy_id": "silver_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "7250de1b-5e3b-4013-bc50-261c29229129"
+    },
+    {
+      "trade_id": "f3e413b0-20bf-4370-947c-fff05a0ae2b0",
+      "strategy_id": "gold_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "2cb13b5d-6800-4500-b972-b7d4546c9092"
+    },
+    {
+      "trade_id": "21eaf157-bc0c-4e96-a576-9938e94e1bf8",
+      "strategy_id": "gold_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "a2516ba5-27c8-45bf-9c8a-423d2b10a9ad"
+    },
+    {
+      "trade_id": "878067ec-78c9-4c92-be0b-18c447915566",
+      "strategy_id": "gold_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "b229c351-b80d-446c-b58d-0c7fc4aff7f4"
+    },
+    {
+      "trade_id": "cb5ea9e3-c7b1-4431-9a42-962c4655a7cf",
+      "strategy_id": "gold_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "337385a0-eaeb-4da4-9d4b-7238c02ef36d"
+    },
+    {
+      "trade_id": "38b1c115-71ae-40b2-bac2-1cbaeed44004",
+      "strategy_id": "silver_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "5c026bee-dcf2-4ba0-944f-c2bde423163d"
+    },
+    {
+      "trade_id": "18c95c7d-be08-446b-86b7-1bddb5511cd3",
+      "strategy_id": "silver_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "f1dd1f6c-426b-468b-8eca-113ab764e099"
+    },
+    {
+      "trade_id": "9da2c1ab-a9ec-46c5-bb68-41a25753631f",
+      "strategy_id": "silver_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "dbaa95b5-c11c-4de7-96b5-9b82940005c4"
+    },
+    {
+      "trade_id": "682e0a4f-a8da-4b79-b9bd-0452a603f9ae",
+      "strategy_id": "gold_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "f927f13b-7b71-44f7-a265-b1fa39ce279e"
+    },
+    {
+      "trade_id": "95c5e11e-806f-46e6-9cb2-887d28d92590",
+      "strategy_id": "silver_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "726a444b-b72e-4a66-9740-ff35b40f36a3"
+    },
+    {
+      "trade_id": "e9916857-8abf-4503-9f00-eb9bd4ac5918",
+      "strategy_id": "gold_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "f924b2f5-824f-48af-a0bc-6e3adc831c39"
+    },
+    {
+      "trade_id": "b79c9b6f-bf96-4dd8-97c0-5ac192ae5057",
+      "strategy_id": "gold_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "591cddc7-3fc1-4416-b0a9-2ab64e824359"
+    },
+    {
+      "trade_id": "c7872e06-8c9e-4085-94c3-efb68b5cf35a",
+      "strategy_id": "silver_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "2a538755-654f-448f-83db-ead8ba38334d"
+    },
+    {
+      "trade_id": "e05c6364-446e-4568-a447-e2fd677f56a2",
+      "strategy_id": "gold_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "c6075179-1fc3-4eda-a7c6-c0858bd6fe30"
+    },
+    {
+      "trade_id": "fecae813-6c18-412b-8e22-fb71b5a557e0",
+      "strategy_id": "gold_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "091bc0f3-1473-4c84-88a8-b9448ece7358"
+    },
+    {
+      "trade_id": "836a4d13-60d6-4625-9e2a-016a879a7965",
+      "strategy_id": "silver_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "a9637acc-064d-473e-94e8-b06c697f0544"
+    },
+    {
+      "trade_id": "93c652f9-d9f4-4cf8-9833-13e076e3848a",
+      "strategy_id": "silver_01",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "675cd58f-3cef-4423-81e0-910adcfa69d6"
+    },
+    {
+      "trade_id": "c6c0ee15-6824-4576-b8ef-77b1bde5e336",
+      "strategy_id": "gold_01",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "6b666cfe-9085-4575-a3f2-c50b7a428d77"
+    },
+    {
+      "trade_id": "63291834-d339-4692-bff0-f8fef7aae20b",
+      "strategy_id": "gold_02",
+      "exit_reason": "long_reversal",
+      "exit_signal_id": "ca85a7cf-7d79-43da-9bd1-aca8651fde35"
+    },
+    {
+      "trade_id": "2700bbbd-0d65-468a-9714-a59f73b1582b",
+      "strategy_id": "gold_02",
+      "exit_reason": "short_reversal",
+      "exit_signal_id": "d65ebc6a-78e5-4cba-a17c-15fe443b62d4"
+    }
+  ],
+  "duplicate_trade_events": [
+    {
+      "idempotency_key": null,
+      "n": 389
+    }
+  ],
+  "processed_fill_dups": [],
+  "analytics_vs_trades": [
+    {
+      "strategy_id": "gold_01",
+      "trades_db": 23,
+      "pnl_db": 2784.000000000005,
+      "trades_analytics": 23,
+      "pnl_analytics": 2784.000000000005,
+      "diff_count": 0,
+      "diff_pnl": 0.0
+    },
+    {
+      "strategy_id": "gold_02",
+      "trades_db": 15,
+      "pnl_db": 27717.840000000007,
+      "trades_analytics": 15,
+      "pnl_analytics": 27717.840000000007,
+      "diff_count": 0,
+      "diff_pnl": 0.0
+    },
+    {
+      "strategy_id": "silver_01",
+      "trades_db": 17,
+      "pnl_db": 3301.5899999999992,
+      "trades_analytics": 17,
+      "pnl_analytics": 3301.5899999999992,
+      "diff_count": 0,
+      "diff_pnl": 0.0
+    },
+    {
+      "strategy_id": "silver_02",
+      "trades_db": 24,
+      "pnl_db": -11581.970000000001,
+      "trades_analytics": 24,
+      "pnl_analytics": -11581.970000000001,
+      "diff_count": 0,
+      "diff_pnl": 0.0
+    }
+  ],
+  "counts": {
+    "signals": 142,
+    "trades": 79,
+    "pending_orders": 0,
+    "orders": 156,
+    "fills": 156,
+    "positions": 79,
+    "events": 528,
+    "trade_events": 389,
+    "quarantine_records": 0
+  }
+}

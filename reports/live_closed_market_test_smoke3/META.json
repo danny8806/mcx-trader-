@@ -1,0 +1,13 @@
+{
+  "test_id": "clm-20260906-120535",
+  "runner": "1.0.0",
+  "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+  "docker": "n/a (docker CLI absent on this host)",
+  "git": {
+    "commit": "b932ef051d1294d317d254312950583bee742e88",
+    "dirty": true,
+    "dirty_tracked": "M deploy_vps.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tools/closed_market_runtime_test.py"
+  },
+  "started_at": "2026-09-06T12:05:35+05:30",
+  "duration_minutes": 0.5
+}

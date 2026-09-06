@@ -1,0 +1,5 @@
+{
+  "ok": true,
+  "exit": 0,
+  "tail": "st.org/en/stable/how-to/capture-warnings.html\n1226 passed, 44 skipped, 3 warnings in 106.31s (0:01:46)\n\n  [PASS] C.regression.suite: full pytest suite: 0 failures\n\n  wrote C:\\Users\\pc\\Desktop\\MCX-TRADER\\test_results.json\n==============================================================================\nFINAL VERDICT: VERIFIED\n  106/106 checks passed\n==============================================================================\n[Analytics] Initialized from canonical db: C:\\Users\\pc\\AppData\\Local\\Temp\\opencode\\fullstack\\engine\\data\\db\\trading.db\n[Lifespan] Starting...\n[Lifespan] Engine ready\n[Lifespan] Persistence ready\n[Lifespan] State restored from last session\n[Lifespan] Engine started\n[Lifespan] Routes ready\n[Lifespan] Background tasks started\n[Lifespan] Shutting down\n[Lifespan] State saved\n"
+}

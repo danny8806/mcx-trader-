@@ -1,0 +1,1359 @@
+{
+  "ok": true,
+  "test_id": "clm-20260906-162834",
+  "samples": [
+    {
+      "ts": 1788692446.7468688,
+      "elapsed_s": 132.6,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 12,
+        "empty": 0,
+        "retry": 2
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 13,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 147.95,
+      "cpu_pct": 62.2
+    },
+    {
+      "ts": 1788692451.8490238,
+      "elapsed_s": 137.7,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 22,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 150.75,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692456.959746,
+      "elapsed_s": 142.8,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.07,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692462.0731397,
+      "elapsed_s": 147.9,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.19,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692467.1845765,
+      "elapsed_s": 153.0,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.42,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692472.2905674,
+      "elapsed_s": 158.1,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.42,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692477.399182,
+      "elapsed_s": 163.2,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.43,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692482.515025,
+      "elapsed_s": 168.3,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.43,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692487.6214955,
+      "elapsed_s": 173.4,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.55,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692492.7326627,
+      "elapsed_s": 178.5,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.56,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692497.8455672,
+      "elapsed_s": 183.7,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 16,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.49,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692502.9603183,
+      "elapsed_s": 188.8,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 17,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.53,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692508.0755367,
+      "elapsed_s": 193.9,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 17,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.79,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692513.1884944,
+      "elapsed_s": 199.0,
+      "ws_connected": false,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 4,
+        "parse_err": 0,
+        "sub": 1,
+        "tick": 2
+      },
+      "rest_stats": {
+        "ok": 24,
+        "empty": 0,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 14,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 1,
+        "tick_silver": 1
+      },
+      "rss_mb": 151.68,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692518.3009133,
+      "elapsed_s": 204.1,
+      "ws_connected": true,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 8,
+        "parse_err": 0,
+        "sub": 2,
+        "tick": 4
+      },
+      "rest_stats": {
+        "ok": 25,
+        "empty": 1,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 17,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 2,
+        "tick_silver": 2
+      },
+      "rss_mb": 152.01,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692523.414145,
+      "elapsed_s": 209.2,
+      "ws_connected": false,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 8,
+        "parse_err": 0,
+        "sub": 2,
+        "tick": 4
+      },
+      "rest_stats": {
+        "ok": 25,
+        "empty": 1,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 14,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 2,
+        "tick_silver": 2
+      },
+      "rss_mb": 151.98,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692528.5285368,
+      "elapsed_s": 214.3,
+      "ws_connected": false,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 8,
+        "parse_err": 0,
+        "sub": 2,
+        "tick": 4
+      },
+      "rest_stats": {
+        "ok": 25,
+        "empty": 1,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 18,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 2,
+        "tick_silver": 2
+      },
+      "rss_mb": 152.13,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": 1788692533.643114,
+      "elapsed_s": 219.5,
+      "ws_connected": false,
+      "market_state": "OVERNIGHT",
+      "engine_status": "READY",
+      "ws_stats": {
+        "recv": 8,
+        "parse_err": 0,
+        "sub": 2,
+        "tick": 4
+      },
+      "rest_stats": {
+        "ok": 25,
+        "empty": 1,
+        "retry": 4
+      },
+      "candle_fetcher_fetched": 0,
+      "ws_seen_ltt": 2,
+      "threads": 17,
+      "strategies": {
+        "gold_01": 0,
+        "gold_02": 0,
+        "silver_01": 0,
+        "silver_02": 0
+      },
+      "bus_counts": {
+        "tick": {},
+        "candle": {},
+        "tick_gold": 2,
+        "tick_silver": 2
+      },
+      "rss_mb": 152.1,
+      "cpu_pct": 0.0
+    }
+  ],
+  "sample_count": 18,
+  "reconcile_snapshots": [
+    {
+      "ts": 1788692446.753322,
+      "db": {
+        "signals": 3,
+        "trades": 3,
+        "trade_signal_link": 0,
+        "pending_orders": 0,
+        "orders": 4,
+        "fills": 4,
+        "positions": 3,
+        "trade_events": 16,
+        "account_snapshots": 130,
+        "positions_open": 2,
+        "integrity": "ok",
+        "fk": 0
+      },
+      "mem": {
+        "trades": 1,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "db_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "mem_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "unexplained_divergence": [],
+      "elapsed_s": 0.006
+    },
+    {
+      "ts": 1788692466.769148,
+      "db": {
+        "signals": 3,
+        "trades": 3,
+        "trade_signal_link": 0,
+        "pending_orders": 0,
+        "orders": 4,
+        "fills": 4,
+        "positions": 3,
+        "trade_events": 17,
+        "account_snapshots": 130,
+        "positions_open": 2,
+        "integrity": "ok",
+        "fk": 0
+      },
+      "mem": {
+        "trades": 1,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "db_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "mem_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "unexplained_divergence": [],
+      "elapsed_s": 0.004
+    },
+    {
+      "ts": 1788692486.7844613,
+      "db": {
+        "signals": 3,
+        "trades": 3,
+        "trade_signal_link": 0,
+        "pending_orders": 0,
+        "orders": 4,
+        "fills": 4,
+        "positions": 3,
+        "trade_events": 17,
+        "account_snapshots": 130,
+        "positions_open": 2,
+        "integrity": "ok",
+        "fk": 0
+      },
+      "mem": {
+        "trades": 1,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "db_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "mem_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "unexplained_divergence": [],
+      "elapsed_s": 0.002
+    },
+    {
+      "ts": 1788692506.7961879,
+      "db": {
+        "signals": 3,
+        "trades": 3,
+        "trade_signal_link": 0,
+        "pending_orders": 0,
+        "orders": 4,
+        "fills": 4,
+        "positions": 3,
+        "trade_events": 17,
+        "account_snapshots": 131,
+        "positions_open": 2,
+        "integrity": "ok",
+        "fk": 0
+      },
+      "mem": {
+        "trades": 1,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "db_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "mem_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "unexplained_divergence": [],
+      "elapsed_s": 0.011
+    },
+    {
+      "ts": 1788692526.8126907,
+      "db": {
+        "signals": 3,
+        "trades": 3,
+        "trade_signal_link": 0,
+        "pending_orders": 0,
+        "orders": 4,
+        "fills": 4,
+        "positions": 3,
+        "trade_events": 17,
+        "account_snapshots": 131,
+        "positions_open": 2,
+        "integrity": "ok",
+        "fk": 0
+      },
+      "mem": {
+        "trades": 1,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "db_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "mem_deltas": {
+        "trades": 0,
+        "fills": 0,
+        "positions_open": 0
+      },
+      "unexplained_divergence": [],
+      "elapsed_s": 0.009
+    }
+  ],
+  "api_samples": [
+    {
+      "ts": 1788692446.747694,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.004,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:00:46.751083+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.002,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692441.5092044,
+              "errors": 0,
+              "uptime": 5.243816137313843
+            },
+            {
+              "name": "dhan_ws",
+              "status": "healthy"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692446.7530656
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    },
+    {
+      "ts": 1788692461.7943683,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.002,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:01:01.796195+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.001,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692441.5092044,
+              "errors": 0,
+              "uptime": 20.288371324539185
+            },
+            {
+              "name": "dhan_ws",
+              "status": "healthy"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692461.797636
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    },
+    {
+      "ts": 1788692476.808706,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.002,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:01:16.810151+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.014,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692441.5092044,
+              "errors": 0,
+              "uptime": 35.315229177474976
+            },
+            {
+              "name": "dhan_ws",
+              "status": "healthy"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692476.8244908
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    },
+    {
+      "ts": 1788692491.8304195,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.001,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:01:31.831582+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.001,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692441.5092044,
+              "errors": 0,
+              "uptime": 50.32343053817749
+            },
+            {
+              "name": "dhan_ws",
+              "status": "healthy"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692491.8326852
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    },
+    {
+      "ts": 1788692506.847185,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.002,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:01:46.848568+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.001,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692441.5092044,
+              "errors": 0,
+              "uptime": 65.34041118621826
+            },
+            {
+              "name": "dhan_ws",
+              "status": "healthy"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692506.8496506
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    },
+    {
+      "ts": 1788692521.861812,
+      "/api/health": {
+        "status": 200,
+        "latency_s": 0.018,
+        "body": {
+          "status": "ok",
+          "engine": true,
+          "persistence": true,
+          "ws_connections": 1,
+          "event_bus": {
+            "total_events": 0,
+            "counts": {},
+            "subscribers": {},
+            "wildcard_subscribers": 0
+          },
+          "timestamp": "2026-09-06T11:02:01.878815+00:00"
+        }
+      },
+      "/api/health/system": {
+        "status": 200,
+        "latency_s": 0.002,
+        "body": {
+          "components": [
+            {
+              "name": "data_adapter",
+              "status": "healthy",
+              "last_heartbeat": 1788692513.7342837,
+              "errors": 0,
+              "uptime": 8.147308588027954
+            },
+            {
+              "name": "dhan_ws",
+              "status": "disconnected"
+            },
+            {
+              "name": "dashboard_api",
+              "status": "healthy"
+            }
+          ],
+          "overall": "healthy",
+          "market_status": "overnight",
+          "engine_status": "ready",
+          "data_status": "connected",
+          "safe_mode": {
+            "active": false,
+            "reason_count": 0,
+            "reasons": {},
+            "trading_allowed": false,
+            "engine_status": "ready",
+            "market_state": "overnight"
+          },
+          "timestamp": 1788692521.8816504
+        }
+      },
+      "/": {
+        "status": 200,
+        "bytes": 462,
+        "has_html": true,
+        "has_mount": true
+      }
+    }
+  ],
+  "ws_cmd_messages": [
+    {
+      "ts": 1788692446.7508092,
+      "msg": {
+        "type": "pong",
+        "ts": 1788692446.7506704
+      }
+    },
+    {
+      "ts": 1788692446.7515824,
+      "msg": {
+        "type": "command_result",
+        "data": {
+          "command": "get_snapshot",
+          "success": true,
+          "data": {
+            "running": true,
+            "strategies": {
+              "gold_01": {
+                "strategy_id": "gold_01",
+                "instrument": "GOLDM",
+                "fast_timeframe": "5m",
+                "enabled": true,
+                "state": "flat",
+                "position_side": null,
+                "stop_price": null,
+                "has_pending": false,
+                "bars_processed": 0,
+                "signals_generated": 0,
+                "fast_indicator_count": 870,
+                "mid_htf_bars": 290,
+                "slow_htf_bars": 75,
+                "slow_htf_value": 153777.1201212947,
+                "mid_htf_value": 153127.27645398615,
+                "prev_fast_close": null,
+                "prev_htf_value": null,
+                "prev_mid_value": null,
+                "last_exit_reason": null,
+                "just_entered": false,
+                "pending_exit_at_open": false,
+                "pending_exit_reason": null,
+                "pending_exit_bar_start": null,
+                "pending_entry": null,
+                "same_bar_stop": null,
+                "current_trade_id": null
+              },
+              "gold_02": {
+                "strategy_id": "gold_02",
+                "instrument": "GOLDM",
+                "fast_timeframe": "15m",
+                "enabled": true,
+                "state": "flat",
+                "position_side": null,
+                "stop_price": null,
+                "has_pending": false,
+                "bars_processed": 0,
+                "signals_generated": 0,
+                "fast_indicator_count": 290,
+                "mid_htf_bars": 290,
+                "slow_htf_bars": 75,
+                "slow_htf_value": 153777.1201212947,
+                "mid_htf_value": 153127.27645398615,
+                "prev_fast_close": null,
+                "prev_htf_value": null,
+                "prev_mid_value": null,
+                "last_exit_reason": null,
+                "just_entered": false,
+                "pending_exit_at_open": false,
+                "pending_exit_reason": null,
+                "pending_exit_bar_start": null,
+                "pending_entry": null,
+                "same_bar_stop": null,
+                "current_trade_id": null
+              },
+              "silver_01": {
+                "strategy_id": "silver_01",
+                "instrument": "SILVERM",
+                "fast_timeframe": "15m",
+                "enabled": true,
+                "state": "flat",
+                "position_side": null,
+                "stop_price": null,
+                "has_pending": false,
+                "bars_processed": 0,
+                "signals_generated": 0,
+                "fast_indicator_count": 290,
+                "mid_htf_bars": 290,
+                "slow_htf_bars": 75,
+                "slow_htf_value": 240923.66616540583,
+                "mid_htf_value": 239516.3195397186,
+                "prev_fast_close": null,
+                "prev_htf_value": null,
+                "prev_mid_value": null,
+                "last_exit_reason": null,
+                "just_entered": false,
+                "pending_exit_at_open": false,
+                "pending_exit_reason": null,
+                "pending_exit_bar_start": null,
+                "pending_entry": null,
+                "same_bar_stop": null,
+                "current_trade_id": null
+              },
+              "silver_02": {
+                "strategy_id": "silver_02",
+                "instrument": "SILVERM",
+                "fast_timeframe": "5m",
+                "enabled": true,
+                "state": "flat",
+                "position_side": null,
+                "stop_price": null,
+                "has_pending": false,
+                "bars_processed": 0,
+                "signals_generated": 0,
+                "fast_indicator_count": 870,
+                "mid_htf_bars": 290,
+                "slow_htf_bars": 75,
+                "slow_htf_value": 240923.66616540583,
+                "mid_htf_value": 239516.3195397186,
+                "prev_fast_close": null,
+                "prev_htf_value": null,
+                "prev_mid_value": null,
+                "last_exit_reason": null,
+                "just_entered": false,
+                "pending_exit_at_open": false,
+                "pending_exit_reason": null,
+                "pending_exit_bar_start": null,
+                "pending_entry": null,
+                "same_bar_stop": null,
+                "current_trade_id": null
+              }
+            },
+            "positions": {
+              "open_positions": {},
+              "closed_positions": []
+            },
+            "account": {
+              "starting_capital": 1200000.0,
+              "cash": 1200000.0,
+              "realized_pnl": 0.0,
+              "unrealized_pnl": 0.0,
+              "charges": 0.0,
+              "used_margin": 0,
+              "equity": 1200000.0,
+              "available_margin": 1200000.0,
+              "net_pnl": 0.0
+            },
+            "event_bus": {
+              "topics": 10,
+              "subscribers": 18,
+              "events_published": 2
+            },
+            "candle_distributor": 0,
+            "candle_router": {
+              "published": 0,
+              "deduplicated": 0,
+              "out_of_order": 0,
+              "incomplete_rejected": 0,
+              "streams": 0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "status_deltas": [],
+  "bus_counts": {
+    "tick": {},
+    "candle": {},
+    "tick_gold": 2,
+    "tick_silver": 2
+  },
+  "rest_stats": {
+    "ok": 6,
+    "empty": 0,
+    "retry": 1
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "phase": "rest_probe",
+  "ts": 1788692019.1255686,
+  "result": {
+    "ok": true,
+    "auth": {
+      "authenticated": true,
+      "auth_state": "valid"
+    },
+    "expiry": {
+      "expires_at": 1788778417,
+      "remaining_hours": 23.99941000978152,
+      "expires_soon": false
+    },
+    "instruments": {
+      "GOLDM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.182,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "completed_count": 870,
+          "forming_count": 0,
+          "session_rejected": [
+            {
+              "time": 1788458400,
+              "reason": "OUTSIDE_SUPPORTED_SESSION"
+            }
+          ],
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.075,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "completed_count": 290,
+          "forming_count": 0,
+          "session_rejected": [
+            {
+              "time": 1788458400,
+              "reason": "OUTSIDE_SUPPORTED_SESSION"
+            }
+          ],
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 0.104,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "completed_count": 75,
+          "forming_count": 0,
+          "session_rejected": [],
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        }
+      },
+      "SILVERM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.096,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "completed_count": 870,
+          "forming_count": 0,
+          "session_rejected": [
+            {
+              "time": 1788458400,
+              "reason": "OUTSIDE_SUPPORTED_SESSION"
+            }
+          ],
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 240699.0,
+              "l": 239812.0,
+              "c": 240370.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.167,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "completed_count": 290,
+          "forming_count": 0,
+          "session_rejected": [
+            {
+              "time": 1788458400,
+              "reason": "OUTSIDE_SUPPORTED_SESSION"
+            }
+          ],
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 240699.0,
+              "l": 239812.0,
+              "c": 240157.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 2.329,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "completed_count": 75,
+          "forming_count": 0,
+          "session_rejected": [],
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 241188.0,
+              "l": 239812.0,
+              "c": 241188.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        }
+      }
+    },
+    "rest_stats": {
+      "ok": 6,
+      "empty": 0,
+      "retry": 1
+    }
+  }
+}

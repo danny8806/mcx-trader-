@@ -1,0 +1,35 @@
+{
+  "phase": "rest_probe",
+  "ts": 1788676535.9354982,
+  "result": {
+    "ok": false,
+    "auth": {
+      "authenticated": false,
+      "auth_state": "expired_no_renewal"
+    },
+    "expiry": {
+      "expires_at": 1788015978,
+      "remaining_hours": -183.48831520716348,
+      "expires_soon": true
+    },
+    "instruments": {
+      "GOLDM": {
+        "5": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.153
+        }
+      },
+      "SILVERM": {
+        "5": {
+          "error": "DhanAuthError: /charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+          "latency_s": 0.076
+        }
+      }
+    },
+    "rest_stats": {
+      "ok": 0,
+      "empty": 0,
+      "retry": 0
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "test_id": "lmr-20260906-173355",
+  "runner": "1.2.0",
+  "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+  "git": {
+    "commit": "b932ef051d1294d317d254312950583bee742e88",
+    "dirty": true,
+    "dirty_tracked": "M dashboard/routes/trades.py\n M deploy_vps.py\n M test_results.json\n M tests/fresh_audit/test_whole_project.py\n M trading_engine.py\n?? data/dhan/candle_validation.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064012_f76a5652.json\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064211_9d3745d4.js"
+  },
+  "started_at": "2026-09-06T17:33:55+05:30",
+  "timeout_s": 6000.0,
+  "stage_timeout_s": 1500.0
+}

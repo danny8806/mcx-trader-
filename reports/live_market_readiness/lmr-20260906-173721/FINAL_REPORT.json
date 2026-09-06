@@ -1,0 +1,191 @@
+{
+  "test_id": "lmr-20260906-173721",
+  "verdict": "NOT_VERIFIED_LIVE_MARKET_READINESS",
+  "runner": "1.2.0",
+  "git": {
+    "commit": "b932ef051d1294d317d254312950583bee742e88",
+    "dirty": true,
+    "dirty_tracked": "M dashboard/routes/trades.py\n M deploy_vps.py\n M test_results.json\n M tests/fresh_audit/test_whole_project.py\n M trading_engine.py\n?? data/dhan/candle_validation.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064012_f76a5652.json\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064211_9d3745d4.js"
+  },
+  "failures": [
+    "real source acquisition failed"
+  ],
+  "errors": [
+    {
+      "phase": "real_fetch",
+      "type": "DhanAuthError",
+      "detail": "/charts/intraday: {\"errorType\":\"Order_Error\",\"errorCode\":\"DH-906\",\"errorMessage\":\"Invalid Token\"}",
+      "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\tools\\live_market_readiness.py\", line 187, in phase\n    result = fn()\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\tools\\live_market_readiness.py\", line 312, in real_fetch\n    bars = probe.fetch_historical_candles(name, tf_id, base_from, to_date)\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\dhan\\adapter.py\", line 223, in fetch_historical_candles\n    return self.rest.fetch_intraday(\n           ~~~~~~~~~~~~~~~~~~~~~~~~^\n        meta.security_id, timeframe, from_dt, to_dt,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        meta.exchange_segment, meta.instrument,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\dhan\\rest_client.py\", line 434, in fetch_intraday\n    j = self._post(\"/charts/intraday\", {\n        \"securityId\": str(security_id),\n    ...<5 lines>...\n        \"toDate\": to_dt.strftime(\"%Y-%m-%d %H:%M:%S\"),\n    })\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\dhan\\rest_client.py\", line 378, in _post\n    raise DhanAuthError(f\"{path}: {r.text[:200]}\")\ndata.dhan.rest_client.DhanAuthError: /charts/intraday: {\"errorType\":\"Order_Error\",\"errorCode\":\"DH-906\",\"errorMessage\":\"Invalid Token\"}\n"
+    }
+  ],
+  "notes": [],
+  "facts": {
+    "auth_state": "valid",
+    "source_ok": false,
+    "timeout_hit": false,
+    "git": {
+      "commit": "b932ef051d1294d317d254312950583bee742e88",
+      "dirty": true,
+      "dirty_tracked": "M dashboard/routes/trades.py\n M deploy_vps.py\n M test_results.json\n M tests/fresh_audit/test_whole_project.py\n M trading_engine.py\n?? data/dhan/candle_validation.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064012_f76a5652.json\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064211_9d3745d4.js"
+    }
+  },
+  "acceptance": [
+    {
+      "item": "1",
+      "title": "Real Dhan REST auth + read-only historical acquisition",
+      "passed": true,
+      "evidence": "ENV/REAL_SOURCE"
+    },
+    {
+      "item": "2",
+      "title": "Real Dhan WebSocket connectivity (live instrument feed)",
+      "passed": false,
+      "evidence": "REAL_LIVE_BOOT"
+    },
+    {
+      "item": "3",
+      "title": "Verified completion classifier applied to real Dhan candles (no source modification)",
+      "passed": true,
+      "evidence": "REAL_SOURCE"
+    },
+    {
+      "item": "4",
+      "title": "Warmup backfill feeds shared indicator streams from real completed candles only",
+      "passed": false,
+      "evidence": "REAL_LIVE_BOOT"
+    },
+    {
+      "item": "5",
+      "title": "Four strategies constructed on the shared indicator infra with own decision state",
+      "passed": false,
+      "evidence": "INDEPENDENCE"
+    },
+    {
+      "item": "6",
+      "title": "Indicator parity: engine arrays == independent re-derivation over same real candles",
+      "passed": false,
+      "evidence": "WARMUP/INDEPENDENCE"
+    },
+    {
+      "item": "7",
+      "title": "Dhan timestamp == strategy input timestamp (candle start)",
+      "passed": true,
+      "evidence": "REHEARSAL"
+    },
+    {
+      "item": "8",
+      "title": "Signals arise only from genuine crossover decisions on real candles (no synthetic candles)",
+      "passed": false,
+      "evidence": "REHEARSAL"
+    },
+    {
+      "item": "9",
+      "title": "Signal candle timestamp == Dhan row open timestamp (exact)",
+      "passed": false,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "10",
+      "title": "Signal candle OHLC == Dhan row OHLC (exact)",
+      "passed": false,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "11",
+      "title": "LONG trigger == signal candle HIGH; SHORT trigger == signal candle LOW",
+      "passed": false,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "12",
+      "title": "signal_id unique and disjoint from trade/order/fill/position",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "13",
+      "title": "Each entry trade references an existing signal (entry_signal_id)",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "14",
+      "title": "trade_id identical across trade/pending_order/order/fill/position (lineage carried)",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "15",
+      "title": "trade_id never equals position/order/fill/signal id",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "16",
+      "title": "Entry only after breakout trigger (pending distinct from execution; no execution-only second signal)",
+      "passed": false,
+      "evidence": "LINEAGE/REHEARSAL"
+    },
+    {
+      "item": "17",
+      "title": "No duplicate signals/trades/orders/fills/positions",
+      "passed": false,
+      "evidence": "RESTART"
+    },
+    {
+      "item": "18",
+      "title": "SL closes same trade_id; exit_signal_id NULL; exit_reason STOP_LOSS",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "19",
+      "title": "Reversal shares SIG-NEW: old exit_signal_id == new entry_signal_id; exit_reason *_reversal; opposite side",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "20",
+      "title": "DB canonical: memory vs trading.db vs analytics vs API vs WS reconciliation",
+      "passed": false,
+      "evidence": "DASHBOARD"
+    },
+    {
+      "item": "21",
+      "title": "No cross-strategy contamination on order/fill/position edges",
+      "passed": false,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "22",
+      "title": "Restart reconstruction preserves DB record sets exactly (no duplicated lifecycle rows)",
+      "passed": false,
+      "evidence": "RESTART"
+    },
+    {
+      "item": "23",
+      "title": "Dashboard/API/WS serve the canonical data with traceable trade->signal->candle evidence",
+      "passed": false,
+      "evidence": "DASHBOARD"
+    },
+    {
+      "item": "24",
+      "title": "Four strategies keep disjoint pending/position/trade/SL/decision state even for the same instrument",
+      "passed": false,
+      "evidence": "INDEPENDENCE"
+    },
+    {
+      "item": "25",
+      "title": "No infinite loop: bounded wall-clock, REST fetches, reconnect/restart attempts, stage deadlines",
+      "passed": true,
+      "evidence": "meta"
+    },
+    {
+      "item": "26",
+      "title": "Strict verdict produced; any defect raises an exact DEFECT_REPORT with repro/fix/tests",
+      "passed": true,
+      "evidence": "VERDICT"
+    }
+  ],
+  "boundary": "market CLOSED during this run; real Dhan REST+WS verified; REAL Dhan candles driven through the full production chain with engine status forced to TRADING (tools/replay_live_architecture.py mechanism)"
+}

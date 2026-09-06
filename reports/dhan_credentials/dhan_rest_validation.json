@@ -1,0 +1,52 @@
+{
+ "ok": true,
+ "fundlimit": {
+  "status": 200,
+  "latency_ms": 174,
+  "dhan_error_code": null,
+  "ok": true,
+  "body_snippet": null
+ },
+ "candles": {
+  "GOLDM": {
+   "5": {
+    "count": 871,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:25:00",
+    "ohlcv_ok": true
+   },
+   "15": {
+    "count": 291,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:15:00",
+    "ohlcv_ok": true
+   },
+   "60": {
+    "count": 75,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:00:00",
+    "ohlcv_ok": true
+   }
+  },
+  "SILVERM": {
+   "5": {
+    "count": 871,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:25:00",
+    "ohlcv_ok": true
+   },
+   "15": {
+    "count": 291,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:15:00",
+    "ohlcv_ok": true
+   },
+   "60": {
+    "count": 75,
+    "first_ts": "2026-08-31T09:00:00",
+    "last_ts": "2026-09-04T23:00:00",
+    "ohlcv_ok": true
+   }
+  }
+ }
+}

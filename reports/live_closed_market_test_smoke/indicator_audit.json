@@ -1,0 +1,99 @@
+{
+  "phase": "indicator_audit",
+  "ts": 1788675669.0192955,
+  "result": {
+    "ok": false,
+    "periods": {
+      "dema": 3,
+      "atr": 6,
+      "factor": 1.0
+    },
+    "checks": [
+      {
+        "strategy": "gold_01",
+        "slot": "fast",
+        "timeframe": "5m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "gold_01",
+        "slot": "mid",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "gold_01",
+        "slot": "slow",
+        "timeframe": "1h",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "gold_02",
+        "slot": "fast",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "gold_02",
+        "slot": "mid",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "gold_02",
+        "slot": "slow",
+        "timeframe": "1h",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_01",
+        "slot": "fast",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_01",
+        "slot": "mid",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_01",
+        "slot": "slow",
+        "timeframe": "1h",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_02",
+        "slot": "fast",
+        "timeframe": "5m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_02",
+        "slot": "mid",
+        "timeframe": "15m",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      },
+      {
+        "strategy": "silver_02",
+        "slot": "slow",
+        "timeframe": "1h",
+        "error": "/charts/intraday: {\"errorType\":\"Invalid_Authentication\",\"errorCode\":\"DH-901\",\"errorMessage\":\"Client ID or user generated access token is invalid or expired.\"}",
+        "ok": false
+      }
+    ],
+    "total": 0
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "phase": "build_engine",
+  "ts": 1788692434.7991655,
+  "result": {
+    "ok": true,
+    "strategies": [
+      "gold_01",
+      "gold_02",
+      "silver_01",
+      "silver_02"
+    ],
+    "strategy_count": 4,
+    "event_store_wired": true
+  }
+}

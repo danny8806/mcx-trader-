@@ -1,0 +1,88 @@
+{
+  "phase": "restart",
+  "elapsed_s": 0.1,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "before": {
+      "signals": 142,
+      "trades": 79,
+      "pending_orders": 0,
+      "orders": 156,
+      "fills": 156,
+      "positions": 79,
+      "trade_events": 389,
+      "trade_signal_link": 0
+    },
+    "after": {
+      "signals": 142,
+      "trades": 79,
+      "pending_orders": 0,
+      "orders": 156,
+      "fills": 156,
+      "positions": 79,
+      "trade_events": 389,
+      "trade_signal_link": 0
+    },
+    "deltas": {
+      "signals": 0,
+      "trades": 0,
+      "pending_orders": 0,
+      "orders": 0,
+      "fills": 0,
+      "positions": 0,
+      "trade_events": 0,
+      "trade_signal_link": 0
+    },
+    "state_keep": {
+      "gold_01": {
+        "bars_processed": 1740,
+        "state": "short_position",
+        "position_side": "SHORT",
+        "current_trade_id": "144b166e-20df-432a-b63c-b0473bc41272",
+        "pre_restart": {
+          "bars_processed": 1740,
+          "state": "short_position",
+          "position_side": "SHORT",
+          "current_trade_id": "144b166e-20df-432a-b63c-b0473bc41272"
+        }
+      },
+      "gold_02": {
+        "bars_processed": 580,
+        "state": "short_position",
+        "position_side": "SHORT",
+        "current_trade_id": "b5adedf6-6261-47ea-ab47-28f53ff1015d",
+        "pre_restart": {
+          "bars_processed": 580,
+          "state": "short_position",
+          "position_side": "SHORT",
+          "current_trade_id": "b5adedf6-6261-47ea-ab47-28f53ff1015d"
+        }
+      },
+      "silver_01": {
+        "bars_processed": 580,
+        "state": "flat",
+        "position_side": null,
+        "current_trade_id": null,
+        "pre_restart": {
+          "bars_processed": 580,
+          "state": "flat",
+          "position_side": null,
+          "current_trade_id": null
+        }
+      },
+      "silver_02": {
+        "bars_processed": 1740,
+        "state": "flat",
+        "position_side": null,
+        "current_trade_id": null,
+        "pre_restart": {
+          "bars_processed": 1740,
+          "state": "flat",
+          "position_side": null,
+          "current_trade_id": null
+        }
+      }
+    }
+  }
+}

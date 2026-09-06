@@ -1,0 +1,24 @@
+{
+  "failures": [
+    "Dhan REST authentication failed - see AUTH.json (verdict cannot be VERIFIED without real Dhan connectivity)",
+    "test-session record not persisted to canonical DB",
+    "reconnect verification failed",
+    "crash-kid simulation did not die mid-transaction"
+  ],
+  "errors": [
+    {
+      "phase": "db_persistence_probe",
+      "type": "IntegrityError",
+      "detail": "FOREIGN KEY constraint failed",
+      "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\tools\\closed_market_runtime_test.py\", line 907, in db_persistence_probe\n    es.record(trade_id=pid, strategy_id=\"__session__\",\n    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              instrument=\"SYSTEM\", event_type=\"SNAPSHOT\",\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              payload={\"test_id\": TEST_ID, \"opened\": True,\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                       \"commit\": self.facts.get(\"git\", {}).get(\"commit\")},\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              source=\"closed_market_runtime_test\")\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\analytics\\event_store.py\", line 67, in record\n    conn.execute(\n    ~~~~~~~~~~~~^\n        \"\"\"INSERT INTO trade_events\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<13 lines>...\n        ),\n        ^^\n    )\n    ^\nsqlite3.IntegrityError: FOREIGN KEY constraint failed\n"
+    },
+    {
+      "phase": "session_end_evidence",
+      "type": "IntegrityError",
+      "detail": "FOREIGN KEY constraint failed",
+      "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\tools\\closed_market_runtime_test.py\", line 1307, in main\n    r.engine.event_store.record(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        trade_id=f\"TEST-{TEST_ID}\", strategy_id=\"__session__\",\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n                  \"failures\": r.failures[:20]},\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        source=\"closed_market_runtime_test\")\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\analytics\\event_store.py\", line 67, in record\n    conn.execute(\n    ~~~~~~~~~~~~^\n        \"\"\"INSERT INTO trade_events\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<13 lines>...\n        ),\n        ^^\n    )\n    ^\nsqlite3.IntegrityError: FOREIGN KEY constraint failed\n"
+    }
+  ],
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "test_id": "clm-20260906-120045"
+}

@@ -1,0 +1,93 @@
+{
+  "purpose": "finite deterministic historical replay (REAL Dhan REST data)",
+  "source": "Dhan REST POST /charts/intraday (data/dhan/rest_client.py fetch_intraday)",
+  "auth": {
+    "client_id": "1102461741",
+    "token_issue": "eyJ0eXAiOiJKV1QiLCJh..."
+  },
+  "intervals_native": {
+    "5": "5m",
+    "15": "15m",
+    "60": "1h"
+  },
+  "resampling_used": false,
+  "lookahead_used": false,
+  "range": {
+    "window_start_ist": "2026-08-03T09:00:00+05:30",
+    "window_end_ist": "2026-09-06T09:00:00+05:30",
+    "replay_start_ist": "2026-09-02T09:00:00+05:30",
+    "fetch_back_days": 30
+  },
+  "instruments": {
+    "GOLDM": {
+      "security_id": "569003",
+      "exchange_segment": "MCX_COMM",
+      "instrument": "FUTCOM"
+    },
+    "SILVERM": {
+      "security_id": "483080",
+      "exchange_segment": "MCX_COMM",
+      "instrument": "FUTCOM"
+    }
+  },
+  "stats": {
+    "GOLDM/5": {
+      "n_candles": 4352,
+      "first": "2026-08-03T09:05:00+05:30",
+      "last": "2026-09-04T23:25:00+05:30"
+    },
+    "GOLDM/15": {
+      "n_candles": 1452,
+      "first": "2026-08-03T09:15:00+05:30",
+      "last": "2026-09-04T23:15:00+05:30"
+    },
+    "GOLDM/60": {
+      "n_candles": 373,
+      "first": "2026-08-03T10:00:00+05:30",
+      "last": "2026-09-04T23:00:00+05:30"
+    },
+    "SILVERM/5": {
+      "n_candles": 4352,
+      "first": "2026-08-03T09:05:00+05:30",
+      "last": "2026-09-04T23:25:00+05:30"
+    },
+    "SILVERM/15": {
+      "n_candles": 1452,
+      "first": "2026-08-03T09:15:00+05:30",
+      "last": "2026-09-04T23:15:00+05:30"
+    },
+    "SILVERM/60": {
+      "n_candles": 373,
+      "first": "2026-08-03T10:00:00+05:30",
+      "last": "2026-09-04T23:00:00+05:30"
+    }
+  },
+  "checksums": {
+    "GOLDM_5.json": "a9000d6b2c90e20a51b21897524b4d4d14203c9323d0b1689f836ffe020e84b4",
+    "GOLDM_5m.IST.csv": "2e753b030b275b687a7b6d7067aa5297f7cc005fea28404ccd7e7ccf7845220e",
+    "GOLDM_15.json": "31c3eafae70abbe316dee83d4dfc142b76b05c5a4457d7bc2bc7c310051a0879",
+    "GOLDM_15m.IST.csv": "49c354cd2900b1176cfd24e09396e2ae73f305b3b90eb874b2651e6150081c69",
+    "GOLDM_60.json": "7d4a07faf9e796f0a79fc155ee7df9fa4c94eba447651afa45bb4f622b9b688a",
+    "GOLDM_1h.IST.csv": "0f1653ebcb90740fc4c85fe7a218fda9bdd73964eedb5abbc23a5c507fb4fc30",
+    "SILVERM_5.json": "fa0ed9155c0a746c2bbbf4a0d0d9f2442aaf127df3ddc77dff97d957a9759554",
+    "SILVERM_5m.IST.csv": "d6f4f1c70310ad95a35cbb71f86304e82c06f9aa509c804e63039250485eb031",
+    "SILVERM_15.json": "9bb9a63e9fd13cd65174892aadc0e96b72398da73ceaf15a8ddc8c6ecd9ee4d3",
+    "SILVERM_15m.IST.csv": "f7caafd4f9884c89a25b5cd20f85148714cac850b7987a40d9ff0f685eecc412",
+    "SILVERM_60.json": "073e132f2ed9b106c73dd9ba504040d9178667eec8f5415867835ae98eb8df0f",
+    "SILVERM_1h.IST.csv": "4962cc1b2372dea9a16dd8c2834a51511dda3052be210cc3e30396df8c3f70e9"
+  },
+  "files": {
+    "GOLDM_15.json": "replay_output\\dhan_snapshot\\GOLDM_15.json",
+    "GOLDM_15m.IST.csv": "replay_output\\dhan_snapshot\\GOLDM_15m.IST.csv",
+    "GOLDM_1h.IST.csv": "replay_output\\dhan_snapshot\\GOLDM_1h.IST.csv",
+    "GOLDM_5.json": "replay_output\\dhan_snapshot\\GOLDM_5.json",
+    "GOLDM_5m.IST.csv": "replay_output\\dhan_snapshot\\GOLDM_5m.IST.csv",
+    "GOLDM_60.json": "replay_output\\dhan_snapshot\\GOLDM_60.json",
+    "SILVERM_15.json": "replay_output\\dhan_snapshot\\SILVERM_15.json",
+    "SILVERM_15m.IST.csv": "replay_output\\dhan_snapshot\\SILVERM_15m.IST.csv",
+    "SILVERM_1h.IST.csv": "replay_output\\dhan_snapshot\\SILVERM_1h.IST.csv",
+    "SILVERM_5.json": "replay_output\\dhan_snapshot\\SILVERM_5.json",
+    "SILVERM_5m.IST.csv": "replay_output\\dhan_snapshot\\SILVERM_5m.IST.csv",
+    "SILVERM_60.json": "replay_output\\dhan_snapshot\\SILVERM_60.json"
+  }
+}

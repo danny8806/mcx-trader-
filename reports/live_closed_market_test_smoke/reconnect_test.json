@@ -1,0 +1,22 @@
+{
+  "phase": "reconnect_test",
+  "ts": 1788675730.0576303,
+  "result": {
+    "ok": false,
+    "ws_reconnected": false,
+    "stats_before": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 8,
+      "tick": 0
+    },
+    "stats_after": {
+      "recv": 0,
+      "parse_err": 0,
+      "sub": 11,
+      "tick": 0
+    },
+    "status_deltas_tail": [],
+    "note": "closed-market watchdog may force stale reconnects between ticks; backoff is bounded (10s->30s)"
+  }
+}

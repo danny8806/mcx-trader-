@@ -1,0 +1,22 @@
+{
+  "db": {
+    "signals": 3,
+    "trades": 3,
+    "trade_signal_link": 0,
+    "pending_orders": 0,
+    "orders": 4,
+    "fills": 4,
+    "positions": 3,
+    "trade_events": 10,
+    "account_snapshots": 86,
+    "positions_open": 2,
+    "integrity": "ok",
+    "fk": 0
+  },
+  "mem": {
+    "trades": 1,
+    "fills": 0,
+    "positions_open": 0
+  },
+  "captured_at": 1788686452.8070238
+}

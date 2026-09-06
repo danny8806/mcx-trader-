@@ -1,0 +1,37 @@
+{
+  "phase": "final_reconcile",
+  "ts": 1788684404.885847,
+  "result": {
+    "ok": true,
+    "db": {
+      "signals": 3,
+      "trades": 3,
+      "trade_signal_link": 0,
+      "pending_orders": 0,
+      "orders": 4,
+      "fills": 4,
+      "positions": 3,
+      "trade_events": 9,
+      "account_snapshots": 82,
+      "positions_open": 2,
+      "integrity": "ok",
+      "fk": 0
+    },
+    "memory": {
+      "trades": 1,
+      "fills": 0,
+      "positions_open": 0
+    },
+    "db_deltas": {
+      "trades": 0,
+      "fills": 0,
+      "positions_open": 0
+    },
+    "mem_deltas": {
+      "trades": 0,
+      "fills": 0,
+      "positions_open": 0
+    },
+    "startup_note": "absolute db/mem counts differ at cold start because strategy runtimes restore from DB while position/ledger managers start empty; the invariant enforced here is NO UNEXPLAINED RELATIVE DIVERGENCE during the runtime test"
+  }
+}

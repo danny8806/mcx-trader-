@@ -1,0 +1,8 @@
+[
+  {
+    "phase": "db_persistence_probe",
+    "type": "IntegrityError",
+    "detail": "FOREIGN KEY constraint failed",
+    "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\tools\\closed_market_runtime_test.py\", line 854, in db_persistence_probe\n    es.record(trade_id=pid, strategy_id=\"__session__\",\n    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              instrument=\"SYSTEM\", event_type=\"SNAPSHOT\",\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              payload={\"test_id\": TEST_ID, \"opened\": True,\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                       \"commit\": self.facts.get(\"git\", {}).get(\"commit\")},\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n              source=\"closed_market_runtime_test\")\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\pc\\Desktop\\MCX-TRADER\\analytics\\event_store.py\", line 67, in record\n    conn.execute(\n    ~~~~~~~~~~~~^\n        \"\"\"INSERT INTO trade_events\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<13 lines>...\n        ),\n        ^^\n    )\n    ^\nsqlite3.IntegrityError: FOREIGN KEY constraint failed\n"
+  }
+]

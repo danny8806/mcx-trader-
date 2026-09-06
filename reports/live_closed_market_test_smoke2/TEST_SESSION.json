@@ -1,0 +1,20 @@
+{
+  "test_id": "clm-20260906-120045",
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "failures": [
+    "Dhan REST authentication failed - see AUTH.json (verdict cannot be VERIFIED without real Dhan connectivity)",
+    "test-session record not persisted to canonical DB",
+    "reconnect verification failed",
+    "crash-kid simulation did not die mid-transaction"
+  ],
+  "errors": [
+    {
+      "phase": "db_persistence_probe",
+      "type": "IntegrityError"
+    },
+    {
+      "phase": "session_end_evidence",
+      "type": "IntegrityError"
+    }
+  ]
+}

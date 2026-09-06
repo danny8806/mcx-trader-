@@ -1,0 +1,59 @@
+{
+  "phase": "P15-token-lifecycle",
+  "as_of_ist": "2026-09-06T14:23",
+  "contract": "data/dhan/rest_client.py DhanRESTClient.renew_token()",
+  "issuances": [
+    {
+      "when": "2026-09-03T12:22Z (before audit)",
+      "method": "existing token found in archive",
+      "exp": "2026-09-04T12:22Z",
+      "state_at_audit": "EXPIRED",
+      "renewable": true
+    },
+    {
+      "when": "2026-09-05T~07:xxZ (before audit)",
+      "method": "existing token found in app env/data",
+      "state_at_audit": "EXPIRED",
+      "renewable": true
+    },
+    {
+      "when": "P9 mint (2026-09-06T07:50Z)",
+      "method": "repo rest_client -> dhanhq.DhanLogin.generate_token(pin, pyotp)",
+      "exp": "2026-09-07T07:50:26Z",
+      "result": "OK on 2nd attempt (1st timed edge window -> 'Invalid TOTP')",
+      "latency_ms": 214
+    },
+    {
+      "when": "P14 v1 mid-run engine auto-renew",
+      "method": "runner scheduler (daily 7AM + 6h safety)",
+      "observable": "server-side session rotated; PREVIOUS JWT revoked while its exp stayed in the future"
+    },
+    {
+      "when": "v2 run 14:12-14:18 IST",
+      "method": "runner; renew attempts rate-limited by Dhan ('Token can be generated once every 2 minutes')",
+      "outcome": "no in-run rotation; carried token remained valid; WS reconnect PASSED this run"
+    },
+    {
+      "when": "final refresh (2026-09-06T08:52Z)",
+      "method": "same repo rest_client mint",
+      "exp": "2026-09-07T08:52:03Z",
+      "result": "OK; env + data/db/dhan_token.json updated"
+    }
+  ],
+  "observations": [
+    "TOTP must be read inside a fresh ~30s window; an edge call returns 'Invalid TOTP' (retry next window).",
+    "Dhan mint rate limit is server-side 1 per 2 minutes; local renew() enforces a 130s cooldown.",
+    "A successful generate_token() REVOKES the previous JWT server-side (single active session).",
+    "Time-based expiry checks cannot detect revocation: a revoked 'young-looking' JWT yields REST DH-906 and WS DH-901 rejections.",
+    "During P14-v1 the WS reconnect kept resending the now-revoked token (renew() only re-mints on time-expiry) -> DH-901 cycling; during P14-v2 (no rotation) reconnect succeeded (closed->disconnected->connected, recv 4->8, sub 1->2).",
+    "Exact known-good raw-data invariant verified: 0/870 GOLDM bars violated (h>=max(o,c) and l<=min(o,c)) after fix."
+  ],
+  "current_state": {
+    "status": "VALID",
+    "exp_utc": "2026-09-07T08:52:03Z",
+    "grace_before_renew_hours": 2,
+    "stored_in": ["C:\\Users\\pc\\Desktop\\MCX-TRADER\\mcx-trader.env (DHAN_ACCESS_TOKEN, gitignored)", "C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\db\\dhan_token.json (gitignored; removed by runner teardown)"],
+    "secrets_in_this_report": "none (all values masked)"
+  },
+  "rotation_policy": "see dhan/README_SECURITY.txt 'Backup & rotation policy' (appended 2026-09-06)"
+}

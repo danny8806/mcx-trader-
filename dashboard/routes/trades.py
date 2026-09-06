@@ -81,10 +81,6 @@ def _get_trade_sync(trade_id: str):
     except Exception as e:
         return {"error": str(e)}
 
-@router.get("/api/trades/{trade_id}")
-async def get_trade(trade_id: str):
-    return await asyncio.to_thread(_get_trade_sync, trade_id)
-
 def _lifecycle_orphan_scan_sync():
     """Run comprehensive orphan scan across all per-strategy lifecycles."""
     if not _engine or not hasattr(_engine, "orphan_scan"):
@@ -110,3 +106,7 @@ def _lifecycle_reconcile_sync():
 @router.get("/api/trades/lifecycle-reconcile")
 async def lifecycle_reconciliation():
     return await asyncio.to_thread(_lifecycle_reconcile_sync)
+
+@router.get("/api/trades/{trade_id}")
+async def get_trade(trade_id: str):
+    return await asyncio.to_thread(_get_trade_sync, trade_id)

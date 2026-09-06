@@ -1,0 +1,24 @@
+{
+  "test_id": "clm-20260906-132623",
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "failures": [
+    "GOLDM 5: 811 OHLC anomalies",
+    "GOLDM 15: 285 OHLC anomalies",
+    "GOLDM 60: 73 OHLC anomalies",
+    "SILVERM 5: 809 OHLC anomalies",
+    "SILVERM 15: 280 OHLC anomalies",
+    "SILVERM 60: 75 OHLC anomalies",
+    "indicator audit FAILED gold_01:mid",
+    "indicator audit FAILED gold_01:slow",
+    "indicator audit FAILED gold_02:fast",
+    "indicator audit FAILED gold_02:mid",
+    "indicator audit FAILED gold_02:slow",
+    "indicator audit FAILED silver_01:fast",
+    "indicator audit FAILED silver_01:mid",
+    "indicator audit FAILED silver_01:slow",
+    "indicator audit FAILED silver_02:mid",
+    "indicator audit FAILED silver_02:slow",
+    "reconnect verification failed"
+  ],
+  "errors": []
+}

@@ -1,0 +1,36 @@
+{
+  "phase": "P17-runtime-config",
+  "as_of_ist": "2026-09-06T14:23",
+  "verified_points": [
+    {
+      "key": "config/settings.json system.environment",
+      "value": "paper",
+      "evidence": "safety_paper_gate PASS in both P14 runs (clm-20260906-132623, clm-20260906-141200)"
+    },
+    {
+      "key": "config/settings.json system",
+      "value": {"name": "GoldSilverLiveTrader", "version": "1.0.0", "db_path": "data/db/trading.db", "state_path": "data/db/system_state.json"}
+    },
+    {
+      "key": "phase-0 gate",
+      "value": "tests/full_system_verification.py 106/106 VERIFIED (baseline x2 + final regression passed on v2 run)"
+    },
+    {
+      "key": "no real orders",
+      "value": "closed-market battery enforces run-allowed trades only; sessions were holidays/weekend idle; positions_after_restore = [] both runs"
+    },
+    {
+      "key": "ACL policy (pc only, R/W)",
+      "paths": ["mcx-trader.env", "FYERS APIS/renew_token.py", "FYERS APIS/dhan/**", "data/db/dhan_token.json", "FYERS APIS/access_token.json"],
+      "note": "restored pc:R,W ACE on all dhan subpaths on 2026-09-06 after an over-restrictive inheritance reset left only the folder root with an ACE"
+    },
+    {
+      "key": "git exposure",
+      "finding": "clean: mcx-trader.env matched by .gitignore:45 *.env and untracked; data/db/ ignored; runner tools/closed_market_runtime_test.py untracked; no JWT/PIN/seed/password tracked (regex + curated audit). Pre-existing modifications in working tree (deploy_vps.py, test_results.json) are unrelated to this mission and were not touched for secrets."
+    },
+    {
+      "key": "integration contract (masked)",
+      "value": "DHAN_CLIENT_ID=[REDACTED] (ends 1741); TRADING_PIN=[REDACTED]; TOTP_SECRET=[REDACTED]; DASHBOARD_API_KEY MISSING (no engine impact)"
+    }
+  ]
+}

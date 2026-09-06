@@ -1,0 +1,24 @@
+{
+ "connected": true,
+ "sub": 1,
+ "tick": 2,
+ "statuses": 3,
+ "reconnects": 0,
+ "note": "live ticks absent; subscription/auth lifecycle verified",
+ "details": {
+  "connected": true,
+  "stats": {
+   "recv": 4,
+   "parse_err": 0,
+   "sub": 1,
+   "tick": 2
+  },
+  "status_events": [
+   "connected"
+  ],
+  "tick_recv": 2,
+  "watchdog_interval_s": 15.0,
+  "stale_threshold_s": 60.0,
+  "closed_market_note": "live ticks absent; subscription/auth lifecycle verified"
+ }
+}

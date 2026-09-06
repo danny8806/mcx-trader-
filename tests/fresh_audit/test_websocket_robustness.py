@@ -11,6 +11,8 @@ Covers:
 """
 from __future__ import annotations
 
+import json
+import sys
 import time
 
 import pytest
@@ -76,7 +78,78 @@ def renew_loader():
     return "renewed"
 
 
-# ── Fix 2a: stale watchdog ─────────────────────────────────────────────────
+# ── Fix 1b: process-global renewal cooldown ───────────────────────────────
+
+class TestProcessWideRenewalCooldown:
+    """Multiple DhanDataAdapter constructions in one process must not hammer
+    Dhan's token-mint endpoint (one generation per ~2 min).  A second adapter
+    within the cooldown reuses the persisted token instead of re-minting."""
+
+    def _patch_mint(self, monkeypatch, new_token):
+        """Make renew_token's mint internals local fakes (no network)."""
+        class FakeTOTP:
+            def now(self):
+                return "123456"
+        class FakePyOTP:
+            @staticmethod
+            def TOTP(secret):
+                return FakeTOTP()
+        class FakeLogin:
+            def __init__(self, client_id):
+                pass
+            def generate_token(self, pin, totp):
+                return {"accessToken": new_token, "expiryTime": "tomorrow"}
+        monkeypatch.setitem(sys.modules, "pyotp", FakePyOTP())
+        monkeypatch.setitem(sys.modules, "dhanhq", type(
+            "fdh", (), {"DhanLogin": FakeLogin})())
+        monkeypatch.setattr("data.dhan.rest_client.time.sleep", lambda s: None)
+
+    def _client(self, tmp_path, token):
+        import data.dhan.rest_client as rc
+        token_file = tmp_path / "dhan_token.json"
+        token_file.write_text(json.dumps({"access_token": token}),
+                              encoding="utf-8")
+        cli = rc.DhanRESTClient(
+            token_file=str(token_file), client_id="1102461741",
+            pin="1", totp_secret="S")
+        cli._last_renew_attempt = 0.0
+        cli._renew_cooldown = 130.0
+        return cli, token_file
+
+    def test_second_adapter_within_cooldown_reuses_persisted_token(
+            self, monkeypatch, tmp_path):
+        import data.dhan.rest_client as rc
+        self._patch_mint(monkeypatch, "mint-ok")
+        rc._RENEW_LAST_ATTEMPT = 0.0
+        first, token_file = self._client(tmp_path, "old")
+        # first adapter mints and persists the fresh token
+        assert first.renew_token() == "mint-ok"
+        # second adapter constructed immediately after: within cooldown, must
+        # NOT re-mint; it reuses the just-persisted fresh token.
+        assert time.monotonic() - rc._RENEW_LAST_ATTEMPT < 130.0
+        second, _ = self._client(tmp_path, "mint-ok")
+        out = second.renew_token()
+        assert out == "mint-ok"
+
+    def test_renew_after_cooldown_mints_again(self, monkeypatch, tmp_path):
+        import data.dhan.rest_client as rc
+        self._patch_mint(monkeypatch, "brand-new")
+        rc._RENEW_LAST_ATTEMPT = time.monotonic() - 10_000.0  # long ago
+        cli, token_file = self._client(tmp_path, "old")
+        out = cli.renew_token()
+        assert out == "brand-new"
+        assert json.loads(token_file.read_text(encoding="utf-8"))[
+            "access_token"] == "brand-new"
+
+    def test_no_pin_no_totp_returns_empty(self, monkeypatch, tmp_path):
+        import data.dhan.rest_client as rc
+        token_file = tmp_path / "dhan_token.json"
+        token_file.write_text(json.dumps({"access_token": ""}),
+                              encoding="utf-8")
+        cli = rc.DhanRESTClient(token_file=str(token_file), client_id="c")
+        rc._RENEW_LAST_ATTEMPT = 0.0
+        cli._last_renew_attempt = 0.0
+        assert cli.renew_token() == ""
 
 class TestStaleWatchdog:
     def _make_client(self):

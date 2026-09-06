@@ -27,6 +27,10 @@ CONTAINER_ENV = {
 
 # Files to sync (local path relative to MCX_TRADER_DIR -> remote path relative to VPS_BASE)
 SYNC_FILES = [
+    'Dockerfile',
+    'events/__init__.py',
+    'events/bus.py',
+    'events/types.py',
     'config/settings.json',
     'strategies/base_dema_strategy.py',
     'strategies/silver/__init__.py',

@@ -1,0 +1,20 @@
+{
+  "phase": "setup_env_and_token",
+  "elapsed_s": 0.0,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "client_id_length": 10,
+    "token_length": 304,
+    "token_file": "C:\\Users\\pc\\Desktop\\MCX-TRADER\\data\\db\\dhan_token.json",
+    "token_file_existed": true,
+    "token_file_seeded": false,
+    "auth_state": "valid",
+    "token_expiry": {
+      "expires_at": 1788775601,
+      "remaining_hours": 22.58,
+      "expires_soon": false
+    },
+    "security": "token value never printed; isolated rehearsal workdir; real token file never deleted"
+  }
+}

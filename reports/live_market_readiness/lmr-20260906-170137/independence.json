@@ -1,0 +1,10 @@
+{
+  "phase": "independence",
+  "elapsed_s": 0.0,
+  "deadline_hit": false,
+  "result": {
+    "ok": true,
+    "problems": [],
+    "shared_infra_stream_count": 6
+  }
+}

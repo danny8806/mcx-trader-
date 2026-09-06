@@ -29,6 +29,10 @@ from typing import Any, Optional
 
 from config import Config
 from data.dhan import DhanDataAdapter
+from data.dhan.candle_validation import (
+    filter_completed, iso_ist, tf_minutes as _cv_tf_minutes,
+    REASON_FORMING,
+)
 from core.timeframe_engine import Bar
 from core.market_status import MarketStatus, MarketState, EngineStatus
 from core.safe_mode import SafeModeManager
@@ -158,6 +162,11 @@ class TradingEngine:
         self._running = False
         self._lock = threading.RLock()
         self._persistence = None
+
+        # ── Warmup forensics + latest-completed watermark (mission: direct
+        # Dhan REST source + latest-available backfill) ──
+        self._warmup_forensics: dict[str, dict] = {}
+        self._warmup_watermark: dict[str, dict] = {}
 
         # ── Per-strategy runtimes (rebuilt with persistence by set_persistence) ──
         self.runtimes = StrategyRuntimeRegistry()
@@ -1046,8 +1055,16 @@ class TradingEngine:
             self.data_adapter.disconnect()
         log.info("[Engine] Stopped")
 
-    def _warmup_from_rest(self) -> None:
-        """Warm up each strategy from REST historical data."""
+    def _warmup_from_rest(self, now_epoch: Optional[int] = None) -> None:
+        """Warm up each strategy from Dhan REST historical data.
+
+        Contract (MCX + Dhan):
+          - requested end = fetch boundary, NOT a market-close rule;
+          - the returned dataset decides the latest available candle;
+          - only genuinely completed candles feed the shared indicator
+            streams (a forming candle can never poison DEMA/ATR state);
+          - per (symbol, timeframe) forensics + latest-completed watermark.
+        """
         import pandas as pd
         warmup_cfg = self.config.get("warmup", {})
         last_days = int(warmup_cfg.get("last_trading_days", 5))
@@ -1055,31 +1072,24 @@ class TradingEngine:
         now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
         base_from = (now - timedelta(days=fetch_days)).date()
         to_date = now.date()
+        if now_epoch is None:
+            now_epoch = int(time.time())
 
         for name, strategy in self.strategies.items():
+            inst_cfg = self.config.get("instruments", {}).get(name, {})
+            session_open = inst_cfg.get("session_open", "09:00")
+            session_close = inst_cfg.get("session_close", "23:30")
+            security_id = str(inst_cfg.get("security_id", ""))
             try:
                 # Per-strategy FAST timeframe warmup (5m and 15m strategies
                 # each warm their own fast indicator) — never hardcode "5".
                 fast_id = {"5m": "5", "15m": "15"}.get(strategy.fast_timeframe, "5")
                 fast_minutes = strategy._tf_to_minutes(strategy.fast_timeframe)
-                candles = self.data_adapter.fetch_historical_candles(
-                    strategy.instrument, fast_id, base_from, to_date)
-                if not candles:
-                    continue
-                df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
-                # The raw epoch is already a true UTC instant of the bar open.
-                # Convert once for CALENDAR-DAY filtering only (IST wall clock);
-                # never re-derive the feed timestamp from the tz-converted
-                # wall time, which is host-tz-dependent (naive .timestamp()
-                # resolves in the process locale and silently shifts every bar
-                # by +5:30 on non-IST hosts, mis-anchoring DEMA/ATR streams).
-                df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
-                df = df.sort_values("datetime").reset_index(drop=True)
-                if last_days > 0:
-                    dates = sorted(df["datetime"].dt.date.unique())
-                    keep = set(dates[-last_days:])
-                    df = df[df["datetime"].dt.date.isin(keep)].reset_index(drop=True)
-                for _, row in df.iterrows():
+                accepted_fast, _ = self._fetch_warmup_candles(
+                    name, strategy.instrument, fast_id, strategy.fast_timeframe,
+                    fast_minutes, base_from, to_date, now_epoch,
+                    session_open, session_close, security_id, last_days)
+                for _, row in accepted_fast.iterrows():
                     open_ts = float(row["timestamp"])
                     strategy.warmup_indicator(Bar(
                         instrument=strategy.instrument, timeframe=strategy.fast_timeframe,
@@ -1090,15 +1100,19 @@ class TradingEngine:
                     ))
                 for tf_id, tf_name in [("15", strategy.mid_timeframe), ("60", strategy.htf_timeframe)]:
                     try:
-                        htf_candles = self.data_adapter.fetch_historical_candles(
-                            strategy.instrument, tf_id, base_from, to_date)
-                        if htf_candles:
-                            for c in htf_candles:
-                                bar = Bar(instrument=strategy.instrument, timeframe=tf_name,
-                                          start_ts=c[0], end_ts=c[0] + int(tf_id) * 60,
-                                          open=c[1], high=c[2], low=c[3], close=c[4], volume=int(c[5]))
-                                strategy.warmup_htf(bar)
-                                strategy.warmup_indicator_htf(bar)
+                        htf_min = int(tf_id)
+                        accepted_htf, _ = self._fetch_warmup_candles(
+                            name, strategy.instrument, tf_id, tf_name, htf_min,
+                            base_from, to_date, now_epoch,
+                            session_open, session_close, security_id, last_days)
+                        for _, row in accepted_htf.iterrows():
+                            h_open_ts = float(row["timestamp"])
+                            bar = Bar(instrument=strategy.instrument, timeframe=tf_name,
+                                      start_ts=h_open_ts, end_ts=h_open_ts + htf_min * 60,
+                                      open=row["open"], high=row["high"], low=row["low"], close=row["close"],
+                                      volume=int(row["volume"]))
+                            strategy.warmup_htf(bar)
+                            strategy.warmup_indicator_htf(bar)
                     except Exception as e:
                         log.warning("[Engine] %s: HTF warmup failed: %s", name, e)
                 log.info("[Engine] %s warmed: fast=%d bars, mid_htf=%d, slow_htf=%d",
@@ -1106,6 +1120,104 @@ class TradingEngine:
                          strategy.mid_htf_state.bar_count(), strategy.slow_htf_state.bar_count())
             except Exception as e:
                 log.error("[Engine] %s warmup failed: %s", name, e)
+
+    def _fetch_warmup_candles(
+        self,
+        name: str,
+        instrument: str,
+        tf_id: str,
+        tf_name: str,
+        tf_min: int,
+        base_from: datetime.date,
+        to_date: datetime.date,
+        now_epoch: int,
+        session_open: str,
+        session_close: str,
+        security_id: str,
+        last_days: int,
+    ):
+        """Fetch one (symbol, interval) range from Dhan REST, classify it, feed
+        forensics, and return only the completed candles (ascending)."""
+        import pandas as pd
+        raw = self.data_adapter.fetch_historical_candles(
+            instrument, tf_id, base_from, to_date)
+        key = f"{name}_{tf_id}"
+        fore = {
+            "requested_start": base_from.isoformat(),
+            "requested_end": to_date.isoformat(),
+            "security_id": security_id,
+            "instrument": name,
+            "timeframe": tf_name,
+            "interval": tf_id,
+            "source": "DHAN_REST",
+            "dhan_return_count": len(raw) if raw else 0,
+            "first_dhan_candle": None,
+            "last_dhan_candle": None,
+            "last_completed_candle": None,
+            "forming_candle_count": 0,
+            "rejected_candle_count": 0,
+            "duplicate_count": 0,
+            "upsert_count": 0,
+            "watermark_before": self._warmup_watermark.get(key),
+            "watermark_after": None,
+            "rejected": [],
+        }
+        if not raw:
+            log.info("[Engine] warmup %s: no candles", key)
+            self._record_warmup_forensics(key, fore)
+            return pd.DataFrame(), fore
+        fore["first_dhan_candle"] = iso_ist(raw[0][0])
+        fore["last_dhan_candle"] = iso_ist(raw[-1][0])
+        fore["duplicate_count"] = len(raw) - len({float(c[0]) for c in raw})
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        # The raw epoch is already a true UTC instant of the bar open.
+        # Convert once for CALENDAR-DAY filtering only (IST wall clock);
+        # never re-derive the feed timestamp from the tz-converted
+        # wall time, which is host-tz-dependent (naive .timestamp()
+        # resolves in the process locale and silently shifts every bar
+        # by +5:30 on non-IST hosts, mis-anchoring DEMA/ATR streams).
+        df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
+        df = df.sort_values("datetime").reset_index(drop=True)
+        if last_days > 0:
+            dates = sorted(df["datetime"].dt.date.unique())
+            keep = set(dates[-last_days:])
+            df = df[df["datetime"].dt.date.isin(keep)].reset_index(drop=True)
+        rows = df.values.tolist()
+        accepted, rejected = filter_completed(
+            rows, tf_id, now_epoch, session_open, session_close)
+        fore["forming_candle_count"] = sum(
+            1 for r, _ in rejected if r == REASON_FORMING)
+        fore["rejected_candle_count"] = len(rejected)
+        fore["rejected"] = [
+            {"time": iso_ist(c[0]), "reason": r} for r, c in rejected]
+        fore["upsert_count"] = len(accepted)
+        acc_df = (pd.DataFrame(accepted, columns=df.columns)
+                  if accepted else df.iloc[0:0])
+        if accepted:
+            last_open = float(accepted[-1][0])
+            fore["last_completed_candle"] = iso_ist(last_open)
+            fore["watermark_after"] = {
+                "open_ts": last_open,
+                "end_ts": last_open + tf_min * 60,
+                "source": "DHAN_REST",
+            }
+            self._warmup_watermark[key] = {
+                "security_id": security_id,
+                "timeframe": tf_name,
+                "interval": tf_id,
+                "latest_completed_open_ts": last_open,
+                "latest_completed_end_ts": last_open + tf_min * 60,
+                "source": "DHAN_REST",
+                "asof": iso_ist(time.time()),
+            }
+            acc_df = acc_df.sort_values("datetime").reset_index(drop=True)
+        self._record_warmup_forensics(key, fore)
+        return acc_df, fore
+
+    def _record_warmup_forensics(self, key: str, fore: dict) -> None:
+        self._warmup_forensics[key] = dict(fore)
+        log.info("[Engine] warmup forensics %s: %s", key,
+                 json.dumps(fore, default=str))
 
     def restore(self, saved_state: dict) -> None:
         """Restore engine state from a saved snapshot.

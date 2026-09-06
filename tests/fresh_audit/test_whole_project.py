@@ -440,6 +440,15 @@ class TestAPIRoutes:
             "peak_equity": 0,
         }
         engine.strategies = {}
+        engine.orphan_scan.return_value = {
+            "orphan_fills": [], "orphan_orders": [], "orphan_positions": [],
+            "orphan_pending_orders": [], "trades_without_signals": [],
+            "trades_without_positions": [], "trades_with_wrong_exit_state": [],
+            "mismatched_memory_db": [], "total_orphans": 0, "is_clean": True,
+        }
+        engine.reconcile_trades.return_value = {
+            "errors": [], "warnings": [], "stats": {
+                "total_trades": 0, "open": 0, "closed": 0, "pending": 0}}
         engine.indicators = {}
         engine.pnl_engines = {}
         engine.data_adapter = MagicMock()
@@ -451,9 +460,9 @@ class TestAPIRoutes:
         # Initialize routes with mock engine
         from dashboard.routes import (overview, strategies, positions, orders,
                                        pnl, market_data, risk, health, alerts,
-                                       audit_log, indicators)
+                                       audit_log, indicators, trades)
         for mod in [overview, strategies, positions, orders, pnl, market_data,
-                    risk, health, alerts, audit_log, indicators]:
+                    risk, health, alerts, audit_log, indicators, trades]:
             if hasattr(mod, 'init'):
                 mod.init(engine, bus)
 
@@ -489,6 +498,19 @@ class TestAPIRoutes:
     def test_api_orders(self):
         resp = self.client.get("/api/orders")
         assert resp.status_code == 200
+
+    def test_api_trades_lifecycle_reconcile_not_shadowed(self):
+        """Static trades subroutes must not be shadowed by /api/trades/{trade_id}."""
+        resp = self.client.get("/api/trades/lifecycle-reconcile")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "errors" in data and isinstance(data["errors"], list)
+
+    def test_api_trades_orphan_scan_not_shadowed(self):
+        resp = self.client.get("/api/trades/orphan-scan")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("is_clean") is True
 
     def test_api_pnl(self):
         resp = self.client.get("/api/pnl")

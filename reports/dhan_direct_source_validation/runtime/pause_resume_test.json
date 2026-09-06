@@ -1,0 +1,12 @@
+{
+  "phase": "pause_resume_test",
+  "ts": 1788688263.073647,
+  "result": {
+    "ok": true,
+    "strategy": "gold_01",
+    "enabled_before": true,
+    "paused": true,
+    "resumed": true,
+    "note": "closed market: no candles to evaluate while paused; fork-free guarantee covered by unit tests"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "phase": "safety_paper_gate",
+  "ts": 1788684120.6355608,
+  "result": {
+    "ok": true,
+    "system.environment": "paper",
+    "execution_mode": "paper",
+    "paper_only_rule": "Abort if not paper"
+  }
+}

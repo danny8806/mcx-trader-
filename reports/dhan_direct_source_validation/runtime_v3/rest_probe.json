@@ -1,0 +1,117 @@
+{
+  "phase": "rest_probe",
+  "ts": 1788688897.5409744,
+  "result": {
+    "ok": true,
+    "auth": {
+      "authenticated": true,
+      "auth_state": "valid"
+    },
+    "expiry": {
+      "expires_at": 1788775296,
+      "remaining_hours": 23.99957220296065,
+      "expires_soon": false
+    },
+    "instruments": {
+      "GOLDM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.165,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.063,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 0.052,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "ohlc_bad_count": 0,
+          "ohlc_bad_rows": [],
+          "min_low": 149900.0,
+          "max_high": 156381.0
+        }
+      },
+      "SILVERM": {
+        "5": {
+          "count": 871,
+          "latency_s": 0.079,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788544500.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 240699.0,
+              "l": 239812.0,
+              "c": 240370.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "15": {
+          "count": 291,
+          "latency_s": 0.265,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543900.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 240699.0,
+              "l": 239812.0,
+              "c": 240157.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        },
+        "60": {
+          "count": 75,
+          "latency_s": 2.346,
+          "first_ts": 1788147000.0,
+          "last_ts": 1788543000.0,
+          "ok": true,
+          "ohlc_bad_count": 1,
+          "ohlc_bad_rows": [
+            {
+              "ts": 1788406200,
+              "o": 238988.0,
+              "h": 241188.0,
+              "l": 239812.0,
+              "c": 241188.0
+            }
+          ],
+          "min_low": 234024.0,
+          "max_high": 244640.0
+        }
+      }
+    },
+    "rest_stats": {
+      "ok": 6,
+      "empty": 0,
+      "retry": 1
+    }
+  }
+}

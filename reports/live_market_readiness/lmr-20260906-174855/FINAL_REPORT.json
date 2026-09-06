@@ -1,0 +1,2673 @@
+{
+  "test_id": "lmr-20260906-174855",
+  "verdict": "VERIFIED_LIVE_MARKET_READINESS",
+  "runner": "1.2.0",
+  "git": {
+    "commit": "b932ef051d1294d317d254312950583bee742e88",
+    "dirty": true,
+    "dirty_tracked": "M dashboard/routes/trades.py\n M data/dhan/rest_client.py\n M deploy_vps.py\n M test_results.json\n M tests/fresh_audit/test_websocket_robustness.py\n M tests/fresh_audit/test_whole_project.py\n M trading_engine.py\n?? data/dhan/candle_validation.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064012_f76a5652.json\n?? tests/live"
+  },
+  "failures": [],
+  "errors": [],
+  "notes": [
+    "reversal arms without follow-through (breakout not triggered / superseded before feed end): 4"
+  ],
+  "facts": {
+    "auth_state": "valid",
+    "raw_by": {
+      "GOLDM:60": {
+        "dhan_return_count": 150,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788543000.0,
+        "latency_s": 0.098,
+        "accepted_count": 150,
+        "rejected_count": 0,
+        "echo/session_rejected": []
+      },
+      "GOLDM:15": {
+        "dhan_return_count": 581,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788543900.0,
+        "latency_s": 0.067,
+        "accepted_count": 580,
+        "rejected_count": 1,
+        "echo/session_rejected": [
+          {
+            "ts": 1788458400,
+            "reason": "OUTSIDE_SUPPORTED_SESSION"
+          }
+        ]
+      },
+      "GOLDM:5": {
+        "dhan_return_count": 1741,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788544500.0,
+        "latency_s": 0.104,
+        "accepted_count": 1740,
+        "rejected_count": 1,
+        "echo/session_rejected": [
+          {
+            "ts": 1788458400,
+            "reason": "OUTSIDE_SUPPORTED_SESSION"
+          }
+        ]
+      },
+      "SILVERM:60": {
+        "dhan_return_count": 150,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788543000.0,
+        "latency_s": 0.065,
+        "accepted_count": 150,
+        "rejected_count": 0,
+        "echo/session_rejected": []
+      },
+      "SILVERM:15": {
+        "dhan_return_count": 581,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788543900.0,
+        "latency_s": 0.296,
+        "accepted_count": 580,
+        "rejected_count": 1,
+        "echo/session_rejected": [
+          {
+            "ts": 1788458400,
+            "reason": "OUTSIDE_SUPPORTED_SESSION"
+          }
+        ]
+      },
+      "SILVERM:5": {
+        "dhan_return_count": 1741,
+        "first_ts": 1787542200.0,
+        "last_ts": 1788544500.0,
+        "latency_s": 2.514,
+        "accepted_count": 1740,
+        "rejected_count": 1,
+        "echo/session_rejected": [
+          {
+            "ts": 1788458400,
+            "reason": "OUTSIDE_SUPPORTED_SESSION"
+          }
+        ]
+      }
+    },
+    "source_ok": true,
+    "live_boot_ws": true,
+    "warmup_ok": true,
+    "warmup_counts": {
+      "5m": 1740,
+      "15m": 1160,
+      "1h": 300
+    },
+    "crosscheck": {
+      "ok": true,
+      "checked": 95,
+      "mismatches": 0,
+      "signals": [
+        {
+          "signal_id": "750d470d-89aa-45b9-8262-94af353512af",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787545800.0,
+          "candle": [
+            254632.0,
+            254632.0,
+            254150.0,
+            254150.0,
+            142.0
+          ],
+          "trigger": 254150.0,
+          "dhan_row": [
+            254632.0,
+            254632.0,
+            254150.0,
+            254150.0,
+            142.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f9f0f65b-c062-44cb-88f3-623d1ec0e750",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787545800.0,
+          "candle": [
+            254632.0,
+            254632.0,
+            254149.0,
+            254488.0,
+            261.0
+          ],
+          "trigger": 254149.0,
+          "dhan_row": [
+            254632.0,
+            254632.0,
+            254149.0,
+            254488.0,
+            261.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a382ee9b-f6f7-4d7e-a08a-a714708e54f0",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787547000.0,
+          "candle": [
+            163111.0,
+            163250.0,
+            163073.0,
+            163250.0,
+            147.0
+          ],
+          "trigger": 163250.0,
+          "dhan_row": [
+            163111.0,
+            163250.0,
+            163073.0,
+            163250.0,
+            147.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "ee3c6459-ce5a-48c9-8956-0ef407378d48",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787547600.0,
+          "candle": [
+            163250.0,
+            163350.0,
+            163250.0,
+            163346.0,
+            323.0
+          ],
+          "trigger": 163350.0,
+          "dhan_row": [
+            163250.0,
+            163350.0,
+            163250.0,
+            163346.0,
+            323.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "775a9020-88c7-459a-871c-b28b2b4b40b2",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787548500.0,
+          "candle": [
+            254730.0,
+            254942.0,
+            254500.0,
+            254500.0,
+            307.0
+          ],
+          "trigger": 254500.0,
+          "dhan_row": [
+            254730.0,
+            254942.0,
+            254500.0,
+            254500.0,
+            307.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "5a3d6639-1631-4603-850c-06258165598d",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787549100.0,
+          "candle": [
+            254626.0,
+            254670.0,
+            254500.0,
+            254500.0,
+            77.0
+          ],
+          "trigger": 254500.0,
+          "dhan_row": [
+            254626.0,
+            254670.0,
+            254500.0,
+            254500.0,
+            77.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "9de04642-143b-4e7e-8a24-31c3427a79ce",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787558400.0,
+          "candle": [
+            254864.0,
+            255159.0,
+            254451.0,
+            254461.0,
+            543.0
+          ],
+          "trigger": 254451.0,
+          "dhan_row": [
+            254864.0,
+            255159.0,
+            254451.0,
+            254461.0,
+            543.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "d5650015-7f40-40d7-a191-febe4574a67e",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787559000.0,
+          "candle": [
+            254849.0,
+            254856.0,
+            254451.0,
+            254461.0,
+            206.0
+          ],
+          "trigger": 254451.0,
+          "dhan_row": [
+            254849.0,
+            254856.0,
+            254451.0,
+            254461.0,
+            206.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a5c777fd-cc57-432f-80e3-a86d359816ef",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787559300.0,
+          "candle": [
+            163230.0,
+            163250.0,
+            163056.0,
+            163120.0,
+            309.0
+          ],
+          "trigger": 163056.0,
+          "dhan_row": [
+            163230.0,
+            163250.0,
+            163056.0,
+            163120.0,
+            309.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7c2b9cac-f574-4583-9de2-093b49e67f26",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787559300.0,
+          "candle": [
+            163230.0,
+            163311.0,
+            163056.0,
+            163065.0,
+            527.0
+          ],
+          "trigger": 163056.0,
+          "dhan_row": [
+            163230.0,
+            163311.0,
+            163056.0,
+            163065.0,
+            527.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "228a6151-6fda-45cc-8a5f-797c66197086",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787562900.0,
+          "candle": [
+            163330.0,
+            163350.0,
+            163206.0,
+            163221.0,
+            62.0
+          ],
+          "trigger": 163206.0,
+          "dhan_row": [
+            163330.0,
+            163350.0,
+            163206.0,
+            163221.0,
+            62.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7a594419-2fce-471f-94aa-d305282ad8f0",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787578200.0,
+          "candle": [
+            256900.0,
+            257247.0,
+            255397.0,
+            255436.0,
+            1222.0
+          ],
+          "trigger": 255397.0,
+          "dhan_row": [
+            256900.0,
+            257247.0,
+            255397.0,
+            255436.0,
+            1222.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "3e1cbe94-ff17-4fb8-9cf9-e804da4e5501",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787578800.0,
+          "candle": [
+            256633.0,
+            256759.0,
+            255397.0,
+            255436.0,
+            551.0
+          ],
+          "trigger": 255397.0,
+          "dhan_row": [
+            256633.0,
+            256759.0,
+            255397.0,
+            255436.0,
+            551.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "88da4758-f01c-441f-b4d4-0ef7f0c6bc41",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787586300.0,
+          "candle": [
+            164150.0,
+            164199.0,
+            163567.0,
+            163567.0,
+            690.0
+          ],
+          "trigger": 163567.0,
+          "dhan_row": [
+            164150.0,
+            164199.0,
+            163567.0,
+            163567.0,
+            690.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "0c980d0e-9a16-4ce0-bebc-07f38fa7967a",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787586300.0,
+          "candle": [
+            164150.0,
+            164199.0,
+            163344.0,
+            163643.0,
+            1814.0
+          ],
+          "trigger": 163344.0,
+          "dhan_row": [
+            164150.0,
+            164199.0,
+            163344.0,
+            163643.0,
+            1814.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "b98f8e9c-1c2e-4db6-a0bc-6bc3cbee8a80",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787589900.0,
+          "candle": [
+            164000.0,
+            164022.0,
+            163510.0,
+            163668.0,
+            367.0
+          ],
+          "trigger": 163510.0,
+          "dhan_row": [
+            164000.0,
+            164022.0,
+            163510.0,
+            163668.0,
+            367.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "48cb942a-8752-4cc3-9cc5-5539aa1898f3",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787638800.0,
+          "candle": [
+            163476.0,
+            163665.0,
+            163400.0,
+            163665.0,
+            118.0
+          ],
+          "trigger": 163665.0,
+          "dhan_row": [
+            163476.0,
+            163665.0,
+            163400.0,
+            163665.0,
+            118.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a4d86f69-a65e-4637-bacf-60b3ccdfc347",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787638500.0,
+          "candle": [
+            163566.0,
+            163792.0,
+            163400.0,
+            163702.0,
+            459.0
+          ],
+          "trigger": 163792.0,
+          "dhan_row": [
+            163566.0,
+            163792.0,
+            163400.0,
+            163702.0,
+            459.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "ad1583d7-f63a-419e-91f1-4acd80ba2c6f",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787638500.0,
+          "candle": [
+            252444.0,
+            253333.0,
+            252171.0,
+            253002.0,
+            666.0
+          ],
+          "trigger": 253333.0,
+          "dhan_row": [
+            252444.0,
+            253333.0,
+            252171.0,
+            253002.0,
+            666.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "4572e87d-7cf4-4fcc-b9ee-93d1573d8b81",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787639100.0,
+          "candle": [
+            252737.0,
+            253333.0,
+            252675.0,
+            253002.0,
+            401.0
+          ],
+          "trigger": 253333.0,
+          "dhan_row": [
+            252737.0,
+            253333.0,
+            252675.0,
+            253002.0,
+            401.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "714ca003-461a-405f-8f34-19c619efa67e",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787670900.0,
+          "candle": [
+            251330.0,
+            251897.0,
+            251050.0,
+            251834.0,
+            288.0
+          ],
+          "trigger": 251897.0,
+          "dhan_row": [
+            251330.0,
+            251897.0,
+            251050.0,
+            251834.0,
+            288.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "5eafb9d3-a0a1-45a2-8e31-c72e6dc77e39",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787670900.0,
+          "candle": [
+            251330.0,
+            252149.0,
+            251050.0,
+            252034.0,
+            636.0
+          ],
+          "trigger": 252149.0,
+          "dhan_row": [
+            251330.0,
+            252149.0,
+            251050.0,
+            252034.0,
+            636.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "9520d41e-36a6-4573-89d2-de819989c0ad",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787671800.0,
+          "candle": [
+            162780.0,
+            163079.0,
+            162757.0,
+            163035.0,
+            320.0
+          ],
+          "trigger": 163079.0,
+          "dhan_row": [
+            162780.0,
+            163079.0,
+            162757.0,
+            163035.0,
+            320.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a1466f84-50d4-4755-bc05-ed63b93ddd51",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787671800.0,
+          "candle": [
+            162780.0,
+            163381.0,
+            162757.0,
+            163282.0,
+            1063.0
+          ],
+          "trigger": 163381.0,
+          "dhan_row": [
+            162780.0,
+            163381.0,
+            162757.0,
+            163282.0,
+            1063.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f9a8c048-89d6-4537-9bf2-4015ef4185cb",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787677500.0,
+          "candle": [
+            162800.0,
+            162801.0,
+            162590.0,
+            162600.0,
+            158.0
+          ],
+          "trigger": 162590.0,
+          "dhan_row": [
+            162800.0,
+            162801.0,
+            162590.0,
+            162600.0,
+            158.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "e16f4ea2-3ac6-40fb-8517-30e8bfd3010e",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787677200.0,
+          "candle": [
+            162933.0,
+            162933.0,
+            162548.0,
+            162648.0,
+            365.0
+          ],
+          "trigger": 162548.0,
+          "dhan_row": [
+            162933.0,
+            162933.0,
+            162548.0,
+            162648.0,
+            365.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "c55b4816-e3c8-4ce9-ae5e-a9eefd3e4667",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787724900.0,
+          "candle": [
+            162781.0,
+            162800.0,
+            162500.0,
+            162586.0,
+            344.0
+          ],
+          "trigger": 162500.0,
+          "dhan_row": [
+            162781.0,
+            162800.0,
+            162500.0,
+            162586.0,
+            344.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "142964b5-12fc-4042-98bd-49cd516dc908",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787724900.0,
+          "candle": [
+            254147.0,
+            254196.0,
+            253025.0,
+            253116.0,
+            856.0
+          ],
+          "trigger": 253025.0,
+          "dhan_row": [
+            254147.0,
+            254196.0,
+            253025.0,
+            253116.0,
+            856.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "9e29207b-1f2a-463a-9b7c-0708978f62d4",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787725500.0,
+          "candle": [
+            253479.0,
+            253521.0,
+            253025.0,
+            253116.0,
+            263.0
+          ],
+          "trigger": 253025.0,
+          "dhan_row": [
+            253479.0,
+            253521.0,
+            253025.0,
+            253116.0,
+            263.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a1ff6df0-9ec5-499d-84de-6d2ab5b74196",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787730600.0,
+          "candle": [
+            253529.0,
+            253529.0,
+            253201.0,
+            253251.0,
+            81.0
+          ],
+          "trigger": 253201.0,
+          "dhan_row": [
+            253529.0,
+            253529.0,
+            253201.0,
+            253251.0,
+            81.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "efb3842e-a6d2-4303-a5d3-a801c734659f",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787746500.0,
+          "candle": [
+            162403.0,
+            162500.0,
+            162372.0,
+            162477.0,
+            97.0
+          ],
+          "trigger": 162500.0,
+          "dhan_row": [
+            162403.0,
+            162500.0,
+            162372.0,
+            162477.0,
+            97.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a0587336-f71e-4022-aa80-ce1545151c68",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787746500.0,
+          "candle": [
+            162403.0,
+            162525.0,
+            162372.0,
+            162500.0,
+            377.0
+          ],
+          "trigger": 162525.0,
+          "dhan_row": [
+            162403.0,
+            162525.0,
+            162372.0,
+            162500.0,
+            377.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "6230c340-4f91-4361-9ae6-4bd591352eff",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787746500.0,
+          "candle": [
+            252898.0,
+            253500.0,
+            252781.0,
+            253499.0,
+            591.0
+          ],
+          "trigger": 253500.0,
+          "dhan_row": [
+            252898.0,
+            253500.0,
+            252781.0,
+            253499.0,
+            591.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "044c547d-224e-4f1c-88b3-0d34d4aff919",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787747100.0,
+          "candle": [
+            253044.0,
+            253500.0,
+            253031.0,
+            253499.0,
+            344.0
+          ],
+          "trigger": 253500.0,
+          "dhan_row": [
+            253044.0,
+            253500.0,
+            253031.0,
+            253499.0,
+            344.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "0979d808-00c6-4a4a-b940-4172391a85a6",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787801400.0,
+          "candle": [
+            160763.0,
+            161038.0,
+            160102.0,
+            160269.0,
+            1343.0
+          ],
+          "trigger": 161038.0,
+          "dhan_row": [
+            160763.0,
+            161038.0,
+            160102.0,
+            160269.0,
+            1343.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "9a543728-d1ee-4f1a-a101-63602974472e",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787801400.0,
+          "candle": [
+            251020.0,
+            252059.0,
+            250800.0,
+            250939.0,
+            1919.0
+          ],
+          "trigger": 252059.0,
+          "dhan_row": [
+            251020.0,
+            252059.0,
+            250800.0,
+            250939.0,
+            1919.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "018298db-a3ca-4bae-b77d-9241ed8a127e",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787801400.0,
+          "candle": [
+            160763.0,
+            161038.0,
+            160069.0,
+            160558.0,
+            2148.0
+          ],
+          "trigger": 161038.0,
+          "dhan_row": [
+            160763.0,
+            161038.0,
+            160069.0,
+            160558.0,
+            2148.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "83429ac6-1ac6-4740-8028-2fa7d1537a39",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787801400.0,
+          "candle": [
+            251020.0,
+            252059.0,
+            250523.0,
+            250901.0,
+            3014.0
+          ],
+          "trigger": 252059.0,
+          "dhan_row": [
+            251020.0,
+            252059.0,
+            250523.0,
+            250901.0,
+            3014.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "08578aa6-7165-4503-97bf-d165bf8d9bdf",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787803200.0,
+          "candle": [
+            160123.0,
+            160275.0,
+            160047.0,
+            160248.0,
+            275.0
+          ],
+          "trigger": 160275.0,
+          "dhan_row": [
+            160123.0,
+            160275.0,
+            160047.0,
+            160248.0,
+            275.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "0278fe0f-9a8e-44d4-b086-d80d7d2d026e",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787806200.0,
+          "candle": [
+            247911.0,
+            249522.0,
+            247911.0,
+            249422.0,
+            1139.0
+          ],
+          "trigger": 249522.0,
+          "dhan_row": [
+            247911.0,
+            249522.0,
+            247911.0,
+            249422.0,
+            1139.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "43d0a18e-54ed-42c2-a1b4-61fcc35c84dc",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787805900.0,
+          "candle": [
+            157897.0,
+            159874.0,
+            157828.0,
+            159799.0,
+            3247.0
+          ],
+          "trigger": 159874.0,
+          "dhan_row": [
+            157897.0,
+            159874.0,
+            157828.0,
+            159799.0,
+            3247.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f585e24c-5a39-446f-974a-c8c03f8ab7c3",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787805900.0,
+          "candle": [
+            247492.0,
+            249750.0,
+            247165.0,
+            249558.0,
+            2336.0
+          ],
+          "trigger": 249750.0,
+          "dhan_row": [
+            247492.0,
+            249750.0,
+            247165.0,
+            249558.0,
+            2336.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "6c482488-02dc-468b-bc0b-1b98f06b1bbf",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787806500.0,
+          "candle": [
+            159058.0,
+            159874.0,
+            158923.0,
+            159799.0,
+            1432.0
+          ],
+          "trigger": 159874.0,
+          "dhan_row": [
+            159058.0,
+            159874.0,
+            158923.0,
+            159799.0,
+            1432.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "bcbc4b9a-48ea-42f6-8ab3-af7c432d437f",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787817600.0,
+          "candle": [
+            159300.0,
+            159664.0,
+            159300.0,
+            159583.0,
+            278.0
+          ],
+          "trigger": 159664.0,
+          "dhan_row": [
+            159300.0,
+            159664.0,
+            159300.0,
+            159583.0,
+            278.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "8f4b679c-afd1-48b7-a276-420fee7b6705",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787845200.0,
+          "candle": [
+            159001.0,
+            159368.0,
+            159001.0,
+            159237.0,
+            512.0
+          ],
+          "trigger": 159368.0,
+          "dhan_row": [
+            159001.0,
+            159368.0,
+            159001.0,
+            159237.0,
+            512.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "ec7c6170-a180-43a7-9566-de4fd42e01de",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787845200.0,
+          "candle": [
+            248950.0,
+            249750.0,
+            248950.0,
+            249269.0,
+            854.0
+          ],
+          "trigger": 249750.0,
+          "dhan_row": [
+            248950.0,
+            249750.0,
+            248950.0,
+            249269.0,
+            854.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "38fe1666-9130-4760-8001-f7694b2efbfb",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787847300.0,
+          "candle": [
+            159253.0,
+            159479.0,
+            159013.0,
+            159180.0,
+            435.0
+          ],
+          "trigger": 159013.0,
+          "dhan_row": [
+            159253.0,
+            159479.0,
+            159013.0,
+            159180.0,
+            435.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "399aa4fd-5c15-4879-923e-5b038ef59c59",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787850300.0,
+          "candle": [
+            159390.0,
+            159390.0,
+            159158.0,
+            159185.0,
+            145.0
+          ],
+          "trigger": 159158.0,
+          "dhan_row": [
+            159390.0,
+            159390.0,
+            159158.0,
+            159185.0,
+            145.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "b9b89e31-2ee0-4b12-bdc2-2e335da59fbd",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787850900.0,
+          "candle": [
+            159204.0,
+            159204.0,
+            158948.0,
+            159109.0,
+            580.0
+          ],
+          "trigger": 158948.0,
+          "dhan_row": [
+            159204.0,
+            159204.0,
+            158948.0,
+            159109.0,
+            580.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "15bb4b77-fabb-46b8-8116-7081c206859d",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787887800.0,
+          "candle": [
+            248798.0,
+            248900.0,
+            247855.0,
+            248263.0,
+            643.0
+          ],
+          "trigger": 247855.0,
+          "dhan_row": [
+            248798.0,
+            248900.0,
+            247855.0,
+            248263.0,
+            643.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "af5d40d6-7c94-4ea2-84be-c6da2bffa3d7",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787887800.0,
+          "candle": [
+            248798.0,
+            248900.0,
+            247751.0,
+            248096.0,
+            1354.0
+          ],
+          "trigger": 247751.0,
+          "dhan_row": [
+            248798.0,
+            248900.0,
+            247751.0,
+            248096.0,
+            1354.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7d28d1e3-d6fc-4c91-9c30-c2f6210f900f",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787897700.0,
+          "candle": [
+            248400.0,
+            249371.0,
+            248400.0,
+            249294.0,
+            972.0
+          ],
+          "trigger": 249371.0,
+          "dhan_row": [
+            248400.0,
+            249371.0,
+            248400.0,
+            249294.0,
+            972.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "ebcb9346-9d05-418c-af4d-df7845e7e1e5",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787898300.0,
+          "candle": [
+            248857.0,
+            249371.0,
+            248814.0,
+            249294.0,
+            356.0
+          ],
+          "trigger": 249371.0,
+          "dhan_row": [
+            248857.0,
+            249371.0,
+            248814.0,
+            249294.0,
+            356.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "12ee4fed-56e2-4100-ae1e-d82439ed16d4",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787899500.0,
+          "candle": [
+            158337.0,
+            159310.0,
+            158335.0,
+            159163.0,
+            1621.0
+          ],
+          "trigger": 159310.0,
+          "dhan_row": [
+            158337.0,
+            159310.0,
+            158335.0,
+            159163.0,
+            1621.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "232b090f-75ac-4eb1-9703-19e4c0f3a237",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1787900100.0,
+          "candle": [
+            158802.0,
+            159310.0,
+            158802.0,
+            159163.0,
+            880.0
+          ],
+          "trigger": 159310.0,
+          "dhan_row": [
+            158802.0,
+            159310.0,
+            158802.0,
+            159163.0,
+            880.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "99889ec4-0c65-4200-adfa-955ac4d7fc51",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787925600.0,
+          "candle": [
+            253502.0,
+            254450.0,
+            251650.0,
+            251650.0,
+            2568.0
+          ],
+          "trigger": 251650.0,
+          "dhan_row": [
+            253502.0,
+            254450.0,
+            251650.0,
+            251650.0,
+            2568.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "07acdd31-c2d6-44e3-b06e-9d07ae8baf4d",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787925600.0,
+          "candle": [
+            159754.0,
+            160331.0,
+            158411.0,
+            158670.0,
+            5356.0
+          ],
+          "trigger": 158411.0,
+          "dhan_row": [
+            159754.0,
+            160331.0,
+            158411.0,
+            158670.0,
+            5356.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f8ed6c51-326d-4721-a569-5e96b85b46b2",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787925600.0,
+          "candle": [
+            253502.0,
+            254450.0,
+            250010.0,
+            250111.0,
+            7780.0
+          ],
+          "trigger": 250010.0,
+          "dhan_row": [
+            253502.0,
+            254450.0,
+            250010.0,
+            250111.0,
+            7780.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "964612e2-3976-466f-a81d-a8f4d61129f1",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1787926200.0,
+          "candle": [
+            159080.0,
+            159146.0,
+            158472.0,
+            158670.0,
+            1085.0
+          ],
+          "trigger": 158472.0,
+          "dhan_row": [
+            159080.0,
+            159146.0,
+            158472.0,
+            158670.0,
+            1085.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "232da1b3-49c5-4de1-b4c8-4782428ccd3b",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788173400.0,
+          "candle": [
+            155400.0,
+            155541.0,
+            155367.0,
+            155534.0,
+            302.0
+          ],
+          "trigger": 155541.0,
+          "dhan_row": [
+            155400.0,
+            155541.0,
+            155367.0,
+            155534.0,
+            302.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "6a73b705-0e67-4027-b13d-1fd8ceb7887b",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788174300.0,
+          "candle": [
+            244282.0,
+            244400.0,
+            244225.0,
+            244322.0,
+            250.0
+          ],
+          "trigger": 244400.0,
+          "dhan_row": [
+            244282.0,
+            244400.0,
+            244225.0,
+            244322.0,
+            250.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "22970dea-9c9d-48bb-aabf-a03731e6d279",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788174900.0,
+          "candle": [
+            155433.0,
+            155573.0,
+            155390.0,
+            155568.0,
+            326.0
+          ],
+          "trigger": 155573.0,
+          "dhan_row": [
+            155433.0,
+            155573.0,
+            155390.0,
+            155568.0,
+            326.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "5665394e-c973-4ae1-9cc8-bbd1f958cf07",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788174900.0,
+          "candle": [
+            244055.0,
+            244629.0,
+            243953.0,
+            244574.0,
+            610.0
+          ],
+          "trigger": 244629.0,
+          "dhan_row": [
+            244055.0,
+            244629.0,
+            243953.0,
+            244574.0,
+            610.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f3a954a7-adbb-4588-b150-303b04196fd6",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788177600.0,
+          "candle": [
+            244170.0,
+            244555.0,
+            244170.0,
+            244477.0,
+            288.0
+          ],
+          "trigger": 244555.0,
+          "dhan_row": [
+            244170.0,
+            244555.0,
+            244170.0,
+            244477.0,
+            288.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "e3f459f4-a16b-46bf-baeb-1d414be7719f",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788178500.0,
+          "candle": [
+            244352.0,
+            244403.0,
+            244033.0,
+            244367.0,
+            171.0
+          ],
+          "trigger": 244403.0,
+          "dhan_row": [
+            244352.0,
+            244403.0,
+            244033.0,
+            244367.0,
+            171.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "257b04c8-b537-4e8f-99c2-db154dcc7517",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788233400.0,
+          "candle": [
+            242963.0,
+            243586.0,
+            241996.0,
+            243500.0,
+            1296.0
+          ],
+          "trigger": 243586.0,
+          "dhan_row": [
+            242963.0,
+            243586.0,
+            241996.0,
+            243500.0,
+            1296.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "d42275b9-e2f1-4056-8285-840ea1fda0a3",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788234000.0,
+          "candle": [
+            243005.0,
+            243586.0,
+            243005.0,
+            243500.0,
+            523.0
+          ],
+          "trigger": 243586.0,
+          "dhan_row": [
+            243005.0,
+            243586.0,
+            243005.0,
+            243500.0,
+            523.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f4ae0410-6e0b-46bf-b416-f4136a6cde98",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788240900.0,
+          "candle": [
+            242101.0,
+            243142.0,
+            241970.0,
+            242976.0,
+            536.0
+          ],
+          "trigger": 243142.0,
+          "dhan_row": [
+            242101.0,
+            243142.0,
+            241970.0,
+            242976.0,
+            536.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "5883e840-3223-481d-a07c-de44499c4f80",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788240600.0,
+          "candle": [
+            241495.0,
+            243142.0,
+            241237.0,
+            243108.0,
+            1542.0
+          ],
+          "trigger": 243142.0,
+          "dhan_row": [
+            241495.0,
+            243142.0,
+            241237.0,
+            243108.0,
+            1542.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a79516a5-c55a-4e07-83c1-1d018de70c9d",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788327900.0,
+          "candle": [
+            150926.0,
+            151300.0,
+            150926.0,
+            151274.0,
+            803.0
+          ],
+          "trigger": 151300.0,
+          "dhan_row": [
+            150926.0,
+            151300.0,
+            150926.0,
+            151274.0,
+            803.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "3f6966ed-c396-4ed5-acbb-a3a8f219b862",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788336000.0,
+          "candle": [
+            151030.0,
+            151150.0,
+            151010.0,
+            151146.0,
+            193.0
+          ],
+          "trigger": 151150.0,
+          "dhan_row": [
+            151030.0,
+            151150.0,
+            151010.0,
+            151146.0,
+            193.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "81754ee5-9ab9-4668-ba9b-be1abdc41287",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788336000.0,
+          "candle": [
+            151030.0,
+            151250.0,
+            151010.0,
+            151151.0,
+            479.0
+          ],
+          "trigger": 151250.0,
+          "dhan_row": [
+            151030.0,
+            151250.0,
+            151010.0,
+            151151.0,
+            479.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "2579e73e-41a5-4b1e-9e6e-b2f71d336f74",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788348600.0,
+          "candle": [
+            150965.0,
+            151244.0,
+            150965.0,
+            151187.0,
+            716.0
+          ],
+          "trigger": 151244.0,
+          "dhan_row": [
+            150965.0,
+            151244.0,
+            150965.0,
+            151187.0,
+            716.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "62ae497b-bd73-400e-8cfe-c615de64b67d",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788348600.0,
+          "candle": [
+            235632.0,
+            236488.0,
+            235632.0,
+            236415.0,
+            622.0
+          ],
+          "trigger": 236488.0,
+          "dhan_row": [
+            235632.0,
+            236488.0,
+            235632.0,
+            236415.0,
+            622.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "0c7e9fed-0e76-482a-91eb-c57294cc95c0",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788348600.0,
+          "candle": [
+            235632.0,
+            236979.0,
+            235632.0,
+            236476.0,
+            1897.0
+          ],
+          "trigger": 236979.0,
+          "dhan_row": [
+            235632.0,
+            236979.0,
+            235632.0,
+            236476.0,
+            1897.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "6c6ab354-fcc8-466a-9cda-45f07a55ed6b",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788430500.0,
+          "candle": [
+            239312.0,
+            239479.0,
+            239057.0,
+            239128.0,
+            260.0
+          ],
+          "trigger": 239057.0,
+          "dhan_row": [
+            239312.0,
+            239479.0,
+            239057.0,
+            239128.0,
+            260.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "2e32ba63-1feb-407d-be7c-64f5ca8e09b1",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788492600.0,
+          "candle": [
+            155266.0,
+            155444.0,
+            154924.0,
+            155206.0,
+            1312.0
+          ],
+          "trigger": 154924.0,
+          "dhan_row": [
+            155266.0,
+            155444.0,
+            154924.0,
+            155206.0,
+            1312.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "f9fe4153-9fb1-4ad3-9fac-bbbe0cccb958",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788492600.0,
+          "candle": [
+            243334.0,
+            243334.0,
+            242203.0,
+            242763.0,
+            1098.0
+          ],
+          "trigger": 242203.0,
+          "dhan_row": [
+            243334.0,
+            243334.0,
+            242203.0,
+            242763.0,
+            1098.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a777ca4d-0447-4fe7-9253-2c077778989f",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788492600.0,
+          "candle": [
+            155266.0,
+            155444.0,
+            154924.0,
+            155067.0,
+            2192.0
+          ],
+          "trigger": 154924.0,
+          "dhan_row": [
+            155266.0,
+            155444.0,
+            154924.0,
+            155067.0,
+            2192.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "28dbd392-3b28-4fa0-ab0f-a1dfda868434",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788492600.0,
+          "candle": [
+            243334.0,
+            243334.0,
+            242203.0,
+            242775.0,
+            1581.0
+          ],
+          "trigger": 242203.0,
+          "dhan_row": [
+            243334.0,
+            243334.0,
+            242203.0,
+            242775.0,
+            1581.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "8baf1bc8-df7d-4a48-ad81-1ebc9b076c2c",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788493200.0,
+          "candle": [
+            242951.0,
+            242960.0,
+            242708.0,
+            242775.0,
+            219.0
+          ],
+          "trigger": 242708.0,
+          "dhan_row": [
+            242951.0,
+            242960.0,
+            242708.0,
+            242775.0,
+            219.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "c5e09b40-5359-4322-8ef9-12efaf74b511",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788496500.0,
+          "candle": [
+            155353.0,
+            155485.0,
+            155333.0,
+            155475.0,
+            169.0
+          ],
+          "trigger": 155485.0,
+          "dhan_row": [
+            155353.0,
+            155485.0,
+            155333.0,
+            155475.0,
+            169.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "b6759a8d-0243-4ad3-9356-9e6f8f437cad",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788496200.0,
+          "candle": [
+            155309.0,
+            155510.0,
+            155309.0,
+            155467.0,
+            994.0
+          ],
+          "trigger": 155510.0,
+          "dhan_row": [
+            155309.0,
+            155510.0,
+            155309.0,
+            155467.0,
+            994.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7372af3c-6c93-4f71-bbef-89fa128ab698",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788497100.0,
+          "candle": [
+            243120.0,
+            243157.0,
+            242949.0,
+            242949.0,
+            116.0
+          ],
+          "trigger": 242949.0,
+          "dhan_row": [
+            243120.0,
+            243157.0,
+            242949.0,
+            242949.0,
+            116.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7d8981ca-e86b-4d27-a739-c73999ef1cc5",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788497100.0,
+          "candle": [
+            243120.0,
+            243157.0,
+            242812.0,
+            242965.0,
+            250.0
+          ],
+          "trigger": 242812.0,
+          "dhan_row": [
+            243120.0,
+            243157.0,
+            242812.0,
+            242965.0,
+            250.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "e2275682-ce53-401f-b82a-aad1256f4a84",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788500100.0,
+          "candle": [
+            155295.0,
+            155419.0,
+            155171.0,
+            155417.0,
+            91.0
+          ],
+          "trigger": 155419.0,
+          "dhan_row": [
+            155295.0,
+            155419.0,
+            155171.0,
+            155417.0,
+            91.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "82421001-d1e0-45a9-bb50-6bdf9a03467e",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788507300.0,
+          "candle": [
+            155368.0,
+            155430.0,
+            155364.0,
+            155409.0,
+            126.0
+          ],
+          "trigger": 155430.0,
+          "dhan_row": [
+            155368.0,
+            155430.0,
+            155364.0,
+            155409.0,
+            126.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a6cbd971-6804-461e-b7d5-b084f45da769",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788507000.0,
+          "candle": [
+            155376.0,
+            155830.0,
+            155292.0,
+            155789.0,
+            1321.0
+          ],
+          "trigger": 155830.0,
+          "dhan_row": [
+            155376.0,
+            155830.0,
+            155292.0,
+            155789.0,
+            1321.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "a6e3e78c-2e0e-4778-a6ce-4a7919888848",
+          "strategy_id": "silver_01",
+          "mission": "SILVERM_15M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788507000.0,
+          "candle": [
+            242884.0,
+            243500.0,
+            242751.0,
+            243375.0,
+            801.0
+          ],
+          "trigger": 243500.0,
+          "dhan_row": [
+            242884.0,
+            243500.0,
+            242751.0,
+            243375.0,
+            801.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "98fb13e9-a088-43bf-b830-c3070ecdff86",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788507600.0,
+          "candle": [
+            242851.0,
+            243500.0,
+            242807.0,
+            243375.0,
+            454.0
+          ],
+          "trigger": 243500.0,
+          "dhan_row": [
+            242851.0,
+            243500.0,
+            242807.0,
+            243375.0,
+            454.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "c57cb6a1-3250-47d2-b078-cfdda7c0e893",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788511500.0,
+          "candle": [
+            155450.0,
+            155520.0,
+            155375.0,
+            155381.0,
+            83.0
+          ],
+          "trigger": 155375.0,
+          "dhan_row": [
+            155450.0,
+            155520.0,
+            155375.0,
+            155381.0,
+            83.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "856b8d3e-cf01-43a3-b851-a33111893f0f",
+          "strategy_id": "gold_02",
+          "mission": "GOLDM_15M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788512400.0,
+          "candle": [
+            155581.0,
+            155632.0,
+            155150.0,
+            155215.0,
+            654.0
+          ],
+          "trigger": 155150.0,
+          "dhan_row": [
+            155581.0,
+            155632.0,
+            155150.0,
+            155215.0,
+            654.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "41840731-8b44-4617-9f26-a5776397ce62",
+          "strategy_id": "gold_01",
+          "mission": "GOLDM_5M",
+          "side": "SHORT",
+          "signal_type": "SHORT",
+          "ts": 1788513000.0,
+          "candle": [
+            155443.0,
+            155443.0,
+            155150.0,
+            155215.0,
+            344.0
+          ],
+          "trigger": 155150.0,
+          "dhan_row": [
+            155443.0,
+            155443.0,
+            155150.0,
+            155215.0,
+            344.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "7a173f06-b00f-423e-95ca-1eb566570b4b",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788516600.0,
+          "candle": [
+            242840.0,
+            243101.0,
+            242800.0,
+            243056.0,
+            178.0
+          ],
+          "trigger": 243101.0,
+          "dhan_row": [
+            242840.0,
+            243101.0,
+            242800.0,
+            243056.0,
+            178.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        },
+        {
+          "signal_id": "9d39f58c-340a-468f-8b97-369145d93146",
+          "strategy_id": "silver_02",
+          "mission": "SILVERM_5M",
+          "side": "LONG",
+          "signal_type": "LONG",
+          "ts": 1788522600.0,
+          "candle": [
+            242790.0,
+            243200.0,
+            242779.0,
+            243100.0,
+            249.0
+          ],
+          "trigger": 243200.0,
+          "dhan_row": [
+            242790.0,
+            243200.0,
+            242779.0,
+            243100.0,
+            249.0
+          ],
+          "problems": [],
+          "verdict": "ok"
+        }
+      ]
+    },
+    "indicator_parity": true,
+    "independence": true,
+    "reversal_ok": true,
+    "sl_clean": true,
+    "lineage_ok": true,
+    "db_counts": {
+      "signals": 142,
+      "trades": 79,
+      "pending_orders": 0,
+      "orders": 156,
+      "fills": 156,
+      "positions": 79,
+      "events": 528,
+      "trade_events": 389,
+      "quarantine_records": 0
+    },
+    "flags": [
+      "sl_exits=47",
+      "reversal_exits=30",
+      "reversal_follow=26",
+      "reversal_no_follow=4"
+    ],
+    "restart_ok": true,
+    "dashboard_ok": true,
+    "timeout_hit": false,
+    "git": {
+      "commit": "b932ef051d1294d317d254312950583bee742e88",
+      "dirty": true,
+      "dirty_tracked": "M dashboard/routes/trades.py\n M data/dhan/rest_client.py\n M deploy_vps.py\n M test_results.json\n M tests/fresh_audit/test_websocket_robustness.py\n M tests/fresh_audit/test_whole_project.py\n M trading_engine.py\n?? data/dhan/candle_validation.py\n?? replay_output/replay_manifest.json\n?? reports/\n?? tests/live_runtime_v2/reports/NEW_ARCHITECTURE_MANIFEST_rtv2_20260906T064012_f76a5652.json\n?? tests/live"
+    }
+  },
+  "acceptance": [
+    {
+      "item": "1",
+      "title": "Real Dhan REST auth + read-only historical acquisition",
+      "passed": true,
+      "evidence": "ENV/REAL_SOURCE"
+    },
+    {
+      "item": "2",
+      "title": "Real Dhan WebSocket connectivity (live instrument feed)",
+      "passed": true,
+      "evidence": "REAL_LIVE_BOOT"
+    },
+    {
+      "item": "3",
+      "title": "Verified completion classifier applied to real Dhan candles (no source modification)",
+      "passed": true,
+      "evidence": "REAL_SOURCE"
+    },
+    {
+      "item": "4",
+      "title": "Warmup backfill feeds shared indicator streams from real completed candles only",
+      "passed": true,
+      "evidence": "REAL_LIVE_BOOT"
+    },
+    {
+      "item": "5",
+      "title": "Four strategies constructed on the shared indicator infra with own decision state",
+      "passed": true,
+      "evidence": "INDEPENDENCE"
+    },
+    {
+      "item": "6",
+      "title": "Indicator parity: engine arrays == independent re-derivation over same real candles",
+      "passed": true,
+      "evidence": "WARMUP/INDEPENDENCE"
+    },
+    {
+      "item": "7",
+      "title": "Dhan timestamp == strategy input timestamp (candle start)",
+      "passed": true,
+      "evidence": "REHEARSAL"
+    },
+    {
+      "item": "8",
+      "title": "Signals arise only from genuine crossover decisions on real candles (no synthetic candles)",
+      "passed": true,
+      "evidence": "REHEARSAL"
+    },
+    {
+      "item": "9",
+      "title": "Signal candle timestamp == Dhan row open timestamp (exact)",
+      "passed": true,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "10",
+      "title": "Signal candle OHLC == Dhan row OHLC (exact)",
+      "passed": true,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "11",
+      "title": "LONG trigger == signal candle HIGH; SHORT trigger == signal candle LOW",
+      "passed": true,
+      "evidence": "SIGNAL_EVIDENCE"
+    },
+    {
+      "item": "12",
+      "title": "signal_id unique and disjoint from trade/order/fill/position",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "13",
+      "title": "Each entry trade references an existing signal (entry_signal_id)",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "14",
+      "title": "trade_id identical across trade/pending_order/order/fill/position (lineage carried)",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "15",
+      "title": "trade_id never equals position/order/fill/signal id",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "16",
+      "title": "Entry only after breakout trigger (pending distinct from execution; no execution-only second signal)",
+      "passed": true,
+      "evidence": "LINEAGE/REHEARSAL"
+    },
+    {
+      "item": "17",
+      "title": "No duplicate signals/trades/orders/fills/positions",
+      "passed": true,
+      "evidence": "RESTART"
+    },
+    {
+      "item": "18",
+      "title": "SL closes same trade_id; exit_signal_id NULL; exit_reason STOP_LOSS",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "19",
+      "title": "Reversal shares SIG-NEW: old exit_signal_id == new entry_signal_id; exit_reason *_reversal; opposite side",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "20",
+      "title": "DB canonical: memory vs trading.db vs analytics vs API vs WS reconciliation",
+      "passed": true,
+      "evidence": "DASHBOARD"
+    },
+    {
+      "item": "21",
+      "title": "No cross-strategy contamination on order/fill/position edges",
+      "passed": true,
+      "evidence": "LINEAGE"
+    },
+    {
+      "item": "22",
+      "title": "Restart reconstruction preserves DB record sets exactly (no duplicated lifecycle rows)",
+      "passed": true,
+      "evidence": "RESTART"
+    },
+    {
+      "item": "23",
+      "title": "Dashboard/API/WS serve the canonical data with traceable trade->signal->candle evidence",
+      "passed": true,
+      "evidence": "DASHBOARD"
+    },
+    {
+      "item": "24",
+      "title": "Four strategies keep disjoint pending/position/trade/SL/decision state even for the same instrument",
+      "passed": true,
+      "evidence": "INDEPENDENCE"
+    },
+    {
+      "item": "25",
+      "title": "No infinite loop: bounded wall-clock, REST fetches, reconnect/restart attempts, stage deadlines",
+      "passed": true,
+      "evidence": "meta"
+    },
+    {
+      "item": "26",
+      "title": "Strict verdict produced; any defect raises an exact DEFECT_REPORT with repro/fix/tests",
+      "passed": true,
+      "evidence": "VERDICT"
+    }
+  ],
+  "boundary": "market CLOSED during this run; real Dhan REST+WS verified; REAL Dhan candles driven through the full production chain with engine status forced to TRADING (tools/replay_live_architecture.py mechanism)"
+}

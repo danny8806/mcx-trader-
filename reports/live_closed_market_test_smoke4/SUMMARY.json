@@ -1,0 +1,8 @@
+{
+  "failures": [
+    "Dhan REST authentication failed - see AUTH.json (verdict cannot be VERIFIED without real Dhan connectivity)"
+  ],
+  "errors": [],
+  "verdict": "NOT_VERIFIED_CLOSED_MARKET_LIVE_RUNTIME",
+  "test_id": "clm-20260906-120828"
+}
