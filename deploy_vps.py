@@ -233,6 +233,11 @@ def main():
     parser.add_argument("--host", default=VPS_HOST)
     parser.add_argument("--user", default=VPS_USER)
     parser.add_argument("--base", default=VPS_BASE)
+    parser.add_argument("--purge-data", action="store_true",
+                        help="Wipe the runtime data/db on the VPS (trading.db, "
+                             "system_state.json, dhan_token.json) so the "
+                             "container restarts with a brand-new architecture "
+                             "state and empty DB")
     args = parser.parse_args()
 
     seed = load_env_file(args.env_file)
@@ -285,6 +290,12 @@ def main():
         run_ssh(ssh, (
             "docker rmi mcx-trader:latest mcx-trader:fulltest "
             "2>/dev/null || true"))
+        # Fresh start: wipe the runtime data volume (old DB/state/token).
+        if args.purge_data:
+            print("  --purge-data: wiping runtime data/db (new architecture "
+                  "starts from an empty DB)")
+            run_ssh(ssh,
+                    f"rm -rf {args.base}/data/db && mkdir -p {args.base}/data/db")
         run_ssh(ssh, (
             f"docker run -d --name mcx-trader --restart unless-stopped "
             f"--env-file {vps_env_path} "
