@@ -294,14 +294,27 @@ def test_engine_sl_exit_never_blocked(_engine, sid):
 @pytest.mark.parametrize("sid", ALL4)
 def test_deferred_reversal_exit_is_exit_and_not_rejected(_engine, sid):
     """_process_deferred_exit emits an exit signal that must take the allowed
-    (is_exit=True) path for every strategy."""
+    (is_exit=True) path for every strategy, once the opposite SHORT trigger is
+    actually reached on the bar (trigger-gated reversal)."""
     inst = {"gold_01": "GOLDM", "gold_02": "GOLDM",
             "silver_01": "SILVERM", "silver_02": "SILVERM"}[sid]
     strat = _engine.strategies[sid]
     strat.position_side = "LONG"
+    strat.stop_price = 78100.0
+    strat.state = "LONG_POSITION"
     strat.pending_exit_at_open = True
     strat.pending_exit_reason = "short_reversal"
     strat.pending_exit_bar_start = 100.0
+    # Arm the opposite-side setup so the reversal is trigger-gated.
+    from strategies.types import PendingEntry, Signal as StratSignal, SignalType
+    trigger = 78000.0  # SHORT trigger = bar's low; bar low 77990 < trigger → reached
+    strat.pending_entry = PendingEntry(
+        signal=StratSignal(signal_type=SignalType.SHORT, instrument=inst,
+                           strategy_id=sid, timestamp=200.0,
+                           trigger_price=trigger, stop_price=78150.0,
+                           quantity=1, side="SHORT"),
+        trigger_price=trigger, side="SHORT", created_at=200.0,
+    )
     from trading_engine import Bar
     bar = Bar(instrument=inst, timeframe=strat.fast_timeframe, start_ts=200.0,
               end_ts=300.0, open=78000.0, high=78010.0, low=77990.0, close=78000.0)

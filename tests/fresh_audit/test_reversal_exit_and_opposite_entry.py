@@ -206,13 +206,26 @@ def test_reversal_exits_current_trade_and_places_opposite(_engine, sid):
     strat.pending_exit_at_open = True
     strat.pending_exit_reason = "short_reversal"
 
-    # Step 3: Fire deferred exit at bar.open — closes LONG
-    bar_exit = _make_bar(inst, ts=200.0, open_=_price(inst) - 80.0,
-                         high=_price(inst) - 50.0, low=_price(inst) - 100.0,
-                         close=_price(inst) - 80.0)
+    # Step 3: A bar whose low has NOT yet reached the SHORT trigger must NOT
+    # exit the LONG (trigger-gated reversal — no next-candle exit).
+    bar_no_trigger = _make_bar(inst, ts=200.0, open_=_price(inst) - 80.0,
+                               high=_price(inst) - 50.0, low=_price(inst) - 60.0,
+                               close=_price(inst) - 80.0)
     _engine.execution_engine.update_price(inst, _price(inst) - 80.0)
-    done = _engine._process_deferred_exit(strat, bar_exit)
-    assert done is True, "deferred exit must be consumed"
+    assert _engine._process_deferred_exit(strat, bar_no_trigger) is False, \
+        f"{sid}: exit must NOT fire before the SHORT trigger is reached"
+    # LONG stays OPEN (position not closed on a non-trigger candle)
+    assert tl.get_open_trades(strategy_id=sid) != [], \
+        f"{sid}: LONG must remain OPEN before the opposite trigger is reached"
+
+    # Step 4: The bar that REACHES the SHORT trigger closes LONG at the trigger
+    # price AND arms the opposite SHORT entry on the SAME bar (atomic trigger).
+    bar_trigger = _make_bar(inst, ts=250.0,
+                            open_=trigger + 5, high=trigger + 5,
+                            low=trigger - 10, close=trigger - 5)
+    _engine.execution_engine.update_price(inst, trigger)
+    done = _engine._process_deferred_exit(strat, bar_trigger)
+    assert done is True, f"{sid}: deferred exit must fire on the trigger bar"
 
     # LONG must be CLOSED and purged from open cache
     assert tl.get_open_trades(strategy_id=sid) == [], \
@@ -220,17 +233,12 @@ def test_reversal_exits_current_trade_and_places_opposite(_engine, sid):
     closed = [t for t in tl.get_trades_for_strategy(sid) if t.status == "CLOSED"]
     assert len(closed) == 1, f"{sid}: exactly 1 CLOSED trade after reversal exit"
     assert closed[0].side == "LONG"
+    assert closed[0].exit_price == trigger, \
+        f"{sid}: LONG must exit at the SHORT trigger price"
 
-    # Step 4: Feed bar that crosses SHORT trigger (trigger = price - 100)
-    # Bar low = trigger - 10 → crosses the SHORT trigger
-    bar_trigger = _make_bar(inst, ts=250.0,
-                            open_=trigger + 5, high=trigger + 5,
-                            low=trigger - 10, close=trigger - 5)
+    # Step 5: Pending SHORT entry fires on the same trigger-reached bar
     signal = strat._check_pending_entry(bar_trigger)
     assert signal is not None, f"{sid}: pending SHORT entry must be triggered by breakout bar"
-
-    # Step 5: Process the entry signal through the engine
-    _engine.execution_engine.update_price(inst, trigger)
     _engine._process_signal(signal)
 
     # SHORT must now be OPEN
@@ -278,27 +286,36 @@ def test_reversal_short_to_long_exits_and_places_opposite(_engine, sid):
     strat.pending_exit_at_open = True
     strat.pending_exit_reason = "long_reversal"
 
-    # Step 3: Fire deferred exit — closes SHORT
-    bar_exit = _make_bar(inst, ts=200.0, open_=_price(inst) + 80.0,
-                         high=_price(inst) + 100.0, low=_price(inst) + 50.0,
-                         close=_price(inst) + 80.0)
+    # Step 3: A bar whose high has NOT reached the LONG trigger must NOT exit
+    # the SHORT (trigger-gated reversal — no next-candle exit).
+    bar_no_trigger = _make_bar(inst, ts=200.0, open_=_price(inst) + 80.0,
+                               high=_price(inst) + 60.0, low=_price(inst) + 50.0,
+                               close=_price(inst) + 80.0)
     _engine.execution_engine.update_price(inst, _price(inst) + 80.0)
-    done = _engine._process_deferred_exit(strat, bar_exit)
-    assert done is True
+    assert _engine._process_deferred_exit(strat, bar_no_trigger) is False, \
+        f"{sid}: exit must NOT fire before the LONG trigger is reached"
+    assert tl.get_open_trades(strategy_id=sid) != [], \
+        f"{sid}: SHORT must remain OPEN before the opposite trigger is reached"
+
+    # Step 4: The bar that REACHES the LONG trigger closes SHORT at the trigger
+    # price AND arms the opposite LONG entry on the SAME bar (atomic trigger).
+    bar_trigger = _make_bar(inst, ts=250.0,
+                            open_=trigger - 5, high=trigger + 10,
+                            low=trigger - 5, close=trigger + 5)
+    _engine.execution_engine.update_price(inst, trigger)
+    done = _engine._process_deferred_exit(strat, bar_trigger)
+    assert done is True, f"{sid}: deferred exit must fire on the trigger bar"
 
     assert tl.get_open_trades(strategy_id=sid) == [], \
         f"{sid}: SHORT must be purged after reversal exit"
     closed = [t for t in tl.get_trades_for_strategy(sid) if t.status == "CLOSED"]
     assert len(closed) == 1
     assert closed[0].side == "SHORT"
+    assert closed[0].exit_price == trigger, \
+        f"{sid}: SHORT must exit at the LONG trigger price"
 
-    # Step 4: Bar crosses LONG trigger
-    bar_trigger = _make_bar(inst, ts=250.0,
-                            open_=trigger - 5, high=trigger + 10,
-                            low=trigger - 5, close=trigger + 5)
     signal = strat._check_pending_entry(bar_trigger)
     assert signal is not None, f"{sid}: pending LONG entry must trigger"
-
     _engine.execution_engine.update_price(inst, trigger)
     _engine._process_signal(signal)
 
@@ -386,25 +403,32 @@ def test_reversal_then_sl_full_lifecycle(_engine, sid):
     strat.pending_exit_at_open = True
     strat.pending_exit_reason = "short_reversal"
 
-    # 3. Deferred exit closes LONG
-    bar_exit = _make_bar(inst, ts=200.0, open_=_price(inst) - 80.0,
-                         high=_price(inst) - 50.0, low=_price(inst) - 100.0,
-                         close=_price(inst) - 80.0)
+    # 3. A non-trigger bar must NOT exit the LONG (no next-candle exit).
+    bar_no_trigger = _make_bar(inst, ts=200.0, open_=_price(inst) - 80.0,
+                               high=_price(inst) - 50.0, low=_price(inst) - 60.0,
+                               close=_price(inst) - 80.0)
     _engine.execution_engine.update_price(inst, _price(inst) - 80.0)
-    _engine._process_deferred_exit(strat, bar_exit)
-    assert tl.get_open_trades(strategy_id=sid) == []
+    assert _engine._process_deferred_exit(strat, bar_no_trigger) is False, \
+        f"{sid}: LONG must not exit before the SHORT trigger is reached"
+    assert tl.get_open_trades(strategy_id=sid) != [], \
+        f"{sid}: LONG must stay OPEN before the opposite trigger"
 
-    # 4. Breakout triggers SHORT entry
+    # 4. The bar that REACHES the SHORT trigger closes LONG (atomic trigger).
     bar_trigger = _make_bar(inst, ts=250.0,
                             open_=trigger + 5, high=trigger + 5,
                             low=trigger - 10, close=trigger - 5)
+    _engine.execution_engine.update_price(inst, trigger)
+    assert _engine._process_deferred_exit(strat, bar_trigger) is True, \
+        f"{sid}: deferred exit must fire on the trigger bar"
+    assert tl.get_open_trades(strategy_id=sid) == []
+
+    # 5. Breakout SHORT entry fires on the same trigger bar
     signal = strat._check_pending_entry(bar_trigger)
     assert signal is not None
-    _engine.execution_engine.update_price(inst, trigger)
     _engine._process_signal(signal)
     assert tl.count_trades(strategy_id=sid) == 2
 
-    # 5. SL closes SHORT
+    # 6. SL closes SHORT
     sl_exit = Signal(
         signal_type=SignalType.LONG, instrument=inst, strategy_id=sid,
         timestamp=300.0, trigger_price=trigger + 50.0, stop_price=0.0,

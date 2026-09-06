@@ -559,7 +559,24 @@ class TradingEngine:
             strategy.pending_exit_reason = None
             return False
 
-        exit_price = fill_price if fill_price is not None else (ltp if ltp is not None else bar.open)
+        # TRIGGER-GATED reversal: the held position is only exited once the
+        # opposite breakout trigger armed by _create_reversal_signal is
+        # actually reached on this bar. Without an armed opposite setup, or
+        # before the trigger fires, the held position stays OPEN (no
+        # next-candle exit, no signal-time exit).
+        pen = getattr(strategy, "pending_entry", None)
+        if pen is None:
+            reason_now = strategy.pending_exit_reason or "reversal"
+            if getattr(strategy, "last_exit_reason", None) == reason_now:
+                strategy.pending_exit_at_open = False
+                strategy.pending_exit_reason = None
+            return False
+        if pen.side == "LONG" and not (bar.high > pen.trigger_price):
+            return False
+        if pen.side == "SHORT" and not (bar.low < pen.trigger_price):
+            return False
+
+        exit_price = fill_price if fill_price is not None else (ltp if ltp is not None else pen.trigger_price)
         strategy.pending_exit_at_open = False
         strategy.pending_exit_bar_start = None
         reason = strategy.pending_exit_reason or "reversal"
@@ -569,8 +586,9 @@ class TradingEngine:
             signal_type=SignalType.SHORT if strategy.position_side == "LONG" else SignalType.LONG,
             instrument=strategy.instrument,
             strategy_id=strategy.strategy_id,
-            # Offset AFTER the bar open: the exit is consumed at the open, so
-            # ordering is preserved with other same-bar signals.
+            # Order the trigger-based reversal exit after other same-bar
+            # signals so the old-position exit and the opposite re-entry are
+            # both processed during this candle.
             timestamp=(bar.start_ts or time.time()) + 0.5,
             trigger_price=exit_price,
             stop_price=strategy.stop_price,
