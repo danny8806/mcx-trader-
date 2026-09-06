@@ -21,6 +21,8 @@ audit_reports
 *.log
 *.tmp
 *.bak
+*.env
+mcx-trader.env
 .vscode
 .idea
 .DS_Store
