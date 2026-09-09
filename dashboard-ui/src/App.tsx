@@ -17,6 +17,7 @@ import Alerts from "./pages/Alerts";
 import Health from "./pages/Health";
 import Settings from "./pages/Settings";
 import AuditLog from "./pages/AuditLog";
+import OptionSelling from "./pages/OptionSelling";
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/health" element={<Health />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/audit" element={<AuditLog />} />
+            <Route path="/options" element={<OptionSelling />} />
           </Route>
         </Routes>
       </BrowserRouter>

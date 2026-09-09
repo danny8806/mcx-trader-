@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Activity, Columns3, Briefcase,
   ShoppingCart, BookOpen, TrendingUp, Shield,
   Database, Gauge, GitCompare, Bell, Heart,
-  Settings, FileText, Radio, Zap, ChevronsLeft, ChevronsRight,
+  Settings, FileText, Radio, Zap, ChevronsLeft, ChevronsRight, Target,
 } from "lucide-react";
 
 const navItems = [
@@ -23,6 +23,7 @@ const navItems = [
   { to: "/health", icon: Heart, label: "System Health" },
   { to: "/settings", icon: Settings, label: "Settings" },
   { to: "/audit", icon: FileText, label: "Audit Log" },
+  { to: "/options", icon: Target, label: "Option Selling" },
 ];
 
 interface SidebarProps {

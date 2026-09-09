@@ -73,4 +73,20 @@ export const api = {
     return fetchJSON<any>(`/api/audit${qs}`);
   },
   replayStatus: () => fetchJSON<any>("/api/replay/status"),
+  analyticsStrategies: () => fetchJSON<any>("/api/analytics/strategies"),
+  analyticsStrategyEquity: (id: string, startingEquity?: number) =>
+    fetchJSON<any>(
+      `/api/analytics/strategies/${encodeURIComponent(id)}/equity${
+        startingEquity ? `?starting_equity=${startingEquity}` : ""
+      }`
+    ),
+  // Option Selling
+  optionOverview: () => fetchJSON<any>("/api/options/overview"),
+  optionTrades: () => fetchJSON<any>("/api/options/trades"),
+  optionOpenTrades: () => fetchJSON<any>("/api/options/trades/open"),
+  optionPnl: () => fetchJSON<any>("/api/options/pnl"),
+  optionStatus: () => fetchJSON<any>("/api/options/status"),
+  optionCheck: () => postJSON<any>("/api/options/check"),
+  optionRecheck: () => postJSON<any>("/api/options/recheck"),
+  optionExit: () => postJSON<any>("/api/options/exit"),
 };
