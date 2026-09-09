@@ -84,10 +84,10 @@ def parse_option_chain(chain_data: dict, lot_size: int, exchange: str, underlyin
     # Strike selection based on OI
     if ce_oi_sum > pe_oi_sum:
         selected = strikes[atm_idx - 2]
-        selection_reason = f"CE OI ({ce_oi_sum:,}) > PE OI ({pe_oi_sum:,}) → ATM-2"
+        selection_reason = f"CE OI ({ce_oi_sum:,}) > PE OI ({pe_oi_sum:,}) -> ATM-2"
     else:
         selected = strikes[atm_idx + 2]
-        selection_reason = f"PE OI ({pe_oi_sum:,}) > CE OI ({ce_oi_sum:,}) → ATM+2"
+        selection_reason = f"PE OI ({pe_oi_sum:,}) > CE OI ({ce_oi_sum:,}) -> ATM+2"
 
     return StrategySignal(
         underlying=underlying,
