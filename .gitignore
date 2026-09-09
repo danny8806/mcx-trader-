@@ -43,6 +43,8 @@ desktop.ini
 
 # Runtime credentials (never commit)
 *.env
+mcx-trader.env
+.env
 
 # Temp
 *.tmp
