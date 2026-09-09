@@ -9,7 +9,7 @@ from option.dhan_client import get_expiry_list, get_option_chain, get_margin
 from option.strategy import parse_option_chain, StrategySignal
 from option.database import (
     OptionTrade, save_trade, close_trade, get_open_trades,
-    get_today_trades, count_today_trades, init_db,
+    get_today_trades, count_today_trades, init_db, get_today_pnl,
 )
 
 SL_PERCENT = 0.01
@@ -236,10 +236,6 @@ def get_status() -> dict:
         "status": "RUNNING" if is_expiry_day() else "CLOSED",
         "open_count": len(open_trades),
         "today_count": len(today_trades),
-        "today_pnl": sum(
-            (t.entry_ce_premium - t.entry_ce_premium) * t.quantity +  # placeholder
-            (t.entry_pe_premium - t.entry_pe_premium) * t.quantity
-            for t in today_trades if t.status == "CLOSED"
-        ),
+        "today_pnl": get_today_pnl(),
         "is_expiry_day": is_expiry_day(),
     }

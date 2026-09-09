@@ -45,7 +45,6 @@ def parse_option_chain(chain_data: dict, lot_size: int, exchange: str, underlyin
         return None
 
     oc = chain_data.get("oc", {})
-    expiry_list = []
     strikes = []
 
     for strike_str, opts in oc.items():
