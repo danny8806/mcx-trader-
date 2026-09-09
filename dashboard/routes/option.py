@@ -113,7 +113,15 @@ def get_pnl():
 
 @router.get("/status")
 def get_status():
-    return trader.get_status()
+    status = trader.get_status()
+    try:
+        from option.scheduler import _running, _scheduler_thread
+        status["scheduler_running"] = _running
+        status["scheduler_alive"] = _scheduler_thread.is_alive() if _scheduler_thread else False
+    except Exception:
+        status["scheduler_running"] = False
+        status["scheduler_alive"] = False
+    return status
 
 
 @router.post("/check")

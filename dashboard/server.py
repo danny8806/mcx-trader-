@@ -27,6 +27,10 @@ from dashboard.ws_manager import ConnectionManager
 from dashboard.routes import overview, strategies, positions, orders, trades
 from dashboard.routes import pnl, market_data, risk, health, replay
 from dashboard.routes import reconciliation, alerts, settings, audit_log, indicators
+from dashboard.routes import env_switch
+from dashboard.routes import option as option_routes
+from option.scheduler import start_scheduler as start_option_scheduler, stop_scheduler as stop_option_scheduler
+from option.database import init_db as init_option_db
 
 # Analytics routes
 try:
@@ -185,6 +189,8 @@ async def lifespan(app: FastAPI):
     print("[Lifespan] Starting...", file=sys.stderr, flush=True)
     if _engine is None:
         try:
+            from config import Config
+            Config.validate_live_security()
             from trading_engine import TradingEngine
             _engine = TradingEngine(event_callback=_on_engine_event)
         except Exception as e:
@@ -212,6 +218,28 @@ async def lifespan(app: FastAPI):
             pass
     print("[Lifespan] Persistence ready", file=sys.stderr, flush=True)
 
+    # §9.3 — when a LIVE environment is configured, attach its own
+    # persistence manager (separate live_trading.db) so LIVE fills/orders
+    # never leak into the PAPER database.  This is production wiring; the
+    # dual-env tests already prove per-env isolation.
+    if _engine is not None:
+        try:
+            live_envs = [n for n in
+                         getattr(_engine, "environments", None) or [] if n == "live"]
+            if live_envs:
+                from persistence.manager import PersistenceManager
+                root = Path(__file__).resolve().parent.parent
+                live_persistence = PersistenceManager(
+                    state_path=str(root / "data" / "db" / "live_system_state.json"),
+                    db_path=str(root / "data" / "db" / "live_trading.db"),
+                )
+                _engine.set_persistence(live_persistence, env_name="live")
+                print("[Lifespan] LIVE persistence attached (live_trading.db)",
+                      file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[Lifespan] LIVE persistence attach failed: {e}",
+                  file=sys.stderr, flush=True)
+
     # Wire persistence to engine and restore state
     if _engine and _persistence:
         try:
@@ -236,7 +264,8 @@ async def lifespan(app: FastAPI):
     # Initialize all route modules with engine + event_bus
     for mod in [overview, strategies, positions, orders, trades,
                 pnl, market_data, risk, health, replay,
-                reconciliation, alerts, settings, audit_log, indicators]:
+                reconciliation, alerts, settings, audit_log, indicators,
+                env_switch]:
         try:
             if hasattr(mod, 'init'):
                 if _persistence and 'persistence' in mod.init.__code__.co_varnames:
@@ -246,6 +275,14 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
     print("[Lifespan] Routes ready", file=sys.stderr, flush=True)
+
+    # Start option paper trading scheduler
+    try:
+        init_option_db()
+        start_option_scheduler()
+        print("[Lifespan] Option scheduler started", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"[Lifespan] Option scheduler start failed: {e}", file=sys.stderr, flush=True)
 
     push_task = asyncio.create_task(_push_updates())
     events_task = asyncio.create_task(_push_events())
@@ -258,6 +295,12 @@ async def lifespan(app: FastAPI):
     save_task.cancel()
     try:
         await asyncio.gather(push_task, events_task, return_exceptions=True)
+    except Exception:
+        pass
+    # Stop option scheduler
+    try:
+        stop_option_scheduler()
+        print("[Lifespan] Option scheduler stopped", file=sys.stderr, flush=True)
     except Exception:
         pass
     # Shutdown thread pool executors
@@ -315,7 +358,8 @@ _frontend_available = _frontend_dist.exists()
 
 # Register all routers
 for r in [overview, strategies, positions, orders, trades, pnl, market_data,
-          risk, health, replay, reconciliation, alerts, settings, audit_log, indicators]:
+          risk, health, replay, reconciliation, alerts, settings, audit_log, indicators,
+          env_switch, option_routes]:
     app.include_router(r.router)
 
 # Register analytics router
