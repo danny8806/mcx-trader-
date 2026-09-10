@@ -5,175 +5,492 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Option Selling Dashboard</title>
 <style>
+:root {
+  --bg: #0a0a0f; --card: #111118; --border: #1e1e2a;
+  --text: #e0e0e0; --dim: #6b7280; --accent: #818cf8;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+}
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0a0a0f; color:#e0e0e0; }
-.header { background:#111118; padding:16px 24px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center; }
-.header h1 { font-size:18px; color:#f0f0f0; }
-.header .status { font-size:12px; padding:4px 12px; border-radius:12px; }
-.header .running { background:rgba(34,197,94,0.15); color:#22c55e; }
-.header .closed { background:rgba(107,114,128,0.15); color:#6b7280; }
-.container { max-width:1200px; margin:0 auto; padding:20px; }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-.card { background:#111118; border:1px solid #222; border-radius:8px; padding:16px; }
-.card h3 { font-size:11px; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; margin-bottom:12px; }
-.stat { font-size:11px; color:#6b7280; margin-bottom:4px; }
-.stat .val { font-size:13px; color:#e0e0e0; font-weight:600; }
-.pnl-stat { text-align:center; }
-.pnl-stat .big { font-size:28px; font-weight:700; margin:8px 0; }
-.pnl-stat .sub { font-size:11px; color:#6b7280; }
-.green { color:#22c55e; }
-.red { color:#ef4444; }
-.gray { color:#6b7280; }
-table { width:100%; border-collapse:collapse; font-size:12px; }
-th { text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#6b7280; border-bottom:1px solid #222; }
-td { padding:8px 10px; border-bottom:1px solid #1a1a24; }
-.btn { padding:6px 14px; border-radius:4px; border:1px solid #333; background:#1a1a24; color:#999; cursor:pointer; font-size:11px; }
-.btn:hover { background:#222; color:#fff; }
-.btn-red { border-color:#7f1d1d; background:rgba(239,68,68,0.1); color:#ef4444; }
-.btn-red:hover { background:rgba(239,68,68,0.2); }
-.actions { display:flex; gap:6px; }
-#loading { text-align:center; padding:40px; color:#6b7280; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--bg); color:var(--text); font-size:12px; }
+.header { background:var(--card); border-bottom:1px solid var(--border); padding:12px 20px; display:flex; justify-content:space-between; align-items:center; }
+.header h1 { font-size:16px; font-weight:600; }
+.header-right { display:flex; gap:8px; align-items:center; }
+.badge { padding:3px 10px; border-radius:10px; font-size:10px; font-weight:600; text-transform:uppercase; }
+.badge-green { background:rgba(34,197,94,0.12); color:var(--green); }
+.badge-red { background:rgba(239,68,68,0.12); color:var(--red); }
+.badge-yellow { background:rgba(234,179,8,0.12); color:var(--yellow); }
+.badge-blue { background:rgba(59,130,246,0.12); color:var(--blue); }
+.badge-dim { background:rgba(107,114,128,0.12); color:var(--dim); }
+.container { max-width:1400px; margin:0 auto; padding:16px; }
+.row { display:grid; gap:12px; margin-bottom:12px; }
+.row-4 { grid-template-columns: repeat(4,1fr); }
+.row-3 { grid-template-columns: repeat(3,1fr); }
+.row-2 { grid-template-columns: 1fr 1fr; }
+.row-2-1 { grid-template-columns: 2fr 1fr; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:14px; }
+.card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.7px; color:var(--dim); margin-bottom:10px; font-weight:600; }
+.metric { margin-bottom:6px; }
+.metric-label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:0.3px; }
+.metric-value { font-size:18px; font-weight:700; margin-top:2px; }
+.metric-sub { font-size:10px; color:var(--dim); margin-top:1px; }
+.metric-row { display:flex; gap:16px; flex-wrap:wrap; }
+.metric-sm { flex:0 0 auto; }
+.metric-sm .metric-value { font-size:14px; }
+.green { color:var(--green); } .red { color:var(--red); } .dim { color:var(--dim); } .accent { color:var(--accent); }
+table { width:100%; border-collapse:collapse; }
+th { text-align:left; padding:6px 8px; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--dim); border-bottom:1px solid var(--border); font-weight:600; }
+td { padding:5px 8px; border-bottom:1px solid rgba(30,30,42,0.5); font-size:11px; }
+tr:hover td { background:rgba(129,140,248,0.03); }
+.btn { padding:5px 12px; border-radius:4px; border:1px solid #333; background:#1a1a24; color:#aaa; cursor:pointer; font-size:10px; font-weight:600; transition: all 0.15s; }
+.btn:hover { background:#222; color:#fff; border-color:#555; }
+.btn-green { border-color:rgba(34,197,94,0.3); color:var(--green); }
+.btn-green:hover { background:rgba(34,197,94,0.15); }
+.btn-red { border-color:rgba(239,68,68,0.3); color:var(--red); }
+.btn-red:hover { background:rgba(239,68,68,0.15); }
+.btn-blue { border-color:rgba(59,130,246,0.3); color:var(--blue); }
+.btn-blue:hover { background:rgba(59,130,246,0.15); }
+.btn-group { display:flex; gap:5px; }
+.table-scroll { max-height:350px; overflow-y:auto; }
+.table-scroll::-webkit-scrollbar { width:4px; }
+.table-scroll::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+.chain-row { display:grid; grid-template-columns: 70px 1fr 1fr 80px 1fr 1fr; gap:0; border-bottom:1px solid rgba(30,30,42,0.3); align-items:center; }
+.chain-header { font-size:9px; text-transform:uppercase; color:var(--dim); font-weight:600; padding:4px 8px; }
+.chain-cell { padding:4px 8px; font-size:11px; }
+.chain-atm { background:rgba(129,140,248,0.06); }
+.chain-selected { background:rgba(34,197,94,0.06); border-left:2px solid var(--green); }
+.oi-bar { height:3px; border-radius:1px; margin-top:2px; }
+.ce-bar { background:var(--red); } .pe-bar { background:var(--green); }
+.signal-box { padding:10px; border-radius:4px; border:1px solid var(--border); background:rgba(129,140,248,0.04); margin-top:8px; }
+.signal-box.ready { border-color:rgba(34,197,94,0.3); background:rgba(34,197,94,0.04); }
+.signal-box.not-ready { border-color:rgba(239,68,68,0.2); background:rgba(239,68,68,0.03); }
+.polling-indicator { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.config-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; }
+.config-item { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(30,30,42,0.3); }
+.config-item .label { color:var(--dim); font-size:10px; }
+.config-item .value { font-size:11px; font-weight:600; }
+#loading { text-align:center; padding:60px; color:var(--dim); font-size:13px; }
+.pnl-big { font-size:28px; font-weight:700; text-align:center; padding:8px 0; }
+.pnl-sub { font-size:10px; color:var(--dim); text-align:center; }
+.underlying-card { text-align:center; }
+.underlying-card .name { font-size:14px; font-weight:700; margin-bottom:4px; }
+.underlying-card .spot { font-size:22px; font-weight:700; }
 </style>
 </head>
 <body>
+
 <div class="header">
   <h1>Option Selling Dashboard</h1>
-  <div>
-    <span id="status-badge" class="status closed">Loading...</span>
-    <span id="expiry-badge" class="status closed" style="margin-left:8px;"></span>
+  <div class="header-right">
+    <span class="badge badge-dim" id="poll-badge"><span class="polling-indicator"></span> LIVE</span>
+    <span class="badge badge-dim" id="day-badge">--</span>
+    <span class="badge badge-dim" id="session-badge">--</span>
+    <span class="badge badge-dim" id="expiry-badge">--</span>
+    <span class="badge badge-dim" id="scheduler-badge">--</span>
   </div>
 </div>
-<div class="container">
-  <div class="grid2">
-    <div class="card">
-      <h3>Status</h3>
-      <div class="stat">Status: <span class="val" id="status">--</span></div>
-      <div class="stat">Open Trades: <span class="val" id="open-count">0</span></div>
-      <div class="stat">Today Trades: <span class="val" id="today-count">0</span></div>
-      <div class="stat">Expiry Day: <span class="val" id="expiry">--</span></div>
-      <div class="stat">Scheduler: <span class="val" id="scheduler">--</span></div>
-    </div>
-    <div class="card pnl-stat">
-      <h3>Today P&L</h3>
-      <div class="big" id="today-pnl">--</div>
-      <div class="sub">Total: <span id="total-pnl">--</span> | Win Rate: <span id="win-rate">--</span></div>
-    </div>
-  </div>
 
-  <div class="card" style="margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3 style="margin:0;">Open Trades</h3>
-      <div class="actions">
-        <button class="btn" onclick="doAction('check')">CHECK</button>
-        <button class="btn" onclick="doAction('recheck')">RECHECK</button>
-        <button class="btn btn-red" onclick="doAction('exit')">EXIT ALL</button>
+<div class="container">
+
+  <!-- Row 1: Market Status -->
+  <div class="row row-2">
+    <div class="card">
+      <div class="card-title">Market Status</div>
+      <div class="metric-row">
+        <div class="metric-sm">
+          <div class="metric-label">Date</div>
+          <div class="metric-value" style="font-size:13px" id="mkt-date">--</div>
+        </div>
+        <div class="metric-sm">
+          <div class="metric-label">Day</div>
+          <div class="metric-value" style="font-size:13px" id="mkt-day">--</div>
+        </div>
+        <div class="metric-sm">
+          <div class="metric-label">Time</div>
+          <div class="metric-value" style="font-size:13px" id="mkt-time">--</div>
+        </div>
+        <div class="metric-sm">
+          <div class="metric-label">Session</div>
+          <div class="metric-value" style="font-size:13px" id="mkt-session">--</div>
+        </div>
       </div>
     </div>
-    <table>
-      <thead><tr><th>ID</th><th>Underlying</th><th>Strike</th><th>Entry CE</th><th>Entry PE</th><th>Margin</th><th>Live P&L</th><th>Reason</th></tr></thead>
-      <tbody id="open-tbody"><tr><td colspan="8" style="text-align:center;color:#6b7280;">No open trades</td></tr></tbody>
-    </table>
+    <div class="card">
+      <div class="card-title">Strategy Config</div>
+      <div class="config-grid" id="config-grid">Loading...</div>
+    </div>
   </div>
 
+  <!-- Row 2: Spot Prices -->
+  <div class="row row-2">
+    <div class="card underlying-card">
+      <div class="name">NIFTY</div>
+      <div class="spot" id="nifty-spot">--</div>
+      <div class="metric-sub" id="nifty-expiry">--</div>
+    </div>
+    <div class="card underlying-card">
+      <div class="name">SENSEX</div>
+      <div class="spot" id="sensex-spot">--</div>
+      <div class="metric-sub" id="sensex-expiry">--</div>
+    </div>
+  </div>
+
+  <!-- Row 3: P&L -->
+  <div class="row row-4">
+    <div class="card">
+      <div class="card-title">Today P&L</div>
+      <div class="pnl-big" id="today-pnl">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total P&L</div>
+      <div class="pnl-big" id="total-pnl">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Win Rate</div>
+      <div class="pnl-big" id="win-rate">--</div>
+      <div class="pnl-sub" id="win-loss">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Trade Count</div>
+      <div class="metric-row" style="justify-content:center;">
+        <div class="metric-sm" style="text-align:center;">
+          <div class="metric-label">Open</div>
+          <div class="metric-value accent" id="open-count">0</div>
+        </div>
+        <div class="metric-sm" style="text-align:center;">
+          <div class="metric-label">Today</div>
+          <div class="metric-value" id="today-count">0</div>
+        </div>
+        <div class="metric-sm" style="text-align:center;">
+          <div class="metric-label">Total</div>
+          <div class="metric-value dim" id="total-count">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Live OI Chain NIFTY -->
   <div class="card">
-    <h3>Trade History</h3>
-    <div style="max-height:400px;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="card-title" style="margin:0;">Live OI Chain — NIFTY</div>
+      <div class="btn-group">
+        <button class="btn btn-blue" onclick="refreshChain('NIFTY')">Refresh</button>
+      </div>
+    </div>
+    <div class="signal-box" id="nifty-signal">Loading...</div>
+    <div class="table-scroll" style="margin-top:8px;">
+      <div id="nifty-chain">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Row 5: Live OI Chain SENSEX -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="card-title" style="margin:0;">Live OI Chain — SENSEX</div>
+      <div class="btn-group">
+        <button class="btn btn-blue" onclick="refreshChain('SENSEX')">Refresh</button>
+      </div>
+    </div>
+    <div class="signal-box" id="sensex-signal">Loading...</div>
+    <div class="table-scroll" style="margin-top:8px;">
+      <div id="sensex-chain">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Row 6: Actions -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="card-title" style="margin:0;">Manual Actions</div>
+      <div class="btn-group">
+        <button class="btn btn-green" onclick="doAction('check')">CHECK (9:30)</button>
+        <button class="btn btn-blue" onclick="doAction('recheck')">RECHECK (10:00)</button>
+        <button class="btn btn-red" onclick="doAction('exit')">EXIT ALL (15:15)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 7: Open Trades -->
+  <div class="card">
+    <div class="card-title">Open Trades</div>
+    <div class="table-scroll">
       <table>
-        <thead><tr><th>Date</th><th>Underlying</th><th>Strike</th><th>Entry CE</th><th>Entry PE</th><th>Exit CE</th><th>Exit PE</th><th>P&L</th><th>Reason</th></tr></thead>
-        <tbody id="history-tbody"><tr><td colspan="9" style="text-align:center;color:#6b7280;">No trades yet</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>ID</th><th>Underlying</th><th>Strike</th><th>Expiry</th>
+            <th>Entry CE</th><th>Entry PE</th><th>Credit</th><th>Margin</th><th>SL</th>
+            <th>Live CE</th><th>Live PE</th><th>Live P&L</th><th>PCR</th><th>Reason</th><th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="open-tbody"><tr><td colspan="15" style="text-align:center;color:var(--dim);">No open trades</td></tr></tbody>
       </table>
     </div>
   </div>
+
+  <!-- Row 8: Trade History -->
+  <div class="card">
+    <div class="card-title">Trade History</div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Underlying</th><th>Strike</th><th>Entry CE</th><th>Entry PE</th>
+            <th>Credit</th><th>Margin</th><th>Exit CE</th><th>Exit PE</th><th>P&L</th><th>SL</th><th>Reason</th><th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody"><tr><td colspan="13" style="text-align:center;color:var(--dim);">No trades yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Row 9: P&L Stats -->
+  <div class="row row-3">
+    <div class="card" style="text-align:center;">
+      <div class="card-title">Avg Win</div>
+      <div class="metric-value green" id="avg-win">--</div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-title">Avg Loss</div>
+      <div class="metric-value red" id="avg-loss">--</div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-title">Total Closed</div>
+      <div class="metric-value" id="total-closed">--</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
 const API = '/api/options';
+const fmt = v => v != null ? 'Rs ' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '--';
+const fmtN = v => v != null ? Number(v).toLocaleString('en-IN', {maximumFractionDigits:2}) : '--';
+const pnlC = v => v > 0 ? 'green' : v < 0 ? 'red' : 'dim';
+const oiPct = (v, max) => max > 0 ? (v / max * 100) : 0;
 
-function pnlColor(v) { return v > 0 ? 'green' : v < 0 ? 'red' : 'gray'; }
-function fmt(v) { return v != null ? 'Rs ' + v.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0}) : '--'; }
-
-async function fetchData() {
+// ── Fetch market + config ──
+async function fetchMeta() {
   try {
-    const [ov, tr] = await Promise.all([
-      fetch(API + '/overview').then(r => r.json()),
-      fetch(API + '/trades').then(r => r.json()),
+    const [mkt, cfg, st] = await Promise.all([
+      fetch(API+'/market').then(r=>r.json()),
+      fetch(API+'/config').then(r=>r.json()),
+      fetch(API+'/status').then(r=>r.json()),
     ]);
 
-    // Status
-    document.getElementById('status').textContent = ov.status;
-    document.getElementById('status').className = 'val ' + (ov.status === 'RUNNING' ? 'green' : 'gray');
-    document.getElementById('status-badge').textContent = ov.status;
-    document.getElementById('status-badge').className = 'status ' + (ov.status === 'RUNNING' ? 'running' : 'closed');
+    document.getElementById('mkt-date').textContent = mkt.date;
+    document.getElementById('mkt-day').textContent = mkt.day;
+    document.getElementById('mkt-time').textContent = mkt.time;
+    document.getElementById('mkt-session').textContent = mkt.session_status;
+    document.getElementById('mkt-session').className = 'metric-value ' + (mkt.session_status==='TRADING'||mkt.session_status==='OPEN' ? 'green' : mkt.session_status==='CLOSING' ? 'red' : 'dim');
+
+    document.getElementById('day-badge').textContent = mkt.day;
+    document.getElementById('session-badge').textContent = mkt.session_status;
+    document.getElementById('session-badge').className = 'badge ' + (mkt.session_status==='TRADING'||mkt.session_status==='OPEN' ? 'badge-green' : 'badge-dim');
+
+    document.getElementById('expiry-badge').textContent = mkt.is_expiry_day ? 'EXPIRY DAY' : 'NON-EXPIRY';
+    document.getElementById('expiry-badge').className = 'badge ' + (mkt.is_expiry_day ? 'badge-yellow' : 'badge-dim');
+
+    document.getElementById('scheduler-badge').textContent = st.scheduler_alive ? 'SCHEDULER ON' : 'SCHEDULER OFF';
+    document.getElementById('scheduler-badge').className = 'badge ' + (st.scheduler_alive ? 'badge-green' : 'badge-red');
+
+    // Config
+    const cfgHTML = [
+      ['SL', cfg.sl_display],
+      ['OI Threshold', cfg.oi_threshold_lakhs],
+      ['Max Trades/Day', cfg.max_trades_per_day],
+      ['Entry Time', cfg.entry_time],
+      ['Recheck', cfg.recheck_time],
+      ['EOD Exit', cfg.eod_exit_time],
+      ['Expiry Days', cfg.expiry_day_names.join(', ')],
+      ['NIFTY Lot', cfg.instruments.NIFTY.lot_size],
+      ['SENSEX Lot', cfg.instruments.SENSEX.lot_size],
+    ].map(([l,v]) => `<div class="config-item"><span class="label">${l}</span><span class="value">${v}</span></div>`).join('');
+    document.getElementById('config-grid').innerHTML = cfgHTML;
+  } catch(e) {}
+}
+
+// ── Fetch overview + P&L ──
+async function fetchOverview() {
+  try {
+    const [ov, pnl] = await Promise.all([
+      fetch(API+'/overview').then(r=>r.json()),
+      fetch(API+'/pnl').then(r=>r.json()),
+    ]);
+
     document.getElementById('open-count').textContent = ov.open_count;
     document.getElementById('today-count').textContent = ov.today_count;
-    document.getElementById('expiry').textContent = ov.is_expiry_day ? 'YES' : 'NO';
-    document.getElementById('expiry').className = 'val ' + (ov.is_expiry_day ? 'green' : 'gray');
-    document.getElementById('expiry-badge').textContent = ov.is_expiry_day ? 'EXPIRY DAY' : 'NON-EXPIRY';
-    document.getElementById('expiry-badge').className = 'status ' + (ov.is_expiry_day ? 'running' : 'closed');
-
-    // P&L
     document.getElementById('today-pnl').textContent = fmt(ov.today_pnl);
-    document.getElementById('today-pnl').className = 'big ' + pnlColor(ov.today_pnl);
+    document.getElementById('today-pnl').className = 'pnl-big ' + pnlC(ov.today_pnl);
     document.getElementById('total-pnl').textContent = fmt(ov.total_pnl);
-    document.getElementById('total-pnl').className = pnlColor(ov.total_pnl);
+    document.getElementById('total-pnl').className = 'pnl-big ' + pnlC(ov.total_pnl);
     document.getElementById('win-rate').textContent = ov.win_rate.toFixed(0) + '%';
+    document.getElementById('win-loss').textContent = `${pnl.wins}W / ${pnl.losses}L`;
+    document.getElementById('total-count').textContent = pnl.total_closed;
+    document.getElementById('total-closed').textContent = pnl.total_closed;
+    document.getElementById('avg-win').textContent = fmt(pnl.avg_win);
+    document.getElementById('avg-loss').textContent = fmt(pnl.avg_loss);
 
     // Open trades
     const ot = document.getElementById('open-tbody');
-    if (ov.open_trades.length === 0) {
-      ot.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#6b7280;">No open trades</td></tr>';
+    if (!ov.open_trades.length) {
+      ot.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--dim);">No open trades</td></tr>';
     } else {
       ot.innerHTML = ov.open_trades.map(t => `<tr>
-        <td>${t.trade_id.slice(-8)}</td>
-        <td>${t.underlying}</td>
+        <td style="font-family:monospace;font-size:10px;">${t.trade_id.slice(-8)}</td>
+        <td><b>${t.underlying}</b></td>
         <td>${t.strike}</td>
+        <td style="font-size:10px;">${t.expiry}</td>
         <td>${t.entry_ce}</td>
         <td>${t.entry_pe}</td>
+        <td>${fmt(t.credit)}</td>
         <td>${fmt(t.margin)}</td>
-        <td class="${pnlColor(t.live_pnl||0)}" style="font-weight:600;">${fmt(t.live_pnl||0)}</td>
-        <td style="font-size:10px;color:#6b7280;">${t.selection_reason||''}</td>
+        <td class="red">${fmt(t.sl_amount)}</td>
+        <td>${t.current_ce}</td>
+        <td>${t.current_pe}</td>
+        <td class="${pnlC(t.pnl)}" style="font-weight:700;">${fmt(t.pnl)}</td>
+        <td>${t.pcr != null ? t.pcr.toFixed(2) : '--'}</td>
+        <td style="font-size:9px;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.selection_reason||''}">${t.selection_reason||''}</td>
+        <td style="font-size:10px;color:var(--dim);">${(t.entry_time||'').slice(11,19)}</td>
       </tr>`).join('');
     }
+  } catch(e) {}
+}
 
-    // History
+// ── Fetch trade history ──
+async function fetchHistory() {
+  try {
+    const tr = await fetch(API+'/trades').then(r=>r.json());
     const ht = document.getElementById('history-tbody');
     const trades = tr.trades || [];
-    if (trades.length === 0) {
-      ht.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#6b7280;">No trades yet</td></tr>';
-    } else {
-      ht.innerHTML = trades.slice(0, 50).map(t => `<tr>
-        <td>${(t.entry_time||'').slice(5,10)}</td>
-        <td>${t.underlying}</td>
-        <td>${t.strike}</td>
-        <td>${t.entry_ce_premium}</td>
-        <td>${t.entry_pe_premium}</td>
-        <td>${t.exit_ce_premium||'--'}</td>
-        <td>${t.exit_pe_premium||'--'}</td>
-        <td class="${pnlColor(t.exit_pnl)}" style="font-weight:600;">${t.exit_pnl != null ? fmt(t.exit_pnl) : '--'}</td>
-        <td style="font-size:10px;color:#6b7280;">${t.exit_reason||'--'}</td>
-      </tr>`).join('');
+    if (!trades.length) {
+      ht.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--dim);">No trades yet</td></tr>';
+      return;
+    }
+    ht.innerHTML = trades.slice(0, 50).map(t => `<tr>
+      <td style="font-size:10px;">${(t.entry_time||'').slice(0,10)}</td>
+      <td><b>${t.underlying}</b></td>
+      <td>${t.strike}</td>
+      <td>${t.entry_ce_premium}</td>
+      <td>${t.entry_pe_premium}</td>
+      <td>${fmt(t.entry_credit)}</td>
+      <td>${fmt(t.margin)}</td>
+      <td>${t.exit_ce_premium!=null ? t.exit_ce_premium : '--'}</td>
+      <td>${t.exit_pe_premium!=null ? t.exit_pe_premium : '--'}</td>
+      <td class="${pnlC(t.exit_pnl)}" style="font-weight:700;">${t.exit_pnl!=null ? fmt(t.exit_pnl) : '--'}</td>
+      <td class="red" style="font-size:10px;">${fmt(t.sl_amount)}</td>
+      <td style="font-size:9px;color:var(--dim);">${t.exit_reason||'--'}</td>
+      <td style="font-size:10px;color:var(--dim);">${(t.entry_time||'').slice(11,19)}</td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+// ── Fetch live OI chain ──
+async function refreshChain(underlying) {
+  const container = document.getElementById(underlying.toLowerCase() + '-chain');
+  const signalBox = document.getElementById(underlying.toLowerCase() + '-signal');
+  container.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Loading...</div>';
+
+  try {
+    const data = await fetch(API+`/chain?underlying=${underlying}`).then(r=>r.json());
+
+    if (data.error) {
+      container.innerHTML = `<div style="text-align:center;color:var(--red);padding:20px;">${data.error}</div>`;
+      signalBox.innerHTML = `<span class="red">${data.error}</span>`;
+      return;
     }
 
-    // Scheduler
-    try {
-      const st = await fetch(API + '/status').then(r => r.json());
-      document.getElementById('scheduler').textContent = st.scheduler_alive ? 'Running' : 'Stopped';
-      document.getElementById('scheduler').className = 'val ' + (st.scheduler_alive ? 'green' : 'red');
-    } catch(e) {}
+    // Update spot
+    document.getElementById(underlying.toLowerCase() + '-spot').textContent = Number(data.spot).toLocaleString('en-IN');
+    document.getElementById(underlying.toLowerCase() + '-expiry').textContent = 'Expiry: ' + data.expiry;
+
+    // Signal box
+    const isReady = data.signal_ready;
+    signalBox.className = 'signal-box ' + (isReady ? 'ready' : 'not-ready');
+    signalBox.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <b>${data.selection_reason}</b><br>
+          <span class="dim">ATM: ${data.atm} | Selected: <span class="${isReady?'green':'dim'}">${data.selected_strike}</span> | Lot: ${data.lot_size} | Exchange: ${data.exchange}</span>
+        </div>
+        <div style="text-align:right;">
+          <span class="dim">CE OI:</span> <b class="red">${(data.ce_oi_sum/100000).toFixed(1)}L</b> &nbsp;|&nbsp;
+          <span class="dim">PE OI:</span> <b class="green">${(data.pe_oi_sum/100000).toFixed(1)}L</b><br>
+          <span class="dim">PCR:</span> <b>${data.pcr}</b> &nbsp;|&nbsp;
+          <span class="dim">OI Diff:</span> <b>${(data.oi_diff/100000).toFixed(1)}L</b> / ${(data.oi_threshold/100000).toFixed(0)}L<br>
+          <span class="dim">Margin:</span> <b>${fmt(data.margin)}</b> &nbsp;
+          ${isReady ? '<span class="badge badge-green">SIGNAL READY</span>' : '<span class="badge badge-red">BELOW THRESHOLD</span>'}
+        </div>
+      </div>
+    `;
+
+    // Strike chain
+    const strikes = data.strikes;
+    const maxCE = Math.max(...strikes.map(s=>s.ce_oi), 1);
+    const maxPE = Math.max(...strikes.map(s=>s.pe_oi), 1);
+
+    // Show strikes around ATM (+/- 6)
+    const atmIdx = strikes.findIndex(s => s.strike === data.atm);
+    const start = Math.max(0, atmIdx - 6);
+    const end = Math.min(strikes.length, atmIdx + 7);
+
+    let html = `<div class="chain-row" style="border-bottom:1px solid var(--border);padding:4px 0;">
+      <div class="chain-header">Strike</div>
+      <div class="chain-header" style="text-align:right;">CE OI</div>
+      <div class="chain-header" style="text-align:right;">CE LTP</div>
+      <div class="chain-header" style="text-align:center;">Type</div>
+      <div class="chain-header" style="text-align:left;">PE OI</div>
+      <div class="chain-header" style="text-align:left;">PE LTP</div>
+    </div>`;
+
+    for (let i = start; i < end; i++) {
+      const s = strikes[i];
+      const isATM = s.strike === data.atm;
+      const isSel = s.strike === data.selected_strike;
+      let cls = 'chain-row';
+      if (isSel) cls += ' chain-selected';
+      else if (isATM) cls += ' chain-atm';
+
+      html += `<div class="${cls}">
+        <div class="chain-cell" style="font-weight:${isATM?'700':'400'};">${s.strike} ${isATM?'ATM':''} ${isSel?'SEL':''}</div>
+        <div class="chain-cell" style="text-align:right;">
+          <div style="font-size:10px;color:var(--dim);">${(s.ce_oi/100000).toFixed(1)}L</div>
+          <div class="oi-bar ce-bar" style="width:${oiPct(s.ce_oi,maxCE)*0.8}%;"></div>
+        </div>
+        <div class="chain-cell" style="text-align:right;color:var(--red);font-weight:600;">${s.ce_ltp}</div>
+        <div class="chain-cell" style="text-align:center;color:var(--dim);font-size:9px;">CE / PE</div>
+        <div class="chain-cell" style="text-align:left;">
+          <div style="font-size:10px;color:var(--dim);">${(s.pe_oi/100000).toFixed(1)}L</div>
+          <div class="oi-bar pe-bar" style="width:${oiPct(s.pe_oi,maxPE)*0.8}%;"></div>
+        </div>
+        <div class="chain-cell" style="text-align:left;color:var(--green);font-weight:600;">${s.pe_ltp}</div>
+      </div>`;
+    }
+
+    container.innerHTML = html;
   } catch(e) {
-    console.error('Fetch failed:', e);
+    container.innerHTML = `<div style="text-align:center;color:var(--red);padding:20px;">Error: ${e}</div>`;
   }
 }
 
+// ── Actions ──
 async function doAction(action) {
   try {
-    await fetch(API + '/' + action, {method:'POST'});
-    setTimeout(fetchData, 1000);
+    await fetch(API+'/'+action, {method:'POST'});
+    setTimeout(() => { fetchOverview(); fetchHistory(); }, 1000);
   } catch(e) { alert('Action failed: ' + e); }
 }
 
-fetchData();
-setInterval(fetchData, 5000);
+// ── Initial + polling ──
+async function refreshAll() {
+  await Promise.all([fetchMeta(), fetchOverview(), fetchHistory()]);
+  refreshChain('NIFTY');
+  refreshChain('SENSEX');
+}
+
+refreshAll();
+setInterval(fetchMeta, 10000);
+setInterval(fetchOverview, 3000);
+setInterval(fetchHistory, 10000);
+setInterval(() => { refreshChain('NIFTY'); refreshChain('SENSEX'); }, 5000);
 </script>
 </body>
 </html>
