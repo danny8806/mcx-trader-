@@ -116,6 +116,7 @@ def main():
         print("=" * 60)
         run(
             f"docker run -d --name mcx-trader --restart unless-stopped "
+            f"-e TZ=Asia/Kolkata "
             f"--env-file {vps_env} "
             f"-p 8000:8000 "
             f"-v {VPS_BASE}/data/db:/app/data/db "

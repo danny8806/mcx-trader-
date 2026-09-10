@@ -12,8 +12,8 @@ Credentials are written to a gitignored env file on the VPS and passed to
 or `-e` process arguments.  The local temp file is deleted afterwards.
 
 Usage (from cmd):
-    python deploy_vps.py --totp-secret <TOTP> --pin <PIN> --client-id 1102461741
-    python deploy_vps.py --client-id 1102461741      # prompt for PIN + TOTP
+    python deploy_vps.py --totp-secret <TOTP> --pin <PIN> --client-id <CLIENT_ID>
+    python deploy_vps.py --client-id <CLIENT_ID>      # prompt for PIN + TOTP
     python deploy_vps.py                              # prompt for everything
 
 Credentials may also be seeded from a local env file (default mcx-trader.env,
@@ -298,6 +298,7 @@ def main():
                     f"rm -rf {args.base}/data/db && mkdir -p {args.base}/data/db")
         run_ssh(ssh, (
             f"docker run -d --name mcx-trader --restart unless-stopped "
+            f"-e TZ=Asia/Kolkata "
             f"--env-file {vps_env_path} "
             f"-p 8000:8000 "
             f"-v {args.base}/data/db:/app/data/db "
