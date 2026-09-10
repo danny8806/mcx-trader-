@@ -11,13 +11,16 @@ from option import trader
 _scheduler_thread = None
 _running = False
 
-_SCHEDULED_CHECKS = [
-    ("09:30", "morning_check", "_scheduled_check"),
-    ("10:00", "recheck", "_scheduled_recheck"),
-    ("15:15", "eod_exit", "_scheduled_exit"),
-]
-
 _today_checks_done = set()
+
+
+def _safe_run(fn, name: str):
+    """Run a function safely, catching all exceptions so scheduler never dies."""
+    try:
+        return fn()
+    except Exception as e:
+        print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — ERROR in {name}: {e}")
+        return None
 
 
 def _scheduled_check():
@@ -26,12 +29,12 @@ def _scheduled_check():
     if today in _today_checks_done:
         return
     print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running morning check")
-    trades = trader.run_morning_check()
+    trades = _safe_run(trader.run_morning_check, "morning_check")
     if trades:
         for t in trades:
             print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
     else:
-        print("[Option] No trades opened")
+        print("[Option] No trades opened (or API error)")
     _today_checks_done.add(today)
 
 
@@ -41,24 +44,24 @@ def _scheduled_recheck():
     if today in _today_checks_done:
         return
     print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running recheck")
-    trades = trader.run_recheck()
+    trades = _safe_run(trader.run_recheck, "recheck")
     if trades:
         for t in trades:
             print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
     else:
-        print("[Option] No trades opened")
+        print("[Option] No trades opened (or API error)")
     _today_checks_done.add(today)
 
 
 def _scheduled_exit():
     """Run EOD exit."""
     print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running EOD exit")
-    results = trader.run_eod_exit()
+    results = _safe_run(trader.run_eod_exit, "eod_exit")
     if results:
         for r in results:
             print(f"[Option] CLOSED: {r['underlying']} {r['strike']} — P&L: Rs {r['pnl']:,.0f} ({r['reason']})")
     else:
-        print("[Option] No trades to exit")
+        print("[Option] No trades to exit (or API error)")
 
 
 def _catch_up():
@@ -89,10 +92,10 @@ def _run_loop():
     print("[Option] Scheduler started — 09:30 check, 10:00 recheck, 15:15 exit")
 
     # Run catch-up on start
-    _catch_up()
+    _safe_run(_catch_up, "catch_up")
 
     while _running:
-        schedule.run_pending()
+        _safe_run(schedule.run_pending, "run_pending")
         time.sleep(30)
 
 
