@@ -71,7 +71,7 @@ def get_overview():
         })
 
     return OverviewResponse(
-        status="RUNNING" if trader.is_expiry_day() else "CLOSED",
+        status="RUNNING",
         open_count=len(open_trades),
         today_count=len(today_trades),
         today_pnl=db.get_today_pnl(),
@@ -224,8 +224,7 @@ def get_config():
         "entry_time": ENTRY_TIME,
         "recheck_time": RECHECK_TIME,
         "eod_exit_time": EOD_EXIT_TIME,
-        "expiry_days": EXPIRY_DAYS,
-        "expiry_day_names": ["Wednesday", "Thursday"],
+        "trading_days": "Every Day",
         "instruments": {k: {"lot_size": v["lot_size"], "exchange": v["exchange"]} for k, v in INSTRUMENTS.items()},
     }
 

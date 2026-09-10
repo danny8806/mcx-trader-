@@ -184,10 +184,7 @@ def get_current_premiums(trade: OptionTrade) -> dict | None:
 
 
 def run_morning_check() -> list[dict]:
-    """9:30 AM check. Returns list of trades opened."""
-    if not is_expiry_day():
-        return []
-
+    """9:30 AM check. Returns list of trades opened. Runs EVERY DAY."""
     today_count = count_today_trades()
     if today_count >= MAX_TRADES_PER_DAY:
         return []
@@ -233,7 +230,7 @@ def get_status() -> dict:
     today_trades = get_today_trades()
 
     return {
-        "status": "RUNNING" if is_expiry_day() else "CLOSED",
+        "status": "RUNNING",
         "open_count": len(open_trades),
         "today_count": len(today_trades),
         "today_pnl": get_today_pnl(),

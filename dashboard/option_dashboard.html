@@ -85,7 +85,7 @@ tr:hover td { background:rgba(129,140,248,0.03); }
     <span class="badge badge-dim" id="poll-badge"><span class="polling-indicator"></span> LIVE</span>
     <span class="badge badge-dim" id="day-badge">--</span>
     <span class="badge badge-dim" id="session-badge">--</span>
-    <span class="badge badge-dim" id="expiry-badge">--</span>
+    <span class="badge badge-green" id="trading-badge">EVERY DAY</span>
     <span class="badge badge-dim" id="scheduler-badge">--</span>
   </div>
 </div>
@@ -300,7 +300,7 @@ async function fetchMeta() {
       ['Entry Time', cfg.entry_time],
       ['Recheck', cfg.recheck_time],
       ['EOD Exit', cfg.eod_exit_time],
-      ['Expiry Days', cfg.expiry_day_names.join(', ')],
+      ['Trading Days', cfg.trading_days],
       ['NIFTY Lot', cfg.instruments.NIFTY.lot_size],
       ['SENSEX Lot', cfg.instruments.SENSEX.lot_size],
     ].map(([l,v]) => `<div class="config-item"><span class="label">${l}</span><span class="value">${v}</span></div>`).join('');
