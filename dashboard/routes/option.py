@@ -1,13 +1,27 @@
 """Option paper trading API routes. Simple endpoints for dashboard."""
 from __future__ import annotations
 
+import os
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from option import database as db
 from option import trader
 
 router = APIRouter(prefix="/api/options", tags=["options"])
+
+# Standalone option dashboard
+_HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "option_dashboard.html")
+
+@router.get("/dashboard", response_class=HTMLResponse)
+def option_dashboard():
+    """Standalone option selling dashboard page."""
+    try:
+        with open(_HTML_PATH, encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Dashboard file not found</h1>", status_code=500)
 
 
 class TradeResponse(BaseModel):
