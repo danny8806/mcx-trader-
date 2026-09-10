@@ -33,7 +33,7 @@ def _load_token() -> str:
 def _headers() -> dict:
     t = _load_token()
     if t:
-        return {"access-token": t, "Content-Type": "application/json"}
+        return {"access-token": t, "Content-Type": "application/json", "client-id": CLIENT_ID}
     raise RuntimeError("No Dhan access token - MCX engine handles renewal")
 
 
