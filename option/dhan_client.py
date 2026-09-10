@@ -85,12 +85,13 @@ def _renew_token() -> str:
 
 def _headers() -> dict:
     t = _load_token()
-    if not t:
-        # Try auto-renew
-        t = _renew_token()
-    if not t:
-        raise RuntimeError("No Dhan access token found and cannot auto-renew")
-    return {"access-token": t, "Content-Type": "application/json"}
+    if t:
+        return {"access-token": t, "Content-Type": "application/json"}
+    # No cached token, try auto-renew
+    t = _renew_token()
+    if t:
+        return {"access-token": t, "Content-Type": "application/json"}
+    raise RuntimeError("No Dhan access token found and cannot auto-renew")
 
 
 def _post(path: str, payload: dict) -> dict:
@@ -100,32 +101,30 @@ def _post(path: str, payload: dict) -> dict:
             if r.status_code == 200:
                 j = r.json()
                 if j.get("errorType") == "Authentication_Failed":
-                    # Token might be expired, try renew
                     print(f"[Option-Auth] Auth failed on {path}, attempting token renewal...")
                     new_tok = _renew_token()
                     if new_tok:
                         r = _session.post(BASE + path, json=payload, headers=_headers(), timeout=15)
                         if r.status_code == 200:
                             return r.json()
-                    raise RuntimeError(f"Auth failed: {path}")
+                    return {"error": "Authentication_Failed", "data": None}
                 return j
             if r.status_code == 429:
                 time.sleep(2.0)
                 continue
             if r.status_code == 401:
-                # Unauthorized — try token renewal
                 print(f"[Option-Auth] 401 on {path}, attempting token renewal...")
                 new_tok = _renew_token()
                 if new_tok:
                     r = _session.post(BASE + path, json=payload, headers=_headers(), timeout=15)
                     if r.status_code == 200:
                         return r.json()
-                raise RuntimeError(f"Unauthorized: {path}")
+                return {"error": "Unauthorized", "data": None}
         except requests.RequestException as e:
             if attempt == 2:
-                raise
+                return {"error": str(e), "data": None}
             time.sleep(1.0)
-    raise RuntimeError(f"Dhan API failed: {path}")
+    return {"error": "Dhan API failed", "data": None}
 
 
 def get_expiry_list(underlying_scrip: int) -> list[str]:
