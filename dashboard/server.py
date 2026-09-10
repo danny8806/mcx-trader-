@@ -356,10 +356,10 @@ from starlette.responses import FileResponse, JSONResponse
 _frontend_dist = Path(__file__).resolve().parent.parent / "dashboard-ui" / "dist"
 _frontend_available = _frontend_dist.exists()
 
-# Register all routers
-for r in [overview, strategies, positions, orders, trades, pnl, market_data,
+# Register all routers — option_routes FIRST to avoid {env} collision
+for r in [option_routes, overview, strategies, positions, orders, trades, pnl, market_data,
           risk, health, replay, reconciliation, alerts, settings, audit_log, indicators,
-          env_switch, option_routes]:
+          env_switch]:
     app.include_router(r.router)
 
 # Register analytics router

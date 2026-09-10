@@ -55,6 +55,7 @@ COPY monitoring/ ./monitoring/
 COPY analytics/ ./analytics/
 COPY reconciliation/ ./reconciliation/
 COPY dashboard/ ./dashboard/
+COPY option/ ./option/
 
 # Copy built frontend
 COPY --from=frontend-build /app/frontend/dist ./dashboard-ui/dist
