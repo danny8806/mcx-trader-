@@ -12,6 +12,8 @@ _scheduler_thread = None
 _running = False
 
 _today_checks_done = set()
+MAX_RETRIES = 2
+RETRY_DELAY = 30
 
 
 def _safe_run(fn, name: str):
@@ -20,48 +22,82 @@ def _safe_run(fn, name: str):
         return fn()
     except Exception as e:
         print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — ERROR in {name}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
 def _scheduled_check():
-    """Run morning check."""
+    """Run morning check with retry."""
     today = date.today().isoformat()
     if today in _today_checks_done:
         return
-    print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running morning check")
-    trades = _safe_run(trader.run_morning_check, "morning_check")
-    if trades:
-        for t in trades:
-            print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
-    else:
-        print("[Option] No trades opened (or API error)")
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Morning check (attempt {attempt}/{MAX_RETRIES})")
+        trades = _safe_run(trader.run_morning_check, "morning_check")
+        if trades is not None:
+            if trades:
+                for t in trades:
+                    print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
+            else:
+                print("[Option] No trades opened")
+            _today_checks_done.add(today)
+            return
+
+        if attempt < MAX_RETRIES:
+            print(f"[Option] Check failed, retrying in {RETRY_DELAY}s...")
+            time.sleep(RETRY_DELAY)
+
+    print("[Option] Morning check failed after all retries")
     _today_checks_done.add(today)
 
 
 def _scheduled_recheck():
-    """Run 10 AM recheck."""
+    """Run 10 AM recheck with retry."""
     today = date.today().isoformat()
     if today in _today_checks_done:
         return
-    print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running recheck")
-    trades = _safe_run(trader.run_recheck, "recheck")
-    if trades:
-        for t in trades:
-            print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
-    else:
-        print("[Option] No trades opened (or API error)")
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Recheck (attempt {attempt}/{MAX_RETRIES})")
+        trades = _safe_run(trader.run_recheck, "recheck")
+        if trades is not None:
+            if trades:
+                for t in trades:
+                    print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
+            else:
+                print("[Option] No trades opened")
+            _today_checks_done.add(today)
+            return
+
+        if attempt < MAX_RETRIES:
+            print(f"[Option] Recheck failed, retrying in {RETRY_DELAY}s...")
+            time.sleep(RETRY_DELAY)
+
+    print("[Option] Recheck failed after all retries")
     _today_checks_done.add(today)
 
 
 def _scheduled_exit():
-    """Run EOD exit."""
+    """Run EOD exit with retry."""
     print(f"[Option] {datetime.now().strftime('%H:%M:%S')} — Running EOD exit")
-    results = _safe_run(trader.run_eod_exit, "eod_exit")
-    if results:
-        for r in results:
-            print(f"[Option] CLOSED: {r['underlying']} {r['strike']} — P&L: Rs {r['pnl']:,.0f} ({r['reason']})")
-    else:
-        print("[Option] No trades to exit (or API error)")
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"[Option] EOD exit (attempt {attempt}/{MAX_RETRIES})")
+        results = _safe_run(trader.run_eod_exit, "eod_exit")
+        if results is not None:
+            if results:
+                for r in results:
+                    print(f"[Option] CLOSED: {r['underlying']} {r['strike']} — P&L: Rs {r['pnl']:,.0f} ({r['reason']})")
+            else:
+                print("[Option] No trades to exit")
+            return
+
+        if attempt < MAX_RETRIES:
+            print(f"[Option] EOD exit failed, retrying in {RETRY_DELAY}s...")
+            time.sleep(RETRY_DELAY)
+
+    print("[Option] EOD exit failed after all retries")
 
 
 def _catch_up():

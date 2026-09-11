@@ -53,16 +53,6 @@ tr:hover td { background:rgba(129,140,248,0.03); }
 .table-scroll { max-height:350px; overflow-y:auto; }
 .table-scroll::-webkit-scrollbar { width:4px; }
 .table-scroll::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
-.chain-row { display:grid; grid-template-columns: 70px 1fr 1fr 80px 1fr 1fr; gap:0; border-bottom:1px solid rgba(30,30,42,0.3); align-items:center; }
-.chain-header { font-size:9px; text-transform:uppercase; color:var(--dim); font-weight:600; padding:4px 8px; }
-.chain-cell { padding:4px 8px; font-size:11px; }
-.chain-atm { background:rgba(129,140,248,0.06); }
-.chain-selected { background:rgba(34,197,94,0.06); border-left:2px solid var(--green); }
-.oi-bar { height:3px; border-radius:1px; margin-top:2px; }
-.ce-bar { background:var(--red); } .pe-bar { background:var(--green); }
-.signal-box { padding:10px; border-radius:4px; border:1px solid var(--border); background:rgba(129,140,248,0.04); margin-top:8px; }
-.signal-box.ready { border-color:rgba(34,197,94,0.3); background:rgba(34,197,94,0.04); }
-.signal-box.not-ready { border-color:rgba(239,68,68,0.2); background:rgba(239,68,68,0.03); }
 .polling-indicator { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 .config-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; }
@@ -72,9 +62,6 @@ tr:hover td { background:rgba(129,140,248,0.03); }
 #loading { text-align:center; padding:60px; color:var(--dim); font-size:13px; }
 .pnl-big { font-size:28px; font-weight:700; text-align:center; padding:8px 0; }
 .pnl-sub { font-size:10px; color:var(--dim); text-align:center; }
-.underlying-card { text-align:center; }
-.underlying-card .name { font-size:14px; font-weight:700; margin-bottom:4px; }
-.underlying-card .spot { font-size:22px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -91,6 +78,15 @@ tr:hover td { background:rgba(129,140,248,0.03); }
 </div>
 
 <div class="container">
+
+  <!-- Stale Premium Warning -->
+  <div class="card" style="border-color:rgba(234,179,8,0.3); background:rgba(234,179,8,0.05); margin-bottom:12px; padding:10px 14px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="color:var(--yellow); font-size:12px;">⚠</span>
+      <span style="color:var(--yellow); font-size:11px; font-weight:600;">Note:</span>
+      <span style="color:var(--dim); font-size:11px;">Option chain LTP may be delayed by 1-3 seconds. Exit premiums could show as unchanged if market is flat.</span>
+    </div>
+  </div>
 
   <!-- Row 1: Market Status -->
   <div class="row row-2">
@@ -118,20 +114,6 @@ tr:hover td { background:rgba(129,140,248,0.03); }
     <div class="card">
       <div class="card-title">Strategy Config</div>
       <div class="config-grid" id="config-grid">Loading...</div>
-    </div>
-  </div>
-
-  <!-- Row 2: Spot Prices -->
-  <div class="row row-2">
-    <div class="card underlying-card">
-      <div class="name">NIFTY</div>
-      <div class="spot" id="nifty-spot">--</div>
-      <div class="metric-sub" id="nifty-expiry">--</div>
-    </div>
-    <div class="card underlying-card">
-      <div class="name">SENSEX</div>
-      <div class="spot" id="sensex-spot">--</div>
-      <div class="metric-sub" id="sensex-expiry">--</div>
     </div>
   </div>
 
@@ -169,35 +151,7 @@ tr:hover td { background:rgba(129,140,248,0.03); }
     </div>
   </div>
 
-  <!-- Row 4: Live OI Chain NIFTY -->
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div class="card-title" style="margin:0;">Live OI Chain — NIFTY</div>
-      <div class="btn-group">
-        <button class="btn btn-blue" onclick="refreshChain('NIFTY')">Refresh</button>
-      </div>
-    </div>
-    <div class="signal-box" id="nifty-signal">Loading...</div>
-    <div class="table-scroll" style="margin-top:8px;">
-      <div id="nifty-chain">Loading...</div>
-    </div>
-  </div>
-
-  <!-- Row 5: Live OI Chain SENSEX -->
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div class="card-title" style="margin:0;">Live OI Chain — SENSEX</div>
-      <div class="btn-group">
-        <button class="btn btn-blue" onclick="refreshChain('SENSEX')">Refresh</button>
-      </div>
-    </div>
-    <div class="signal-box" id="sensex-signal">Loading...</div>
-    <div class="table-scroll" style="margin-top:8px;">
-      <div id="sensex-chain">Loading...</div>
-    </div>
-  </div>
-
-  <!-- Row 6: Actions -->
+  <!-- Row 4: Actions -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div class="card-title" style="margin:0;">Manual Actions</div>
@@ -265,7 +219,6 @@ const API = '/api/options';
 const fmt = v => v != null ? 'Rs ' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '--';
 const fmtN = v => v != null ? Number(v).toLocaleString('en-IN', {maximumFractionDigits:2}) : '--';
 const pnlC = v => v > 0 ? 'green' : v < 0 ? 'red' : 'dim';
-const oiPct = (v, max) => max > 0 ? (v / max * 100) : 0;
 
 // ── Fetch market + config ──
 async function fetchMeta() {
@@ -285,9 +238,6 @@ async function fetchMeta() {
     document.getElementById('day-badge').textContent = mkt.day;
     document.getElementById('session-badge').textContent = mkt.session_status;
     document.getElementById('session-badge').className = 'badge ' + (mkt.session_status==='TRADING'||mkt.session_status==='OPEN' ? 'badge-green' : 'badge-dim');
-
-    document.getElementById('expiry-badge').textContent = mkt.is_expiry_day ? 'EXPIRY DAY' : 'NON-EXPIRY';
-    document.getElementById('expiry-badge').className = 'badge ' + (mkt.is_expiry_day ? 'badge-yellow' : 'badge-dim');
 
     document.getElementById('scheduler-badge').textContent = st.scheduler_alive ? 'SCHEDULER ON' : 'SCHEDULER OFF';
     document.getElementById('scheduler-badge').className = 'badge ' + (st.scheduler_alive ? 'badge-green' : 'badge-red');
@@ -383,94 +333,6 @@ async function fetchHistory() {
   } catch(e) {}
 }
 
-// ── Fetch live OI chain ──
-async function refreshChain(underlying) {
-  const container = document.getElementById(underlying.toLowerCase() + '-chain');
-  const signalBox = document.getElementById(underlying.toLowerCase() + '-signal');
-  container.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Loading...</div>';
-
-  try {
-    const data = await fetch(API+`/chain?underlying=${underlying}`).then(r=>r.json());
-
-    if (data.error) {
-      container.innerHTML = `<div style="text-align:center;color:var(--red);padding:20px;">${data.error}</div>`;
-      signalBox.innerHTML = `<span class="red">${data.error}</span>`;
-      return;
-    }
-
-    // Update spot
-    document.getElementById(underlying.toLowerCase() + '-spot').textContent = Number(data.spot).toLocaleString('en-IN');
-    document.getElementById(underlying.toLowerCase() + '-expiry').textContent = 'Expiry: ' + data.expiry;
-
-    // Signal box
-    const isReady = data.signal_ready;
-    signalBox.className = 'signal-box ' + (isReady ? 'ready' : 'not-ready');
-    signalBox.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <b>${data.selection_reason}</b><br>
-          <span class="dim">ATM: ${data.atm} | Selected: <span class="${isReady?'green':'dim'}">${data.selected_strike}</span> | Lot: ${data.lot_size} | Exchange: ${data.exchange}</span>
-        </div>
-        <div style="text-align:right;">
-          <span class="dim">CE OI:</span> <b class="red">${(data.ce_oi_sum/100000).toFixed(1)}L</b> &nbsp;|&nbsp;
-          <span class="dim">PE OI:</span> <b class="green">${(data.pe_oi_sum/100000).toFixed(1)}L</b><br>
-          <span class="dim">PCR:</span> <b>${data.pcr}</b> &nbsp;|&nbsp;
-          <span class="dim">OI Diff:</span> <b>${(data.oi_diff/100000).toFixed(1)}L</b> / ${(data.oi_threshold/100000).toFixed(0)}L<br>
-          <span class="dim">Margin:</span> <b>${fmt(data.margin)}</b> &nbsp;
-          ${isReady ? '<span class="badge badge-green">SIGNAL READY</span>' : '<span class="badge badge-red">BELOW THRESHOLD</span>'}
-        </div>
-      </div>
-    `;
-
-    // Strike chain
-    const strikes = data.strikes;
-    const maxCE = Math.max(...strikes.map(s=>s.ce_oi), 1);
-    const maxPE = Math.max(...strikes.map(s=>s.pe_oi), 1);
-
-    // Show strikes around ATM (+/- 6)
-    const atmIdx = strikes.findIndex(s => s.strike === data.atm);
-    const start = Math.max(0, atmIdx - 6);
-    const end = Math.min(strikes.length, atmIdx + 7);
-
-    let html = `<div class="chain-row" style="border-bottom:1px solid var(--border);padding:4px 0;">
-      <div class="chain-header">Strike</div>
-      <div class="chain-header" style="text-align:right;">CE OI</div>
-      <div class="chain-header" style="text-align:right;">CE LTP</div>
-      <div class="chain-header" style="text-align:center;">Type</div>
-      <div class="chain-header" style="text-align:left;">PE OI</div>
-      <div class="chain-header" style="text-align:left;">PE LTP</div>
-    </div>`;
-
-    for (let i = start; i < end; i++) {
-      const s = strikes[i];
-      const isATM = s.strike === data.atm;
-      const isSel = s.strike === data.selected_strike;
-      let cls = 'chain-row';
-      if (isSel) cls += ' chain-selected';
-      else if (isATM) cls += ' chain-atm';
-
-      html += `<div class="${cls}">
-        <div class="chain-cell" style="font-weight:${isATM?'700':'400'};">${s.strike} ${isATM?'ATM':''} ${isSel?'SEL':''}</div>
-        <div class="chain-cell" style="text-align:right;">
-          <div style="font-size:10px;color:var(--dim);">${(s.ce_oi/100000).toFixed(1)}L</div>
-          <div class="oi-bar ce-bar" style="width:${oiPct(s.ce_oi,maxCE)*0.8}%;"></div>
-        </div>
-        <div class="chain-cell" style="text-align:right;color:var(--red);font-weight:600;">${s.ce_ltp}</div>
-        <div class="chain-cell" style="text-align:center;color:var(--dim);font-size:9px;">CE / PE</div>
-        <div class="chain-cell" style="text-align:left;">
-          <div style="font-size:10px;color:var(--dim);">${(s.pe_oi/100000).toFixed(1)}L</div>
-          <div class="oi-bar pe-bar" style="width:${oiPct(s.pe_oi,maxPE)*0.8}%;"></div>
-        </div>
-        <div class="chain-cell" style="text-align:left;color:var(--green);font-weight:600;">${s.pe_ltp}</div>
-      </div>`;
-    }
-
-    container.innerHTML = html;
-  } catch(e) {
-    container.innerHTML = `<div style="text-align:center;color:var(--red);padding:20px;">Error: ${e}</div>`;
-  }
-}
-
 // ── Actions ──
 async function doAction(action) {
   try {
@@ -482,15 +344,12 @@ async function doAction(action) {
 // ── Initial + polling ──
 async function refreshAll() {
   await Promise.all([fetchMeta(), fetchOverview(), fetchHistory()]);
-  refreshChain('NIFTY');
-  refreshChain('SENSEX');
 }
 
 refreshAll();
 setInterval(fetchMeta, 10000);
 setInterval(fetchOverview, 3000);
 setInterval(fetchHistory, 10000);
-setInterval(() => { refreshChain('NIFTY'); refreshChain('SENSEX'); }, 5000);
 </script>
 </body>
 </html>
