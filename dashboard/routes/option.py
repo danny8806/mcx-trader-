@@ -1,16 +1,16 @@
-"""Option paper trading API routes with live OI chain, market data, full dashboard."""
+"""Option paper trading API routes — market data, trades, dashboard."""
 from __future__ import annotations
 
 import os
 from datetime import datetime, date
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from option import database as db
 from option import trader
 from option.config import (
-    SL_PERCENT, OI_THRESHOLD, MAX_TRADES_PER_DAY, INSTRUMENTS, EXPIRY_DAYS,
+    SL_PERCENT, MAX_TRADES_PER_DAY, INSTRUMENTS, EXPIRY_DAYS,
     ENTRY_TIME, RECHECK_TIME, EOD_EXIT_TIME,
 )
 
@@ -82,99 +82,6 @@ def get_overview():
     )
 
 
-# ── Live OI Chain ─────────────────────────────────────────────────────
-
-@router.get("/chain")
-def get_chain(underlying: str = "NIFTY"):
-    """Live OI chain with all strikes, CE/PE OI, LTP, ATM, selected."""
-    try:
-        cfg = INSTRUMENTS.get(underlying)
-        if not cfg:
-            raise HTTPException(400, f"Unknown underlying: {underlying}")
-
-        from option.dhan_client import get_expiry_list, get_option_chain, get_margin
-        from option.strategy import parse_option_chain
-
-        expiries = get_expiry_list(cfg["scrip"])
-        if not expiries:
-            return {"error": "No expiry found", "underlying": underlying}
-
-        expiry = expiries[0]
-        chain = get_option_chain(cfg["scrip"], expiry)
-        if not chain:
-            return {"error": "No option chain data", "underlying": underlying}
-
-        spot = chain.get("last_price", 0)
-        oc = chain.get("oc", {})
-
-        strikes = []
-        for strike_str, opts in oc.items():
-            strike = float(strike_str)
-            ce = opts.get("ce", {})
-            pe = opts.get("pe", {})
-            strikes.append({
-                "strike": strike,
-                "ce_sec": ce.get("security_id"),
-                "ce_ltp": ce.get("last_price", 0),
-                "ce_oi": ce.get("oi", 0),
-                "pe_sec": pe.get("security_id"),
-                "pe_ltp": pe.get("last_price", 0),
-                "pe_oi": pe.get("oi", 0),
-            })
-
-        strikes.sort(key=lambda x: x["strike"])
-
-        if not strikes:
-            return {"error": "No strikes", "underlying": underlying}
-
-        # Find ATM
-        atm_strike = min(strikes, key=lambda x: abs(x["strike"] - spot))["strike"]
-        atm_idx = next(i for i, s in enumerate(strikes) if s["strike"] == atm_strike)
-
-        # OI sums
-        ce_oi_sum = sum(strikes[atm_idx + i]["ce_oi"] for i in range(4) if atm_idx + i < len(strikes))
-        pe_oi_sum = sum(strikes[atm_idx - i]["pe_oi"] for i in range(4) if atm_idx - i >= 0)
-        pcr = pe_oi_sum / ce_oi_sum if ce_oi_sum > 0 else 0
-
-        # Selection
-        if ce_oi_sum > pe_oi_sum:
-            sel_idx = atm_idx - 2 if atm_idx - 2 >= 0 else 0
-            sel_reason = f"CE OI ({ce_oi_sum:,}) > PE OI ({pe_oi_sum:,}) -> ATM-2"
-        else:
-            sel_idx = atm_idx + 2 if atm_idx + 2 < len(strikes) else len(strikes) - 1
-            sel_reason = f"PE OI ({pe_oi_sum:,}) > CE OI ({ce_oi_sum:,}) -> ATM+2"
-
-        selected_strike = strikes[sel_idx]["strike"]
-
-        # Margins
-        ce_margin = get_margin(str(strikes[sel_idx]["ce_sec"]), cfg["lot_size"], cfg["exchange"])
-        pe_margin = get_margin(str(strikes[sel_idx]["pe_sec"]), cfg["lot_size"], cfg["exchange"])
-        margin = ce_margin + pe_margin
-
-        return {
-            "underlying": underlying,
-            "spot": spot,
-            "expiry": expiry,
-            "atm": atm_strike,
-            "selected_strike": selected_strike,
-            "ce_oi_sum": ce_oi_sum,
-            "pe_oi_sum": pe_oi_sum,
-            "pcr": round(pcr, 4),
-            "selection_reason": sel_reason,
-            "margin": round(margin, 2),
-            "lot_size": cfg["lot_size"],
-            "exchange": cfg["exchange"],
-            "oi_diff": abs(ce_oi_sum - pe_oi_sum),
-            "oi_threshold": OI_THRESHOLD,
-            "signal_ready": abs(ce_oi_sum - pe_oi_sum) >= OI_THRESHOLD,
-            "strikes": strikes,
-        }
-    except RuntimeError as e:
-        return {"error": str(e), "underlying": underlying}
-    except Exception as e:
-        return {"error": str(e), "underlying": underlying}
-
-
 # ── Market Status ─────────────────────────────────────────────────────
 
 @router.get("/market")
@@ -218,14 +125,19 @@ def get_config():
     return {
         "sl_percent": SL_PERCENT,
         "sl_display": f"{SL_PERCENT * 100:.0f}%",
-        "oi_threshold": OI_THRESHOLD,
-        "oi_threshold_lakhs": f"{OI_THRESHOLD / 100000:.0f}L",
         "max_trades_per_day": MAX_TRADES_PER_DAY,
         "entry_time": ENTRY_TIME,
         "recheck_time": RECHECK_TIME,
         "eod_exit_time": EOD_EXIT_TIME,
         "trading_days": "Every Day",
-        "instruments": {k: {"lot_size": v["lot_size"], "exchange": v["exchange"]} for k, v in INSTRUMENTS.items()},
+        "instruments": {
+            k: {
+                "lot_size": v["lot_size"],
+                "exchange": v["exchange"],
+                "oi_threshold": v.get("oi_threshold", 5_000_000),
+                "oi_threshold_lakhs": f"{v.get('oi_threshold', 5_000_000) / 100000:.0f}L",
+            } for k, v in INSTRUMENTS.items()
+        },
     }
 
 

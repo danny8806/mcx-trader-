@@ -245,7 +245,8 @@ async function fetchMeta() {
     // Config
     const cfgHTML = [
       ['SL', cfg.sl_display],
-      ['OI Threshold', cfg.oi_threshold_lakhs],
+      ['NIFTY OI Threshold', cfg.instruments.NIFTY.oi_threshold_lakhs],
+      ['SENSEX OI Threshold', cfg.instruments.SENSEX.oi_threshold_lakhs],
       ['Max Trades/Day', cfg.max_trades_per_day],
       ['Entry Time', cfg.entry_time],
       ['Recheck', cfg.recheck_time],
