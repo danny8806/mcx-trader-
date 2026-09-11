@@ -4,15 +4,17 @@ from __future__ import annotations
 import base64
 import json
 import os
+import threading
 import time
 import requests
 
 BASE = "https://api.dhan.co/v2"
 TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "db", "dhan_token.json")
-CLIENT_ID = os.environ.get("DHAN_CLIENT_ID", "1102461741")
+CLIENT_ID = os.environ.get("DHAN_CLIENT_ID", "")
 
 _token_cache = None
 _token_ts = 0.0
+_token_lock = threading.Lock()
 _session = requests.Session()
 _session.headers.update({"Content-Type": "application/json"})
 
@@ -20,14 +22,20 @@ _session.headers.update({"Content-Type": "application/json"})
 def _load_token() -> str:
     global _token_cache, _token_ts
     now = time.monotonic()
-    if _token_cache and (now - _token_ts) < 30:
-        return _token_cache
+    with _token_lock:
+        if _token_cache and (now - _token_ts) < 30:
+            return _token_cache
     try:
         with open(TOKEN_FILE) as f:
-            _token_cache = json.load(f).get("access_token", "")
+            token = json.load(f).get("access_token", "")
+        with _token_lock:
+            _token_cache = token
             _token_ts = now
-            return _token_cache
+        return token
     except Exception:
+        with _token_lock:
+            _token_cache = ""
+            _token_ts = now
         return ""
 
 
@@ -128,10 +136,3 @@ def get_margin(security_id: str, quantity: int, exchange: str = "NSE_FNO") -> fl
     if margin == 0:
         print(f"[dhan:margin] Zero margin for sec={security_id} qty={quantity}")
     return margin
-
-
-def get_spot_price(underlying_scrip: int, expiry: str) -> float:
-    data = get_option_chain(underlying_scrip, expiry)
-    if data:
-        return data.get("last_price", 0)
-    return 0

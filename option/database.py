@@ -1,26 +1,40 @@
-"""Option paper trading database. SQLite with simple schema."""
+"""Option paper trading database. SQLite with shared connection."""
 from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime, date
+import threading
+from datetime import date
 from dataclasses import dataclass
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "db", "option_paper_trading.db")
+DB_PATH = os.getenv("OPTION_DB_PATH") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "data", "db", "option_paper_trading.db")
+
+_conn = None
+_conn_lock = threading.Lock()
+
+
+def _get_conn() -> sqlite3.Connection:
+    global _conn
+    with _conn_lock:
+        if _conn is not None:
+            return _conn
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        _conn.execute("PRAGMA journal_mode=WAL")
+        _conn.execute("PRAGMA foreign_keys=ON")
+        _conn.row_factory = sqlite3.Row
+        return _conn
 
 
 def get_db() -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Return the shared connection (legacy API)."""
+    return _get_conn()
 
 
 def init_db():
     """Create tables if they don't exist."""
-    conn = get_db()
+    conn = _get_conn()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS option_trades (
             trade_id TEXT PRIMARY KEY,
@@ -53,7 +67,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_option_trades_date ON option_trades(entry_time);
     """)
     conn.commit()
-    conn.close()
 
 
 @dataclass
@@ -84,90 +97,82 @@ class OptionTrade:
 
 
 def save_trade(trade: OptionTrade):
-    conn = get_db()
-    conn.execute("""
-        INSERT OR REPLACE INTO option_trades
-        (trade_id, underlying, expiry, strike, ce_security_id, pe_security_id,
-         entry_time, entry_ce_premium, entry_pe_premium, entry_credit,
-         quantity, lot_size, margin, sl_amount, status, pcr, selection_reason, spot_at_entry)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        trade.trade_id, trade.underlying, trade.expiry, trade.strike,
-        trade.ce_security_id, trade.pe_security_id,
-        trade.entry_time, trade.entry_ce_premium, trade.entry_pe_premium,
-        trade.entry_credit, trade.quantity, trade.lot_size,
-        trade.margin, trade.sl_amount, trade.status,
-        trade.pcr, trade.selection_reason, trade.spot_at_entry
-    ))
-    conn.commit()
-    conn.close()
+    conn = _get_conn()
+    with conn:
+        conn.execute("""
+            INSERT OR IGNORE INTO option_trades
+            (trade_id, underlying, expiry, strike, ce_security_id, pe_security_id,
+             entry_time, entry_ce_premium, entry_pe_premium, entry_credit,
+             quantity, lot_size, margin, sl_amount, status, pcr, selection_reason, spot_at_entry)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            trade.trade_id, trade.underlying, trade.expiry, trade.strike,
+            trade.ce_security_id, trade.pe_security_id,
+            trade.entry_time, trade.entry_ce_premium, trade.entry_pe_premium,
+            trade.entry_credit, trade.quantity, trade.lot_size,
+            trade.margin, trade.sl_amount, trade.status,
+            trade.pcr, trade.selection_reason, trade.spot_at_entry
+        ))
 
 
 def close_trade(trade_id: str, exit_time: str, exit_ce: float, exit_pe: float, pnl: float, reason: str):
-    conn = get_db()
-    conn.execute("""
-        UPDATE option_trades SET
-        exit_time=?, exit_ce_premium=?, exit_pe_premium=?,
-        exit_pnl=?, status='CLOSED', exit_reason=?
-        WHERE trade_id=?
-    """, (exit_time, exit_ce, exit_pe, pnl, reason, trade_id))
-    conn.commit()
-    conn.close()
+    conn = _get_conn()
+    with conn:
+        conn.execute("""
+            UPDATE option_trades SET
+            exit_time=?, exit_ce_premium=?, exit_pe_premium=?,
+            exit_pnl=?, status='CLOSED', exit_reason=?
+            WHERE trade_id=?
+        """, (exit_time, exit_ce, exit_pe, pnl, reason, trade_id))
 
 
 def get_open_trades() -> list[OptionTrade]:
-    conn = get_db()
+    conn = _get_conn()
     rows = conn.execute("SELECT * FROM option_trades WHERE status='OPEN'").fetchall()
-    conn.close()
     return [_row_to_trade(r) for r in rows]
 
 
 def get_today_trades() -> list[OptionTrade]:
     today = date.today().isoformat()
-    conn = get_db()
+    conn = _get_conn()
     rows = conn.execute(
         "SELECT * FROM option_trades WHERE entry_time LIKE ?", (f"{today}%",)
     ).fetchall()
-    conn.close()
     return [_row_to_trade(r) for r in rows]
 
 
 def get_trade_history(limit: int = 100) -> list[OptionTrade]:
-    conn = get_db()
+    conn = _get_conn()
     rows = conn.execute(
         "SELECT * FROM option_trades ORDER BY entry_time DESC LIMIT ?", (limit,)
     ).fetchall()
-    conn.close()
     return [_row_to_trade(r) for r in rows]
 
 
 def get_today_pnl() -> float:
     today = date.today().isoformat()
-    conn = get_db()
+    conn = _get_conn()
     row = conn.execute(
         "SELECT COALESCE(SUM(exit_pnl), 0) FROM option_trades WHERE entry_time LIKE ? AND status='CLOSED'",
         (f"{today}%",)
     ).fetchone()
-    conn.close()
     return row[0] if row else 0.0
 
 
 def get_total_pnl() -> float:
-    conn = get_db()
+    conn = _get_conn()
     row = conn.execute("SELECT COALESCE(SUM(exit_pnl), 0) FROM option_trades WHERE status='CLOSED'").fetchone()
-    conn.close()
     return row[0] if row else 0.0
 
 
 def get_win_rate() -> float:
-    conn = get_db()
+    conn = _get_conn()
     row = conn.execute("""
         SELECT
             COALESCE(SUM(CASE WHEN exit_pnl > 0 THEN 1 ELSE 0 END), 0) as wins,
             COUNT(*) as total
         FROM option_trades WHERE status='CLOSED'
     """).fetchone()
-    conn.close()
     if row and row[1] > 0:
         return row[0] / row[1] * 100
     return 0.0
@@ -175,11 +180,10 @@ def get_win_rate() -> float:
 
 def count_today_trades() -> int:
     today = date.today().isoformat()
-    conn = get_db()
+    conn = _get_conn()
     row = conn.execute(
         "SELECT COUNT(*) FROM option_trades WHERE entry_time LIKE ?", (f"{today}%",)
     ).fetchone()
-    conn.close()
     return row[0] if row else 0
 
 

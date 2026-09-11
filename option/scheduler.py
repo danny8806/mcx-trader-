@@ -5,13 +5,15 @@ import threading
 import time
 from datetime import datetime, date
 
+from option.config import ENTRY_TIME, RECHECK_TIME, EOD_EXIT_TIME
 from option import trader
 
 
 _scheduler_thread = None
 _running = False
 
-_today_checks_done = set()
+_today_check_done = set()
+_today_recheck_done = set()
 MAX_RETRIES = 2
 RETRY_DELAY = 30
 
@@ -30,7 +32,7 @@ def _safe_run(fn, name: str):
 def _scheduled_check():
     """Run morning check with retry."""
     today = date.today().isoformat()
-    if today in _today_checks_done:
+    if today in _today_check_done:
         return
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -42,7 +44,7 @@ def _scheduled_check():
                     print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
             else:
                 print("[Option] No trades opened")
-            _today_checks_done.add(today)
+            _today_check_done.add(today)
             return
 
         if attempt < MAX_RETRIES:
@@ -50,13 +52,13 @@ def _scheduled_check():
             time.sleep(RETRY_DELAY)
 
     print("[Option] Morning check failed after all retries")
-    _today_checks_done.add(today)
+    _today_check_done.add(today)
 
 
 def _scheduled_recheck():
-    """Run 10 AM recheck with retry."""
+    """Run 10 AM recheck with retry. Independent of morning check status."""
     today = date.today().isoformat()
-    if today in _today_checks_done:
+    if today in _today_recheck_done:
         return
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -68,7 +70,7 @@ def _scheduled_recheck():
                     print(f"[Option] OPENED: {t['underlying']} {t['strike']} — Margin: Rs {t['margin']:,.0f}")
             else:
                 print("[Option] No trades opened")
-            _today_checks_done.add(today)
+            _today_recheck_done.add(today)
             return
 
         if attempt < MAX_RETRIES:
@@ -76,7 +78,7 @@ def _scheduled_recheck():
             time.sleep(RETRY_DELAY)
 
     print("[Option] Recheck failed after all retries")
-    _today_checks_done.add(today)
+    _today_recheck_done.add(today)
 
 
 def _scheduled_exit():
@@ -100,19 +102,26 @@ def _scheduled_exit():
     print("[Option] EOD exit failed after all retries")
 
 
+def _parse_time(t: str) -> tuple[int, int]:
+    """Parse 'HH:MM' string to (hour, minute)."""
+    parts = t.split(":")
+    return int(parts[0]), int(parts[1])
+
+
 def _catch_up():
     """If started mid-day, run any missed checks."""
     now = datetime.now()
     today = date.today().isoformat()
     h, m = now.hour, now.minute
 
-    # If it's past 09:30 but no check done today, run it
-    if (h > 9 or (h == 9 and m >= 30)) and today not in _today_checks_done:
+    entry_h, entry_m = _parse_time(ENTRY_TIME)
+    recheck_h, recheck_m = _parse_time(RECHECK_TIME)
+
+    if (h > entry_h or (h == entry_h and m >= entry_m)) and today not in _today_check_done:
         print(f"[Option] {now.strftime('%H:%M:%S')} — Catch-up: running missed morning check")
         _scheduled_check()
 
-    # If it's past 10:00 but no recheck done today, run it
-    if (h > 10 or (h == 10 and m >= 0)) and today not in _today_checks_done:
+    if (h > recheck_h or (h == recheck_h and m >= recheck_m)) and today not in _today_recheck_done:
         print(f"[Option] {now.strftime('%H:%M:%S')} — Catch-up: running missed recheck")
         _scheduled_recheck()
 
@@ -121,13 +130,12 @@ def _run_loop():
     """Simple scheduler loop using time checks."""
     import schedule
 
-    schedule.every().day.at("09:30").do(_scheduled_check)
-    schedule.every().day.at("10:00").do(_scheduled_recheck)
-    schedule.every().day.at("15:15").do(_scheduled_exit)
+    schedule.every().day.at(ENTRY_TIME).do(_scheduled_check)
+    schedule.every().day.at(RECHECK_TIME).do(_scheduled_recheck)
+    schedule.every().day.at(EOD_EXIT_TIME).do(_scheduled_exit)
 
-    print("[Option] Scheduler started — 09:30 check, 10:00 recheck, 15:15 exit")
+    print(f"[Option] Scheduler started — {ENTRY_TIME} check, {RECHECK_TIME} recheck, {EOD_EXIT_TIME} exit")
 
-    # Run catch-up on start
     _safe_run(_catch_up, "catch_up")
 
     while _running:

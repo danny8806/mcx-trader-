@@ -1,7 +1,7 @@
 """OI-based option selling strategy. Logic from option_selling_strategy.py."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

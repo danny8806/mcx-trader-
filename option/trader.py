@@ -1,11 +1,10 @@
 """Simple option paper trader. Strategy -> Signal -> Trade -> Monitor -> Exit."""
 from __future__ import annotations
 
-import time
 import uuid
 from datetime import datetime, date
 
-from option.config import SL_PERCENT, MAX_TRADES_PER_DAY, INSTRUMENTS
+from option.config import SL_PERCENT, MAX_TRADES_PER_DAY, INSTRUMENTS, EXPIRY_DAYS
 from option.dhan_client import get_expiry_list, get_option_chain, get_margin, is_token_valid
 from option.strategy import parse_option_chain, StrategySignal
 from option.database import (
@@ -18,7 +17,16 @@ init_db()
 
 def is_expiry_day(d: date | None = None) -> bool:
     d = d or date.today()
-    return d.weekday() in (2, 3)
+    return d.weekday() in EXPIRY_DAYS
+
+
+def _validate_security_ids(signal: StrategySignal) -> bool:
+    """Return True if both ce_sec and pe_sec are valid non-None strings."""
+    if not signal.ce_sec or not signal.pe_sec:
+        print(f"[signal:{signal.underlying}] Missing security ID: "
+              f"ce_sec={signal.ce_sec!r} pe_sec={signal.pe_sec!r}")
+        return False
+    return True
 
 
 def get_signal(underlying: str) -> StrategySignal | None:
@@ -29,7 +37,6 @@ def get_signal(underlying: str) -> StrategySignal | None:
         print(f"{tag} Unknown underlying")
         return None
 
-    # Check token first
     valid, reason = is_token_valid()
     if not valid:
         print(f"{tag} Token invalid: {reason}")
@@ -55,10 +62,13 @@ def get_signal(underlying: str) -> StrategySignal | None:
 
     signal = parse_option_chain(chain, cfg["lot_size"], cfg["exchange"], underlying)
     if not signal:
-        print(f"{tag} No signal (OI threshold not met or parse failed)")
+        print(f"{tag} No signal (parse failed)")
         return None
 
     signal.expiry = expiry
+
+    if not _validate_security_ids(signal):
+        return None
 
     oi_diff = abs(signal.ce_oi - signal.pe_oi)
     oi_threshold = cfg.get("oi_threshold", 5_000_000)
@@ -69,7 +79,6 @@ def get_signal(underlying: str) -> StrategySignal | None:
         print(f"{tag} OI diff {oi_diff:,} < threshold {oi_threshold:,} — no trade")
         return None
 
-    # Calculate margin
     print(f"{tag} Calculating margin...")
     ce_margin = get_margin(signal.ce_sec, cfg["lot_size"], cfg["exchange"])
     pe_margin = get_margin(signal.pe_sec, cfg["lot_size"], cfg["exchange"])
@@ -84,7 +93,6 @@ def open_trade(signal: StrategySignal) -> OptionTrade:
     trade_id = f"OPT-{uuid.uuid4().hex[:8].upper()}"
     entry_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Entry credit = premium received from selling
     entry_credit = (signal.ce_ltp + signal.pe_ltp) * signal.lot_size
     sl_amount = signal.margin * SL_PERCENT
 
@@ -130,9 +138,13 @@ def check_and_exit() -> list[dict]:
 
     for trade in open_trades:
         tag = f"[exit:{trade.trade_id[:12]}]"
-        # Fetch current premiums
         try:
-            chain = get_option_chain(INSTRUMENTS[trade.underlying]["scrip"], trade.expiry)
+            cfg = INSTRUMENTS.get(trade.underlying)
+            if not cfg:
+                print(f"{tag} Unknown underlying {trade.underlying} — skipping")
+                continue
+
+            chain = get_option_chain(cfg["scrip"], trade.expiry)
             if not chain:
                 print(f"{tag} Cannot fetch chain — skipping")
                 continue
@@ -148,12 +160,10 @@ def check_and_exit() -> list[dict]:
             print(f"{tag} Error fetching premiums: {e}")
             continue
 
-        # P&L: (entry_premium - current_premium) x quantity
         ce_pnl = (trade.entry_ce_premium - current_ce) * trade.quantity
         pe_pnl = (trade.entry_pe_premium - current_pe) * trade.quantity
         total_pnl = ce_pnl + pe_pnl
 
-        # Detect stale premiums
         stale = (current_ce == trade.entry_ce_premium and current_pe == trade.entry_pe_premium)
         if stale:
             print(f"{tag} WARNING: Exit premiums SAME as entry (CE={current_ce} PE={current_pe}) — possible stale data")
@@ -164,12 +174,9 @@ def check_and_exit() -> list[dict]:
 
         exit_reason = None
 
-        # Check SL: if loss > sl_amount
         if total_pnl < 0 and abs(total_pnl) >= trade.sl_amount:
             exit_reason = "SL"
             print(f"{tag} SL HIT: loss {abs(total_pnl):,.0f} >= SL {trade.sl_amount:,.0f}")
-
-        # Check EOD
         elif is_eod:
             exit_reason = "EOD"
             print(f"{tag} EOD EXIT")
@@ -220,7 +227,8 @@ def get_current_premiums(trade: OptionTrade) -> dict | None:
             "pe_pnl": pe_pnl,
             "total_pnl": ce_pnl + pe_pnl,
         }
-    except Exception:
+    except Exception as e:
+        print(f"[premiums] Error: {e}")
         return None
 
 
@@ -232,7 +240,6 @@ def run_morning_check() -> list[dict]:
         print(f"[check] Already {today_count} trades today (max {MAX_TRADES_PER_DAY})")
         return []
 
-    # Token check first
     valid, reason = is_token_valid()
     if not valid:
         print(f"[check] BLOCKED: Token invalid — {reason}")
